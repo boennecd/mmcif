@@ -17,8 +17,8 @@
 class param_indexer {
   size_t v_n_cov_risk{0}, v_n_cov_traject{0}, v_n_causes{0};
   static constexpr size_t risk_param_start{0};
-  size_t time_param_start{risk_param_start + n_cov_risk() * n_causes()},
-         vcov_start{time_param_start + n_cov_traject() * n_causes()};
+  size_t traject_param_start{risk_param_start + n_cov_risk() * n_causes()},
+         vcov_start{traject_param_start + n_cov_traject() * n_causes()};
 
 public:
   param_indexer
@@ -48,17 +48,17 @@ public:
     return risk_param_start + cause * n_cov_risk();
   }
 
-  /// returns the index of the covariates for the time-to-event outcomes
-  size_t surv() const {
-    return time_param_start;
+  /// returns the index of the covariates for the trajectories
+  size_t traject() const {
+    return traject_param_start;
   }
 
   /**
-   * returns the index of the covariates for the time-to-event outcome for the
-   * given risk. Cause is zero indexed.
+   * returns the index of the covariates for the trajectory for the given cause.
+   * Cause is zero indexed.
    */
-  size_t surv(size_t const cause) const {
-    return time_param_start + cause * n_cov_traject();
+  size_t traject(size_t const cause) const {
+    return traject_param_start + cause * n_cov_traject();
   }
 
   /// returns the index for the covariance parameter
@@ -69,8 +69,9 @@ public:
   /// returns the number of parameters
   template<bool upper_tri>
   size_t n_par() const {
-    return upper_tri ? vcov_start + (n_causes() * (n_causes() + 1)) / 2
-                     : vcov_start + n_causes() * n_causes();
+    auto const vcov_dim = 2 * n_causes();
+    return upper_tri ? vcov_start + (vcov_dim * (vcov_dim + 1)) / 2
+                     : vcov_start + vcov_dim * vcov_dim;
   }
 
   /// returns a string with the names for parameters
@@ -90,14 +91,15 @@ public:
       for(size_t i = 1; i <= n_cov_traject(); ++i)
         out.emplace_back("gamma" + add_brackets(i, k));
 
+    auto const vcov_dim = 2 * n_causes();
     if constexpr (upper_tri){
       size_t counter{};
-      for(size_t counter = 0; counter < (n_causes() * (n_causes() + 1)) / 2;)
+      for(size_t counter = 0; counter < (vcov_dim * (vcov_dim + 1)) / 2;)
         out.emplace_back("vcov[" + std::to_string(++counter) + "]");
 
     } else {
-      for(size_t j = 1; j <= n_causes(); ++j)
-        for(size_t i = 1; i <= n_causes(); ++i)
+      for(size_t j = 1; j <= vcov_dim; ++j)
+        for(size_t i = 1; i <= vcov_dim; ++i)
           out.emplace_back("vcov" + add_brackets(i, j));
 
     }
