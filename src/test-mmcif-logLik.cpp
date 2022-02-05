@@ -60,7 +60,7 @@ context("mmcif_log_Lik works as expected") {
 
      dput(gl <- fastGHQuad::gaussHermiteData(10L))
 
-# compute the log densities we need. Start with the censored where the
+# compute the log densities we need. Start with the censored case
 # trajectory probability is one
      library(ghqCpp)
      local({
@@ -86,7 +86,7 @@ context("mmcif_log_Lik works as expected") {
      mean_cond <- M[, idx_cause] *
      sum(-covs_traject_w_tine %*% coefs_traject[, cause])
      etas <- covs_risk %*% coefs_risk |> drop()
-     etas <- etas - mean_cond[1:n_causes]
+     etas <- etas + mean_cond[1:n_causes]
 
      res_integral <- mixed_mult_logit_term(
      eta = as.matrix(etas), Sigma = M[1:n_causes, 1:n_causes],
@@ -140,7 +140,7 @@ context("mmcif_log_Lik works as expected") {
       constexpr unsigned cause{2L};
       mmcif_data dat{covs_traject, d_covs_traject, covs_risk, true, cause};
       double const res{mmcif_log_Lik(par, indexer, dat, mem, ghq_dat_use)};
-      constexpr double truth{-3.76328226753652};
+      constexpr double truth{-4.26186714415087};
       expect_true(std::abs(res - truth) < std::abs(truth) * 1e-8);
     }
 
