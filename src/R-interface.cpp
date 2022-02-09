@@ -6,11 +6,33 @@
 #include "ghq.h"
 #include "wmem.h"
 
+#ifdef _OPENMP
+#include <omp.h>
+#endif
+
 using Rcpp::IntegerVector;
 using Rcpp::NumericVector;
 using Rcpp::NumericMatrix;
 
 namespace {
+
+template<class T>
+double nan_if_fail_and_parallel(T& x){
+#ifdef _OPENMP
+  bool const is_in_parallel = omp_in_parallel();
+#else
+  constexpr bool const is_in_parallel{false};
+#endif
+
+  if(is_in_parallel)
+    try {
+      return x();
+    } catch (...) {
+      return std::numeric_limits<double>::quiet_NaN();
+    }
+  return x();
+}
+
 simple_mat<double> NumericMatrix_to_simple_mat(NumericMatrix const from){
   simple_mat<double> out(from.nrow(), from.ncol());
   std::copy(from.begin(), from.end(), out.begin());
@@ -156,7 +178,7 @@ private:
 
 ghqCpp::ghq_data ghq_data_from_list(Rcpp::List dat){
   NumericVector nodes = dat["node"],
-                    weigths = dat["weight"];
+              weigths = dat["weight"];
   if(nodes.size() != weigths.size())
     throw std::runtime_error("nodes.size() != weigths.size()");
 
@@ -181,17 +203,17 @@ mmcif_data mmcif_data_from_idx
 
 // [[Rcpp::export("mmcif_data_holder", rng = false)]]
 SEXP mmcif_data_holder_to_R
-  (NumericMatrix const covs_trajectoryn,
-   NumericMatrix const d_covs_trajectoryn,
+  (NumericMatrix const covs_trajectory,
+   NumericMatrix const d_covs_trajectory,
    NumericMatrix const covs_risk,
    IntegerVector const has_finite_trajectory_prob,
    IntegerVector const cause, size_t const n_causes,
-   Rcpp::IntegerMatrix pair_indices, IntegerVector const singletons_in){
+   Rcpp::IntegerMatrix pair_indices, IntegerVector const singletons){
   return Rcpp::XPtr<mmcif_data_holder const>
     (new mmcif_data_holder
-       (covs_trajectoryn, d_covs_trajectoryn, covs_risk,
+       (covs_trajectory, d_covs_trajectory, covs_risk,
         has_finite_trajectory_prob, cause, n_causes, pair_indices,
-        singletons_in));
+        singletons));
 }
 
 // [[Rcpp::export("mmcif_logLik", rng = false)]]
@@ -212,12 +234,20 @@ double mmcif_logLik_to_R
 #pragma omp parallel for num_threads(n_threads) reduction(+:out)
 #endif
   for(size_t i = 0; i < n_pairs; ++i){
-    auto mmcif_dat1 = mmcif_data_from_idx(*data, data->pair_indices.col(i)[0]);
-    auto mmcif_dat2 = mmcif_data_from_idx(*data, data->pair_indices.col(i)[1]);
+    auto comp_next_term = [&]{
+      auto mmcif_dat1 =
+        mmcif_data_from_idx(*data, data->pair_indices.col(i)[0]);
+      auto mmcif_dat2 =
+        mmcif_data_from_idx(*data, data->pair_indices.col(i)[1]);
 
-    wmem::mem_stack().reset();
-    out += mmcif_log_Lik(par_ptr, data->indexer, mmcif_dat1, mmcif_dat2,
-                         wmem::mem_stack(), ghq_data_pass);
+      wmem::mem_stack().reset();
+      double const new_term
+        {mmcif_log_Lik(par_ptr, data->indexer, mmcif_dat1, mmcif_dat2,
+                       wmem::mem_stack(), ghq_data_pass)};
+      return new_term;
+    };
+
+    out += nan_if_fail_and_parallel(comp_next_term);
   }
 
   size_t const n_singletons{data->singletons.size()};
@@ -225,11 +255,15 @@ double mmcif_logLik_to_R
 #pragma omp parallel for num_threads(n_threads) reduction(+:out)
 #endif
   for(size_t i = 0; i < n_singletons; ++i){
-    auto mmcif_dat = mmcif_data_from_idx(*data, data->singletons[i]);
+    auto comp_next_term = [&]{
+      auto mmcif_dat = mmcif_data_from_idx(*data, data->singletons[i]);
 
-    wmem::mem_stack().reset();
-    out += mmcif_log_Lik
-      (par_ptr,  data->indexer, mmcif_dat, wmem::mem_stack(), ghq_data_pass);
+      wmem::mem_stack().reset();
+      return mmcif_log_Lik
+        (par_ptr,  data->indexer, mmcif_dat, wmem::mem_stack(), ghq_data_pass);
+    };
+
+    out += nan_if_fail_and_parallel(comp_next_term);
   }
 
   return out;

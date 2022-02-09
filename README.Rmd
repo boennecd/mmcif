@@ -1,0 +1,331 @@
+---
+output:
+  github_document:
+    pandoc_args: --webtex=https://render.githubusercontent.com/render/math?math=
+bibliography: README.bib
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.path = "man/figures/README-",
+  out.width = "100%",
+  cache.path = "cache/README-")
+```
+
+# MMCIF: Mixed Multivariate Cumulative Incidence Functions
+
+This package provides an implementation of the model introduced by 
+@Cederkvist18 to model within-cluster dependence of both risk and timing in 
+competing risk. 
+
+## Installation 
+
+The package can be installed from Github by calling
+
+```{r how_to_install, eval = FALSE}
+library(remotes)
+install_github("boennecd/mmcif")
+```
+
+The code benefits from being build with automatic vectorization so having e.g. 
+`-O3` in the `CXX17FLAGS` flags in your Makevars file may be useful.
+
+## The Model
+
+The conditional cumulative incidence functions for cause $k$ of 
+individual $j$ in cluster $i$ is
+
+$$\begin{align*} F_{kij}(t\mid \vec u_i, \vec\eta_i) &= \pi_k(\vec z_{ij}, \vec u_i) \Phi(-\vec x_{ij}(t)^\top\vec\gamma_k - \eta_{ik}) \\ \pi_k(\vec z_{ij}, \vec u_i) &= \frac{\exp(\vec z_{ij}^\top\vec\beta_k + u_{ik})}{1 + \sum_{l = 1}^K\exp(\vec z_{ij}^\top\vec\beta_l + u_{il})} \\ \begin{pmatrix} \vec U_i \\ \vec\eta_i \end{pmatrix} &\sim N^{(2K)}(\vec 0;\Sigma).\end{align*}$$
+
+where there are $K$ competing risks. The $\vec x_{ij}(t)^\top\vec\gamma_k$'s for
+the trajectory are subject to monotonically decreasing.
+
+## Example
+
+We start with a simple example where there are $K = 2$ competing risks and
+
+$$\begin{align*} \vec x_{ij}(t) &= \left(\text{arcthan}\left(\frac{t - \delta/2}{\delta/2}\right), 1, a_{ij}, b_{ij}\right) \\ a_{ij} &\sim N(0, 1) \\
+ b_{ij} &\sim \text{Unif}(-1, 1)\\ \vec z_{ij} &= (1, a_{ij}, b_{ij}) \end{align*}$$
+
+We set the parameters below and plot the conditional cumulative incidence 
+function when the random effects are zero and $a_{ij} = b_{ij} = 0$.
+
+```{r assign_model_parameters, fig.height=knitr::opts_chunk$get("fig.width") * .5}
+# assign model parameters
+n_causes <- 2L
+delta <- 2
+
+# set the betas
+coef_risk <- c(.67, 1, .1, -.4, .25, .3) |> 
+  matrix(ncol = n_causes)
+
+# set the gammas
+coef_traject <- c(-.8, -.45, .8, .4, -1.2, .15, .25, -.2) |> 
+  matrix(ncol = n_causes)
+
+# plot the conditional cumulative incidence when random effects and covariates
+# are all zero
+local({
+  probs <- exp(coef_risk[1, ]) / (1 + sum(exp(coef_risk[1, ])))
+  par(mar = c(5, 5, 1, 1), mfcol = c(1, 2))
+  
+  for(i in 1:2){
+    plot(\(x) probs[i] * pnorm(
+      -coef_traject[1, i] * atanh((x - delta / 2) / (delta / 2)) - 
+        coef_traject[2, i]),
+         xlim = c(1e-8, delta), ylim = c(0, 1), bty = "l",  xlab = "Time", 
+         ylab = sprintf("Cumulative incidence; cause %d", i),
+       yaxs = "i", xaxs = "i")
+    grid()
+  }
+})
+
+# set the covariance matrix
+Sigma <- c(0.306, 0.008, -0.138, 0.197, 0.008, 0.759, 0.251, 
+-0.25, -0.138, 0.251, 0.756, -0.319, 0.197, -0.25, -0.319, 0.903) |> 
+  matrix(4)
+```
+
+Next, we assign a function to simulate clusters. The cluster sizes are 
+uniformly sampled from two to the maximum size. The censoring times are drawn 
+from a uniform distribution from zero to $3\delta$.
+
+```{r assing_sim_dat}
+library(mvtnorm)
+
+# simulates a data set with a given number of clusters and maximum number of 
+# observations per cluster
+sim_dat <- \(n_clusters, max_cluster_size){
+  stopifnot(max_cluster_size > 0,
+            n_clusters > 0)
+  
+  cluster_id <- 0L
+  apply(rmvnorm(n_clusters, sigma = Sigma), 1, \(rng_effects){
+    U <- head(rng_effects, n_causes)
+    eta <- tail(rng_effects, n_causes)
+    
+    n_obs <- sample.int(max_cluster_size - 1L, 1L) + 1L
+    cluster_id <<- cluster_id + 1L
+    
+    # draw the cause
+    covs <- cbind(a = rnorm(n_obs), b = runif(n_obs, -1))
+    Z <- cbind(1, covs)
+  
+    cond_logits_exp <- exp(Z %*% coef_risk + rep(U, each = n_obs)) |> 
+      cbind(1)
+    cond_probs <- cond_logits_exp / rowSums(cond_logits_exp)
+    cause <- apply(cond_probs, 1, 
+                   \(prob) sample.int(n_causes + 1L, 1L, prob = prob))
+    
+    # compute the observed time if needed
+    obs_time <- mapply(\(cause, idx){
+      if(cause > n_causes)
+        return(delta)
+      
+      # can likely be done smarter but this is more general
+      coefs <- coef_traject[, cause]
+      offset <- sum(Z[idx, ] * coefs[-1]) + eta[cause]
+      rng <- runif(1)
+      eps <- .Machine$double.eps
+      root <- uniroot(
+        \(x) rng - pnorm(
+          -coefs[1] * atanh((x - delta / 2) / (delta / 2)) - offset), 
+        c(eps^2, delta * (1 - eps)), tol = 1e-12)$root
+    }, cause, 1:n_obs)
+    
+    cens <- runif(n_obs, max = 3 * delta)
+    has_finite_trajectory_prob <- cause <= n_causes
+    is_censored <- which(!has_finite_trajectory_prob | cens < obs_time)
+    
+    if(length(is_censored) > 0){
+      obs_time[is_censored] <- pmin(delta, cens[is_censored])
+      cause[is_censored] <- n_causes + 1L
+    }
+    
+    data.frame(covs, cause = cause, time = obs_time, cluster_id)
+  }, simplify = FALSE) |> 
+    do.call(what = rbind)
+}
+```
+
+We then sample a data set.
+
+```{r sample_data, cache = 1}
+# sample a data set
+set.seed(8401828)
+n_clusters <- 10000L
+max_cluster_size <- 5L
+dat <- sim_dat(n_clusters, max_cluster_size = max_cluster_size)
+
+# show some stats
+NROW(dat) # number of individuals
+table(dat$cause) # distribution of causes (3 is censored)
+
+# distribution of observed times by cause
+tapply(dat$time, dat$cause, quantile, 
+       probs = seq(0, 1, length.out = 11), na.rm = TRUE)
+```
+
+Then we setup the C++ object to do the computation (TODO: there will be a 
+function in the package to do this; you may skip this).
+
+```{r setup_data, cache = 1, dependson="sample_data"}
+# setup the data to be used by the package
+covs_risk <- model.matrix(~ a + b, dat)
+
+time_trans <- \(x) atanh((x - delta / 2) / (delta / 2))
+d_time_trans <- \(x) {
+  outer <- (x - delta / 2) / (delta / 2)
+  1/((1 - outer^2) * (delta / 2))
+}
+
+covs_trajectory <- with(
+  dat, cbind(ifelse(time < delta, time_trans(time), NA), covs_risk))
+
+d_covs_trajectory <- with(
+  dat, 
+  cbind(ifelse(time < delta, d_time_trans(time), NA), 
+        matrix(0, NROW(covs_risk), NCOL(covs_risk))))
+
+has_finite_trajectory_prob <- dat$time < delta
+cause <- dat$cause - 1L
+
+# find all permutation of indices in each cluster
+stopifnot(
+  # TODO: support singleton clusters (the C++ code is there)
+  table(dat$cluster_id) |> max() > 1L) 
+
+row_id <- seq_len(NROW(dat)) - 1L
+pair_indices <- tapply(row_id, dat$cluster_id, \(ids){
+  # TODO: do this smarter
+  out <- expand.grid(first = ids, second = ids)
+  out <- as.matrix(subset(out, first > second))
+  t(out)
+}, simplify = FALSE)
+
+pair_indices <- do.call(cbind, pair_indices)
+
+comp_obj <- mmcif:::mmcif_data_holder(
+  covs_risk = t(covs_risk), covs_trajectory = t(covs_trajectory),
+  d_covs_trajectory = t(d_covs_trajectory), 
+  has_finite_trajectory_prob = has_finite_trajectory_prob,
+  cause = cause, n_causes = n_causes, pair_indices = pair_indices, 
+  singletons = integer())
+```
+
+The time to compute the log composite likelihood is illustrated below.
+
+```{r check_comp_time, cache = 1, dependson="setup_data"}
+NCOL(pair_indices) # the number of pairs in the composite likelihood
+
+# assign a function to compute the log composite likelihood
+library(fastGHQuad)
+ghq_data <- with(gaussHermiteData(5L), list(node = x, weight = w))
+
+ll_func <- \(par, n_threads = 1L)
+  mmcif:::mmcif_logLik(
+    comp_obj, par = c(coef_risk, coef_traject, Sigma), 
+    ghq_data = ghq_data, n_threads = n_threads)
+
+# the log composite likelihood at the true parameters
+ll_func(c(coef_risk, coef_traject, Sigma))
+
+# check the time to compute the log composite likelihood
+bench::mark(
+  `one thread` = ll_func(n_threads = 1L, c(coef_risk, coef_traject, Sigma)),
+  `two threads` = ll_func(n_threads = 2L, c(coef_risk, coef_traject, Sigma)),
+  `three threads` = ll_func(n_threads = 3L, c(coef_risk, coef_traject, Sigma)),
+  `four threads` = ll_func(n_threads = 4L, c(coef_risk, coef_traject, Sigma)))
+```
+
+Then we optimize the parameters (TODO: there will be function to quickly get
+starting values, a wrapper to work with the log Cholesky decomposition and 
+an estimation function; the estimation time will be much reduced when the 
+gradient is implemented). 
+
+```{r fit, dependson="setup_data", cache = 1}
+# computes the log Cholesky decomposition
+log_chol <- \(x){
+  x <- chol(x)
+  diag(x) <- diag(x) |> log()
+  x[upper.tri(x, TRUE)]
+}
+log_chol_inv <- \(x){
+  dim <- (sqrt(8 * length(x) + 1) - 1) / 2
+  out <- matrix(0, dim, dim)
+  out[upper.tri(out, TRUE)] <- x
+  diag(out) <- diag(out) |> exp()
+  crossprod(out)
+}
+
+# examples of using log_chol and log_chol_inv
+log_chol(Sigma)
+stopifnot(all.equal(Sigma, log_chol(Sigma) |> log_chol_inv()))
+
+# computes the log composite likelihood with a log Cholesky decomposition for
+# the covariance matrix. We handle the monotonicity constraint by log 
+# transforming the slopes
+idx_log_transform <- length(coef_risk) + c(1, 5)
+ll_func_chol <- \(par, n_threads = 1L){
+  n_vcov <- (2L * n_causes * (2L * n_causes + 1L)) %/% 2L
+  par <- c(head(par, -n_vcov), tail(par, n_vcov) |> log_chol_inv())
+  par[idx_log_transform] <- -exp(par[idx_log_transform])
+  
+  mmcif:::mmcif_logLik(
+    comp_obj, par = par, ghq_data = ghq_data, n_threads = n_threads)
+}
+
+# set starting values
+coef_traject_trans <- coef_traject
+coef_traject_trans[1, ] <- log(-coef_traject_trans[1, ])
+
+truth <- c(coef_risk, coef_traject_trans, log_chol(Sigma))
+set.seed(1)
+# TODO: need to compute starting values
+start <- truth + runif(length(start), -.1, .1) 
+
+# the log composite likelihood at the starting values
+ll_func_chol(start, 4L)
+
+# optimize the log composite likelihood
+system.time(
+  fit <- optim(start, \(par) -ll_func_chol(par, n_threads = 4L), 
+               control = list(maxit = 10000L)))
+
+# the maximum log composite likelihood
+-fit$value
+ll_func_chol(truth)
+```
+
+```{r show_res}
+# It took quite a few iterations. This we be much better with a gradient 
+# approximation
+fit$counts
+
+# compare the estimates with the true values
+rbind(Estimate = head(fit$par, length(coef_risk)),
+      Truth = c(coef_risk))
+rbind(Estimate = head(fit$par[-(1:length(coef_risk))], length(coef_traject)),
+      Truth = c(coef_traject_trans))
+
+Sigma
+log_chol_inv(tail(fit$par, (2L * n_causes * (2L * n_causes + 1L)) %/% 2L))
+```
+
+## TODOs 
+
+The package is still under development. Here are a few TODOs:
+
+ - Implement the gradient. Most of the work is done in already in the 
+   package at https://github.com/boennecd/ghq-cpp/tree/main/ghqCpp.
+ - Implement a setup functions that creates an expansion using natural cubic 
+   splines to make the model more flexible. The log composite likelihood can 
+   then be optimized with an optimizer that allows for linear inequality 
+   constraints. 
+ - Implement a function to get starting values. 
+ - Implement a function to do the estimation.
+ - Support delayed entry.
+
+## References

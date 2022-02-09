@@ -12,19 +12,19 @@ Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 #endif
 
 // mmcif_data_holder_to_R
-SEXP mmcif_data_holder_to_R(NumericMatrix const covs_trajectoryn, NumericMatrix const d_covs_trajectoryn, NumericMatrix const covs_risk, IntegerVector const has_finite_trajectory_prob, IntegerVector const cause, size_t const n_causes, Rcpp::IntegerMatrix pair_indices, IntegerVector const singletons_in);
-RcppExport SEXP _mmcif_mmcif_data_holder_to_R(SEXP covs_trajectorynSEXP, SEXP d_covs_trajectorynSEXP, SEXP covs_riskSEXP, SEXP has_finite_trajectory_probSEXP, SEXP causeSEXP, SEXP n_causesSEXP, SEXP pair_indicesSEXP, SEXP singletons_inSEXP) {
+SEXP mmcif_data_holder_to_R(NumericMatrix const covs_trajectory, NumericMatrix const d_covs_trajectory, NumericMatrix const covs_risk, IntegerVector const has_finite_trajectory_prob, IntegerVector const cause, size_t const n_causes, Rcpp::IntegerMatrix pair_indices, IntegerVector const singletons);
+RcppExport SEXP _mmcif_mmcif_data_holder_to_R(SEXP covs_trajectorySEXP, SEXP d_covs_trajectorySEXP, SEXP covs_riskSEXP, SEXP has_finite_trajectory_probSEXP, SEXP causeSEXP, SEXP n_causesSEXP, SEXP pair_indicesSEXP, SEXP singletonsSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
-    Rcpp::traits::input_parameter< NumericMatrix const >::type covs_trajectoryn(covs_trajectorynSEXP);
-    Rcpp::traits::input_parameter< NumericMatrix const >::type d_covs_trajectoryn(d_covs_trajectorynSEXP);
+    Rcpp::traits::input_parameter< NumericMatrix const >::type covs_trajectory(covs_trajectorySEXP);
+    Rcpp::traits::input_parameter< NumericMatrix const >::type d_covs_trajectory(d_covs_trajectorySEXP);
     Rcpp::traits::input_parameter< NumericMatrix const >::type covs_risk(covs_riskSEXP);
     Rcpp::traits::input_parameter< IntegerVector const >::type has_finite_trajectory_prob(has_finite_trajectory_probSEXP);
     Rcpp::traits::input_parameter< IntegerVector const >::type cause(causeSEXP);
     Rcpp::traits::input_parameter< size_t const >::type n_causes(n_causesSEXP);
     Rcpp::traits::input_parameter< Rcpp::IntegerMatrix >::type pair_indices(pair_indicesSEXP);
-    Rcpp::traits::input_parameter< IntegerVector const >::type singletons_in(singletons_inSEXP);
-    rcpp_result_gen = Rcpp::wrap(mmcif_data_holder_to_R(covs_trajectoryn, d_covs_trajectoryn, covs_risk, has_finite_trajectory_prob, cause, n_causes, pair_indices, singletons_in));
+    Rcpp::traits::input_parameter< IntegerVector const >::type singletons(singletonsSEXP);
+    rcpp_result_gen = Rcpp::wrap(mmcif_data_holder_to_R(covs_trajectory, d_covs_trajectory, covs_risk, has_finite_trajectory_prob, cause, n_causes, pair_indices, singletons));
     return rcpp_result_gen;
 END_RCPP
 }

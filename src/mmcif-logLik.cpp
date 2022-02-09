@@ -49,10 +49,16 @@ public:
   }
 
   void fill_vcov(arma::mat &vcov){
-    auto vcov_dim = 2 * indexer.n_causes();
+    auto const vcov_dim = 2 * indexer.n_causes();
     vcov = mat_no_alloc(vcov_dim, vcov_dim, mem);
     std::copy(par + indexer.vcov(), par + indexer.n_par<false>(),
               vcov.begin());
+  }
+
+  void fill_vcov_rng_traject(arma::mat &vcov_sub, arma::mat const &vcov){
+    auto const n_causes = indexer.n_causes();
+    vcov_sub = mat_no_alloc(n_causes, n_causes, mem);
+    vcov_sub = vcov.submat(0, 0, n_causes - 1, n_causes - 1);
   }
 
   double comp_trajector_cond_dens_obs_one
@@ -74,15 +80,17 @@ public:
 
   void fill_cond_vcov_one_obs(arma::mat &res, unsigned const cause){
     auto const n_causes = indexer.n_causes();
-    res = mat_no_alloc(2 * n_causes, 2 * n_causes, mem);
-    std::copy(par + indexer.vcov(), par + indexer.n_par<false>(),
-              res.begin());
+    auto const dim = 2 * n_causes;
 
-    arma::mat Sigma_inv{mat_no_alloc(n_causes, n_causes, mem)};
-    Sigma_inv = arma::inv_sympd(res);
+    arma::mat Sigma
+      (const_cast<double*>(par + indexer.vcov()), dim, dim, false);
+    arma::mat Sigma_inv{mat_no_alloc(dim, dim, mem)};
+    Sigma_inv = arma::inv_sympd(Sigma);
 
     auto const idx = cause + n_causes;
     Sigma_inv(idx, idx) += 1;
+
+    res = mat_no_alloc(dim, dim, mem);
     res = arma::inv_sympd(Sigma_inv);
   }
 };
@@ -269,9 +277,9 @@ double mmcif_log_Lik_both_cens
   helper.fill_logit_offsets(logit_offsets.colptr(0), obs1);
   helper.fill_logit_offsets(logit_offsets.colptr(1), obs2);
 
-  arma::mat vcov;
+  arma::mat vcov, vcov_sub;
   helper.fill_vcov(vcov);
-  arma::mat const vcov_sub = vcov.submat(0, 0, n_causes - 1, n_causes - 1);
+  helper.fill_vcov_rng_traject(vcov_sub, vcov);
 
   if(!obs1.has_finite_trajectory_prob){
     arma::uvec which_cat{0, 0};
@@ -349,13 +357,14 @@ double mmcif_log_Lik_both_cens
   arma::mat pbvn_vcov{mat_no_alloc(2, 2, mem)};
   arma::mat rng_coefs{mat_no_alloc(2, n_causes, mem)};
 
+  auto const vcov_dim = 2 * n_causes;
   arma::mat const cond_mean_loadings =
     arma::solve(vcov_sub,
-                vcov.submat(0, n_causes, n_causes - 1, 2 * n_causes - 1),
+                vcov.submat(0, n_causes, n_causes - 1, vcov_dim - 1),
                 arma::solve_opts::likely_sympd).t();
   arma::mat const vcov_rng_cond_traject =
-    vcov.submat(n_causes, n_causes, 2 * n_causes - 1, 2 * n_causes - 1)
-    - vcov.submat(n_causes, 0, 2 * n_causes - 1, n_causes - 1) *
+    vcov.submat(n_causes, n_causes, vcov_dim - 1, vcov_dim - 1)
+    - vcov.submat(n_causes, 0, vcov_dim - 1, n_causes - 1) *
       cond_mean_loadings.t();
 
   auto mem_marker2 = mem.set_mark_raii();
@@ -407,10 +416,9 @@ double mmcif_log_Lik
     helper.fill_logit_offsets(logit_offsets.begin(), obs);
     arma::uvec which_cat(1);
 
-    arma::mat vcov;
+    arma::mat vcov, vcov_sub;
     helper.fill_vcov(vcov);
-    arma::mat vcov_sub{mat_no_alloc(n_causes, n_causes, mem)};
-    vcov_sub = vcov.submat(0, 0, n_causes - 1, n_causes - 1);
+    helper.fill_vcov_rng_traject(vcov_sub, vcov);
 
     if(!obs.has_finite_trajectory_prob){
       which_cat[0] = 0;
@@ -425,8 +433,8 @@ double mmcif_log_Lik
     }
 
     auto mem_mark = mem.set_mark_raii();
-    double integrand{1};
-    for(size_t cause = 0; cause < indexer.n_causes(); ++cause){
+    double integral{1};
+    for(size_t cause = 0; cause < n_causes; ++cause){
       // TODO: allocations
       size_t const idx_traject{n_causes + cause};
       arma::vec vcov_col = vcov.col(idx_traject).subvec(0, n_causes - 1);
@@ -449,10 +457,10 @@ double mmcif_log_Lik
       double res{};
       ghq(&res, dat, prob, mem, ghq_target_size);
 
-      integrand -= res;
+      integral -= res;
     }
 
-    return std::log(integrand);
+    return std::log(integral);
   }
 
   size_t const cause{obs.cause};
