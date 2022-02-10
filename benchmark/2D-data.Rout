@@ -1,0 +1,60 @@
+
+R version 4.1.2 (2021-11-01) -- "Bird Hippie"
+Copyright (C) 2021 The R Foundation for Statistical Computing
+Platform: x86_64-pc-linux-gnu (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> load("2D-data.RData")
+> 
+> # setup the object to do the computation
+> library(mmcif)
+> comp_obj <- mmcif_data(
++   ~ a + b, dat, cause = cause, time = time, cluster_id = cluster_id,
++   max_time = delta)
+> 
+> # assign a function to compute the log composite likelihood
+> library(fastGHQuad)
+Loading required package: Rcpp
+> ghq_data <- with(gaussHermiteData(5L), list(node = x, weight = w))
+> 
+> ll_func <- \(par, n_threads = 1L)
++ mmcif:::mmcif_logLik(
++   comp_obj$comp_obj, par = c(coef_risk, coef_traject, Sigma),
++   ghq_data = ghq_data, n_threads = n_threads)
+> 
+> # the log composite likelihood at the true parameters
+> ll_func(c(coef_risk, coef_traject, Sigma))
+[1] -8865.391
+> 
+> # check the time to compute the log composite likelihood
+> bench::mark(
++   `one thread` = ll_func(n_threads = 1L, c(coef_risk, coef_traject, Sigma)),
++   `two threads` = ll_func(n_threads = 2L, c(coef_risk, coef_traject, Sigma)),
++   `three threads` = ll_func(n_threads = 3L, c(coef_risk, coef_traject, Sigma)),
++   `four threads` = ll_func(n_threads = 4L, c(coef_risk, coef_traject, Sigma)))
+# A tibble: 4 × 13
+  expression         min   median `itr/sec` mem_alloc `gc/sec` n_itr  n_gc
+  <bch:expr>    <bch:tm> <bch:tm>     <dbl> <bch:byt>    <dbl> <int> <dbl>
+1 one thread      90.1ms   91.5ms      10.9    3.88MB        0     6     0
+2 two threads     46.9ms   47.2ms      21.1      288B        0    11     0
+3 three threads   31.7ms   32.6ms      30.7      288B        0    16     0
+4 four threads    24.7ms     25ms      39.4      288B        0    20     0
+# … with 5 more variables: total_time <bch:tm>, result <list>, memory <list>,
+#   time <list>, gc <list>
+> 
+> proc.time()
+   user  system elapsed 
+  6.598   0.037   3.284 
