@@ -157,36 +157,36 @@ We then sample a data set.
 ``` r
 # sample a data set
 set.seed(8401828)
-n_clusters <- 10000L
+n_clusters <- 1000L
 max_cluster_size <- 5L
 dat <- sim_dat(n_clusters, max_cluster_size = max_cluster_size)
 
 # show some stats
 NROW(dat) # number of individuals
-#> [1] 35086
+#> [1] 3573
 table(dat$cause) # distribution of causes (3 is censored)
 #> 
-#>     1     2     3 
-#> 15253  6133 13700
+#>    1    2    3 
+#> 1527  623 1423
 
 # distribution of observed times by cause
 tapply(dat$time, dat$cause, quantile, 
        probs = seq(0, 1, length.out = 11), na.rm = TRUE)
 #> $`1`
 #>           0%          10%          20%          30%          40%          50% 
-#> 1.609817e-07 5.157803e-03 2.697858e-02 8.074012e-02 2.037339e-01 4.257569e-01 
+#> 1.037532e-06 4.393086e-03 2.549201e-02 8.553160e-02 1.954232e-01 4.183183e-01 
 #>          60%          70%          80%          90%         100% 
-#> 8.237090e-01 1.327794e+00 1.748963e+00 1.956704e+00 1.999997e+00 
+#> 7.995275e-01 1.341151e+00 1.727572e+00 1.944052e+00 1.999995e+00 
 #> 
 #> $`2`
 #>           0%          10%          20%          30%          40%          50% 
-#> 0.0002801234 0.0563941886 0.1438973179 0.2672662429 0.4406457301 0.6662763480 
+#> 0.0009666954 0.0601977831 0.1514903014 0.2832340702 0.4514909913 0.6938606243 
 #>          60%          70%          80%          90%         100% 
-#> 0.9437533661 1.2581886806 1.5652445966 1.8191394933 1.9997413608 
+#> 0.9512206696 1.3040148597 1.5707337955 1.8322967104 1.9983337883 
 #> 
 #> $`3`
 #>           0%          10%          20%          30%          40%          50% 
-#> 0.0001196126 0.2864932705 0.6029754094 0.9698501704 1.4057455564 1.9011422026 
+#> 0.0005559647 0.3034055659 0.6145405803 0.9248298794 1.3095068850 1.8354668445 
 #>          60%          70%          80%          90%         100% 
 #> 2.0000000000 2.0000000000 2.0000000000 2.0000000000 2.0000000000
 ```
@@ -204,7 +204,7 @@ The time to compute the log composite likelihood is illustrated below.
 
 ``` r
 NCOL(comp_obj$pair_indices) # the number of pairs in the composite likelihood
-#> [1] 50364
+#> [1] 5209
 
 # assign a function to compute the log composite likelihood
 library(fastGHQuad)
@@ -218,7 +218,7 @@ ll_func <- \(par, n_threads = 1L)
 
 # the log composite likelihood at the true parameters
 ll_func(c(coef_risk, coef_traject, Sigma))
-#> [1] -85239.77
+#> [1] -8865.391
 
 # check the time to compute the log composite likelihood
 bench::mark(
@@ -229,10 +229,10 @@ bench::mark(
 #> # A tibble: 4 × 6
 #>   expression         min   median `itr/sec` mem_alloc `gc/sec`
 #>   <bch:expr>    <bch:tm> <bch:tm>     <dbl> <bch:byt>    <dbl>
-#> 1 one thread       780ms    780ms      1.28    23.5KB        0
-#> 2 two threads      416ms    422ms      2.37      288B        0
-#> 3 three threads    279ms    279ms      3.58      288B        0
-#> 4 four threads     214ms    215ms      4.59      288B        0
+#> 1 one thread      91.3ms   91.5ms      10.9    23.5KB        0
+#> 2 two threads     47.4ms   48.1ms      20.8      288B        0
+#> 3 three threads   31.6ms   32.2ms      31.1      288B        0
+#> 4 four threads    24.6ms   24.9ms      40.0      288B        0
 ```
 
 Then we optimize the parameters (TODO: there will be a wrapper to work
@@ -243,12 +243,12 @@ estimation time will be much reduced when the gradient is implemented).
 # find the starting values
 system.time(start <- mmcif_start_values(comp_obj, n_threads = 4L))
 #>    user  system elapsed 
-#>   0.453   0.004   0.119
+#>   0.049   0.000   0.014
 
 # the maximum likelihood without the random effects. Note that this is not 
 # comparable with the composite likelihood
 attr(start, "logLik")
-#> [1] -30334.96
+#> [1] -3135.4
 
 # computes the log Cholesky decomposition
 log_chol <- \(x){
@@ -297,26 +297,26 @@ system.time(
   fit_Laplace <- optim(
     start$lower, \(par) -ll_func_chol(par, n_threads = 4L, ghq_data_Laplace), 
     control = list(maxit = 10000L)))
-#>     user   system  elapsed 
-#> 2543.864    0.752  650.779
+#>    user  system elapsed 
+#> 291.600   0.007  72.917
 
 # then we improve by using Adaptive Gauss-Hermite quadrature
 system.time(
   fit <- optim(
     fit_Laplace$par, \(par) -ll_func_chol(par, n_threads = 4L, ghq_data), 
     control = list(maxit = 10000L)))
-#>     user   system  elapsed 
-#> 3352.348    0.800  861.154
+#>    user  system elapsed 
+#> 490.367   0.008 122.614
 
 # the log composite likelihood at different points
 ll_func_chol(truth)
-#> [1] -85239.77
+#> [1] -8865.391
 ll_func_chol(start$lower, 4L)
-#> [1] -91686.42
+#> [1] -9502.087
 ll_func_chol(fit_Laplace$par, 4L)
-#> [1] -85230.44
+#> [1] -8850.741
 -fit$value
-#> [1] -85201.97
+#> [1] -8843.321
 ```
 
 ``` r
@@ -324,29 +324,29 @@ ll_func_chol(fit_Laplace$par, 4L)
 # approximation
 fit_Laplace$counts
 #> function gradient 
-#>     3445       NA
+#>     3513       NA
 fit$counts
 #> function gradient 
-#>     3437       NA
+#>     4253       NA
 
 # compare the estimates with the true values
 rbind(`Estimate Laplace` = head(fit_Laplace$par, length(coef_risk)),
       `Estimate AGHQ` = head(fit$par, length(coef_risk)),
       Truth = c(coef_risk))
-#>                       [,1]     [,2]       [,3]       [,4]      [,5]      [,6]
-#> Estimate Laplace 0.6314864 1.003365 0.08814717 -0.4784155 0.2161955 0.3697899
-#> Estimate AGHQ    0.6550825 1.047025 0.09543173 -0.4334760 0.2380396 0.3788838
-#> Truth            0.6700000 1.000000 0.10000000 -0.4000000 0.2500000 0.3000000
+#>                       [,1]      [,2]      [,3]       [,4]      [,5]      [,6]
+#> Estimate Laplace 0.6820169 0.9213513 0.2091015 -0.4297888 0.3127709 0.3116543
+#> Estimate AGHQ    0.6678179 0.9624318 0.2472146 -0.4646059 0.2948015 0.3738843
+#> Truth            0.6700000 1.0000000 0.1000000 -0.4000000 0.2500000 0.3000000
 rbind(`Estimate Laplace` = fit_Laplace$par[comp_obj$indices$coef_trajectory],
       `Estimate AGHQ` = fit$par[comp_obj$indices$coef_trajectory],
       Truth = truth[comp_obj$indices$coef_trajectory])
-#>                        [,1]       [,2]      [,3]      [,4]      [,5]      [,6]
-#> Estimate Laplace -0.1998897 -0.4818206 0.8491183 0.4168787 0.2390454 0.1858457
-#> Estimate AGHQ    -0.2113185 -0.4681889 0.8303657 0.4053286 0.2443848 0.1636976
-#> Truth            -0.2231436 -0.4500000 0.8000000 0.4000000 0.1823216 0.1500000
+#>                        [,1]       [,2]      [,3]      [,4]      [,5]       [,6]
+#> Estimate Laplace -0.2328143 -0.4796474 0.8355155 0.4058797 0.1630115 0.03025068
+#> Estimate AGHQ    -0.2255714 -0.4848914 0.8394861 0.4171070 0.1481107 0.09699559
+#> Truth            -0.2231436 -0.4500000 0.8000000 0.4000000 0.1823216 0.15000000
 #>                       [,7]       [,8]
-#> Estimate Laplace 0.2397182 -0.2787349
-#> Estimate AGHQ    0.2573541 -0.2620950
+#> Estimate Laplace 0.1585224 -0.3294909
+#> Estimate AGHQ    0.1766491 -0.3056605
 #> Truth            0.2500000 -0.2000000
 
 n_vcov <- (2L * n_causes * (2L * n_causes + 1L)) %/% 2L
@@ -357,17 +357,17 @@ Sigma
 #> [3,] -0.138  0.251  0.756 -0.319
 #> [4,]  0.197 -0.250 -0.319  0.903
 log_chol_inv(tail(fit$par, n_vcov))
-#>             [,1]        [,2]        [,3]       [,4]
-#> [1,]  0.37705251  0.07775905 -0.07329189  0.2257292
-#> [2,]  0.07775905  0.94952091  0.31111274 -0.3354658
-#> [3,] -0.07329189  0.31111274  0.82206028 -0.2911341
-#> [4,]  0.22572917 -0.33546584 -0.29113408  1.1894298
+#>             [,1]       [,2]        [,3]        [,4]
+#> [1,]  0.40337303  0.2713524 -0.07630755  0.04580343
+#> [2,]  0.27135242  1.3752989  0.22911260 -0.26401829
+#> [3,] -0.07630755  0.2291126  0.68733205 -0.31152421
+#> [4,]  0.04580343 -0.2640183 -0.31152421  0.72142485
 log_chol_inv(tail(fit_Laplace$par, n_vcov))
-#>              [,1]         [,2]        [,3]       [,4]
-#> [1,]  0.181182026 -0.008633587 -0.05862232  0.1092230
-#> [2,] -0.008633587  0.863597830  0.29895262 -0.4362569
-#> [3,] -0.058622322  0.298952616  0.87315513 -0.2677827
-#> [4,]  0.109222996 -0.436256899 -0.26778270  1.1639585
+#>             [,1]       [,2]        [,3]       [,4]
+#> [1,]  0.24202930  0.3596424 -0.05965436 -0.1187252
+#> [2,]  0.35964241  1.2683645  0.19424410 -0.2862462
+#> [3,] -0.05965436  0.1942441  0.66533894 -0.3472695
+#> [4,] -0.11872517 -0.2862462 -0.34726954  0.7829966
 ```
 
 ## TODOs

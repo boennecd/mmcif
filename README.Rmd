@@ -155,7 +155,7 @@ We then sample a data set.
 ```{r sample_data, cache = 1}
 # sample a data set
 set.seed(8401828)
-n_clusters <- 10000L
+n_clusters <- 1000L
 max_cluster_size <- 5L
 dat <- sim_dat(n_clusters, max_cluster_size = max_cluster_size)
 
