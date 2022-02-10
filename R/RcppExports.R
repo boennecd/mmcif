@@ -9,3 +9,11 @@ mmcif_logLik <- function(data_ptr, par, ghq_data, n_threads) {
     .Call(`_mmcif_mmcif_logLik_to_R`, data_ptr, par, ghq_data, n_threads)
 }
 
+mcif_logLik <- function(data_ptr, par, n_threads, with_risk) {
+    .Call(`_mmcif_mcif_logLik_to_R`, data_ptr, par, n_threads, with_risk)
+}
+
+mcif_logLik_grad <- function(data_ptr, par, n_threads, with_risk) {
+    .Call(`_mmcif_mcif_logLik_grad_to_R`, data_ptr, par, n_threads, with_risk)
+}
+

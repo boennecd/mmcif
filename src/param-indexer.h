@@ -74,6 +74,11 @@ public:
                      : vcov_start + vcov_dim * vcov_dim;
   }
 
+  /// returns the number of parameters without the covariance matrix
+  size_t n_par_wo_vcov() const {
+    return vcov_start;
+  }
+
   /// returns a string with the names for parameters
   template<bool upper_tri>
   std::vector<std::string> param_names() const {

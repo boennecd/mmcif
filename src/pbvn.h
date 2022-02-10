@@ -1,7 +1,7 @@
 #ifndef PBVN_H
 #define PBVN_H
 
-#include <RcppArmadillo.h>
+#include "arma-wrap.h"
 #include <array>
 #include <Rmath.h> // Rf_dnorm4, Rf_pnorm5 etc.
 #include <algorithm>

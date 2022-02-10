@@ -23,6 +23,7 @@ context("param_indexer") {
 
     expect_true(index.vcov() == 20);
 
+    expect_true(index.n_par_wo_vcov() == 20);
     expect_true(index.n_par<false>() == 84);
     expect_true(index.n_par<true>() == 56);
 

@@ -16,7 +16,8 @@ LinkingTo:
     testthat,
     psqn
 Imports: 
-    Rcpp
+    Rcpp,
+    stats
 Suggests: 
     testthat (>= 3.0.0),
     xml2

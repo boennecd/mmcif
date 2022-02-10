@@ -1,8 +1,9 @@
-#include <RcppArmadillo.h>
+#include "arma-wrap.h"
 #include "simple-mat.h"
 #include <vector>
 #include "param-indexer.h"
 #include "mmcif-logLik.h"
+#include "mcif-logLik.h"
 #include "ghq.h"
 #include "wmem.h"
 
@@ -17,7 +18,7 @@ using Rcpp::NumericMatrix;
 namespace {
 
 template<class T>
-double nan_if_fail_and_parallel(T& x){
+double nan_if_fail_and_parallel(T x){
 #ifdef _OPENMP
   bool const is_in_parallel = omp_in_parallel();
 #else
@@ -188,7 +189,19 @@ ghqCpp::ghq_data ghq_data_from_list(Rcpp::List dat){
 void throw_if_invalid_par
   (mmcif_data_holder const &data, NumericVector const par){
   if(static_cast<size_t>(par.size()) != data.indexer.n_par<false>())
-    throw std::invalid_argument("invalid length of parameter vector");
+    throw std::invalid_argument(
+        "invalid length of parameter vector (" +
+          std::to_string(par.size()) + " vs " +
+          std::to_string(data.indexer.n_par<false>()) + ')');
+}
+
+void throw_if_invalid_par_wo_vcov
+  (mmcif_data_holder const &data, NumericVector const par){
+  if(static_cast<size_t>(par.size()) != data.indexer.n_par_wo_vcov())
+    throw std::invalid_argument(
+        "invalid length of parameter vector (" +
+          std::to_string(par.size()) + " vs " +
+          std::to_string(data.indexer.n_par_wo_vcov()) + ')');
 }
 
 mmcif_data mmcif_data_from_idx
@@ -233,8 +246,8 @@ double mmcif_logLik_to_R
 #ifdef _OPENMP
 #pragma omp parallel for num_threads(n_threads) reduction(+:out)
 #endif
-  for(size_t i = 0; i < n_pairs; ++i){
-    auto comp_next_term = [&]{
+  for(size_t i = 0; i < n_pairs; ++i)
+    out += nan_if_fail_and_parallel([&]{
       auto mmcif_dat1 =
         mmcif_data_from_idx(*data, data->pair_indices.col(i)[0]);
       auto mmcif_dat2 =
@@ -242,30 +255,115 @@ double mmcif_logLik_to_R
 
       wmem::mem_stack().reset();
       double const new_term
-        {mmcif_log_Lik(par_ptr, data->indexer, mmcif_dat1, mmcif_dat2,
-                       wmem::mem_stack(), ghq_data_pass)};
+      {mmcif_logLik(par_ptr, data->indexer, mmcif_dat1, mmcif_dat2,
+                    wmem::mem_stack(), ghq_data_pass)};
       return new_term;
-    };
-
-    out += nan_if_fail_and_parallel(comp_next_term);
-  }
+    });
 
   size_t const n_singletons{data->singletons.size()};
 #ifdef _OPENMP
 #pragma omp parallel for num_threads(n_threads) reduction(+:out)
 #endif
-  for(size_t i = 0; i < n_singletons; ++i){
-    auto comp_next_term = [&]{
+  for(size_t i = 0; i < n_singletons; ++i)
+    out += nan_if_fail_and_parallel([&]{
       auto mmcif_dat = mmcif_data_from_idx(*data, data->singletons[i]);
 
       wmem::mem_stack().reset();
-      return mmcif_log_Lik
+      return mmcif_logLik
         (par_ptr,  data->indexer, mmcif_dat, wmem::mem_stack(), ghq_data_pass);
-    };
+    });
 
-    out += nan_if_fail_and_parallel(comp_next_term);
+  return out;
+}
+
+// [[Rcpp::export("mcif_logLik", rng = false)]]
+double mcif_logLik_to_R
+  (SEXP data_ptr, NumericVector const par, unsigned const n_threads,
+   bool const with_risk){
+
+  Rcpp::XPtr<mmcif_data_holder const> data(data_ptr);
+  throw_if_invalid_par_wo_vcov(*data, par);
+  wmem::setup_working_memory(n_threads);
+
+  double out{};
+  double const * const par_ptr{&par[0]};
+
+  size_t const n_terms{data->cause.size()};
+#ifdef _OPENMP
+#pragma omp parallel num_threads(n_threads)
+#endif
+  {
+    auto &mem = wmem::mem_stack();
+
+#ifdef _OPENMP
+#pragma omp for reduction(+:out)
+#endif
+    for(size_t i = 0; i < n_terms; ++i){
+      out += nan_if_fail_and_parallel([&]{
+        auto mmcif_dat = mmcif_data_from_idx(*data, i);
+
+        return with_risk
+          ? mcif_logLik<true>(par_ptr, data->indexer, mmcif_dat, mem)
+          : mcif_logLik<false>(par_ptr, data->indexer, mmcif_dat, mem);
+      });
+
+      if(i % 100 == 0)
+        mem.reset_to_mark();
+    }
   }
 
   return out;
 }
 
+// [[Rcpp::export("mcif_logLik_grad", rng = false)]]
+Rcpp::NumericVector mcif_logLik_grad_to_R
+  (SEXP data_ptr, NumericVector const par, unsigned const n_threads,
+   bool const with_risk){
+
+  Rcpp::XPtr<mmcif_data_holder const> data(data_ptr);
+  throw_if_invalid_par_wo_vcov(*data, par);
+  wmem::setup_working_memory(n_threads);
+
+  double log_likelihood{};
+  double const * const par_ptr{&par[0]};
+
+  auto const n_grads = data->indexer.n_par_wo_vcov();
+  std::vector<std::vector<double> > grads
+    (n_threads, std::vector<double>(n_grads, 0));
+
+  size_t const n_terms{data->cause.size()};
+#ifdef _OPENMP
+#pragma omp parallel num_threads(n_threads)
+#endif
+  {
+    auto &mem = wmem::mem_stack();
+    auto &my_grad = grads[wmem::thread_num()];
+
+#ifdef _OPENMP
+#pragma omp for reduction(+:log_likelihood)
+#endif
+    for(size_t i = 0; i < n_terms; ++i){
+      log_likelihood += nan_if_fail_and_parallel([&]{
+        auto mmcif_dat = mmcif_data_from_idx(*data, i);
+
+        return with_risk
+          ? mcif_logLik_grad<true>
+              (par_ptr, my_grad.data(), data->indexer, mmcif_dat, mem)
+          : mcif_logLik_grad<false>
+              (par_ptr, my_grad.data(), data->indexer, mmcif_dat, mem);
+      });
+
+      if(i % 100 == 0)
+        mem.reset_to_mark();
+    }
+  }
+
+  Rcpp::NumericVector out(n_grads);
+  for(auto &grad_res : grads)
+    for(size_t i = 0; i < n_grads; ++i)
+      out[i] += grad_res[i];
+
+  out.attr("log_likelihood") = log_likelihood;
+
+  return out;
+}

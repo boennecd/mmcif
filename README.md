@@ -86,11 +86,11 @@ local({
 # set the covariance matrix
 Sigma <- c(0.306, 0.008, -0.138, 0.197, 0.008, 0.759, 0.251, 
 -0.25, -0.138, 0.251, 0.756, -0.319, 0.197, -0.25, -0.319, 0.903) |> 
-  matrix(4)
+  matrix(2L * n_causes)
 ```
 
-Next, we assign a function to simulate clusters. The cluster size is
-uniformly sampled from two to the maximum size. The censoring time is
+Next, we assign a function to simulate clusters. The cluster sizes are
+uniformly sampled from two to the maximum size. The censoring times are
 drawn from a uniform distribution from zero to
 ![3\\delta](https://render.githubusercontent.com/render/math?math=3%5Cdelta "3\delta").
 
@@ -191,57 +191,19 @@ tapply(dat$time, dat$cause, quantile,
 #> 2.0000000000 2.0000000000 2.0000000000 2.0000000000 2.0000000000
 ```
 
-Then we setup the C++ object to do the computation (TODO: there will be
-a function in the package to do this; you may skip this).
+Then we setup the C++ object to do the computation.
 
 ``` r
-# setup the data to be used by the package
-covs_risk <- model.matrix(~ a + b, dat)
-
-time_trans <- \(x) atanh((x - delta / 2) / (delta / 2))
-d_time_trans <- \(x) {
-  outer <- (x - delta / 2) / (delta / 2)
-  1/((1 - outer^2) * (delta / 2))
-}
-
-covs_trajectory <- with(
-  dat, cbind(ifelse(time < delta, time_trans(time), NA), covs_risk))
-
-d_covs_trajectory <- with(
-  dat, 
-  cbind(ifelse(time < delta, d_time_trans(time), NA), 
-        matrix(0, NROW(covs_risk), NCOL(covs_risk))))
-
-has_finite_trajectory_prob <- dat$time < delta
-cause <- dat$cause - 1L
-
-# find all permutation of indices in each cluster
-stopifnot(
-  # TODO: support singleton clusters (the C++ code is there)
-  table(dat$cluster_id) |> max() > 1L) 
-
-row_id <- seq_len(NROW(dat)) - 1L
-pair_indices <- tapply(row_id, dat$cluster_id, \(ids){
-  # TODO: do this smarter
-  out <- expand.grid(first = ids, second = ids)
-  out <- as.matrix(subset(out, first > second))
-  t(out)
-}, simplify = FALSE)
-
-pair_indices <- do.call(cbind, pair_indices)
-
-comp_obj <- mmcif:::mmcif_data_holder(
-  covs_risk = t(covs_risk), covs_trajectory = t(covs_trajectory),
-  d_covs_trajectory = t(d_covs_trajectory), 
-  has_finite_trajectory_prob = has_finite_trajectory_prob,
-  cause = cause, n_causes = n_causes, pair_indices = pair_indices, 
-  singletons = integer())
+library(mmcif)
+comp_obj <- mmcif_data(
+  ~ a + b, dat, cause = cause, time = time, cluster_id = cluster_id, 
+  max_time = delta)
 ```
 
 The time to compute the log composite likelihood is illustrated below.
 
 ``` r
-NCOL(pair_indices) # the number of pairs in the composite likelihood
+NCOL(comp_obj$pair_indices) # the number of pairs in the composite likelihood
 #> [1] 50364
 
 # assign a function to compute the log composite likelihood
@@ -251,7 +213,7 @@ ghq_data <- with(gaussHermiteData(5L), list(node = x, weight = w))
 
 ll_func <- \(par, n_threads = 1L)
   mmcif:::mmcif_logLik(
-    comp_obj, par = c(coef_risk, coef_traject, Sigma), 
+    comp_obj$comp_obj, par = c(coef_risk, coef_traject, Sigma), 
     ghq_data = ghq_data, n_threads = n_threads)
 
 # the log composite likelihood at the true parameters
@@ -267,18 +229,27 @@ bench::mark(
 #> # A tibble: 4 × 6
 #>   expression         min   median `itr/sec` mem_alloc `gc/sec`
 #>   <bch:expr>    <bch:tm> <bch:tm>     <dbl> <bch:byt>    <dbl>
-#> 1 one thread       780ms    780ms      1.28    22.2KB        0
-#> 2 two threads      406ms    407ms      2.46      288B        0
-#> 3 three threads    271ms    272ms      3.68      288B        0
-#> 4 four threads     216ms    219ms      4.58      288B        0
+#> 1 one thread       780ms    780ms      1.28    23.5KB        0
+#> 2 two threads      416ms    422ms      2.37      288B        0
+#> 3 three threads    279ms    279ms      3.58      288B        0
+#> 4 four threads     214ms    215ms      4.59      288B        0
 ```
 
-Then we optimize the parameters (TODO: there will be function to quickly
-get starting values, a wrapper to work with the log Cholesky
-decomposition and an estimation function; the estimation time will be
-much reduced when the gradient is implemented).
+Then we optimize the parameters (TODO: there will be a wrapper to work
+with the log Cholesky decomposition and an estimation function; the
+estimation time will be much reduced when the gradient is implemented).
 
 ``` r
+# find the starting values
+system.time(start <- mmcif_start_values(comp_obj, n_threads = 4L))
+#>    user  system elapsed 
+#>   0.453   0.004   0.119
+
+# the maximum likelihood without the random effects. Note that this is not 
+# comparable with the composite likelihood
+attr(start, "logLik")
+#> [1] -30334.96
+
 # computes the log Cholesky decomposition
 log_chol <- \(x){
   x <- chol(x)
@@ -302,77 +273,101 @@ stopifnot(all.equal(Sigma, log_chol(Sigma) |> log_chol_inv()))
 # computes the log composite likelihood with a log Cholesky decomposition for
 # the covariance matrix. We handle the monotonicity constraint by log 
 # transforming the slopes
-idx_log_transform <- length(coef_risk) + c(1, 5)
-ll_func_chol <- \(par, n_threads = 1L){
+ll_func_chol <- \(par, n_threads = 1L, ghq = ghq_data){
   n_vcov <- (2L * n_causes * (2L * n_causes + 1L)) %/% 2L
   par <- c(head(par, -n_vcov), tail(par, n_vcov) |> log_chol_inv())
-  par[idx_log_transform] <- -exp(par[idx_log_transform])
+  coef_trajectory_time <- comp_obj$indices$coef_trajectory_time
+  par[coef_trajectory_time] <- -exp(par[coef_trajectory_time])
   
   mmcif:::mmcif_logLik(
-    comp_obj, par = par, ghq_data = ghq_data, n_threads = n_threads)
+    comp_obj$comp_obj, par = par, ghq_data = ghq, n_threads = n_threads)
 }
 
-# set starting values
-coef_traject_trans <- coef_traject
-coef_traject_trans[1, ] <- log(-coef_traject_trans[1, ])
+# set starting values and true value
+truth <- c(coef_risk, coef_traject, log_chol(Sigma))
+truth[comp_obj$indices$coef_trajectory_time] <-
+  log(-truth[comp_obj$indices$coef_trajectory_time])
 
-truth <- c(coef_risk, coef_traject_trans, log_chol(Sigma))
-set.seed(1)
-# TODO: need to compute starting values
-start <- truth + runif(length(start), -.1, .1) 
+start$lower[comp_obj$indices$coef_trajectory_time] <- 
+  log(-start$lower[comp_obj$indices$coef_trajectory_time])
 
-# the log composite likelihood at the starting values
-ll_func_chol(start, 4L)
-#> [1] -85400.61
-
-# optimize the log composite likelihood
+# optimize the log composite likelihood. First with a Laplace approximation
+ghq_data_Laplace <- with(gaussHermiteData(1L), list(node = x, weight = w))
 system.time(
-  fit <- optim(start, \(par) -ll_func_chol(par, n_threads = 4L), 
-               control = list(maxit = 10000L)))
+  fit_Laplace <- optim(
+    start$lower, \(par) -ll_func_chol(par, n_threads = 4L, ghq_data_Laplace), 
+    control = list(maxit = 10000L)))
 #>     user   system  elapsed 
-#> 4269.181    0.145 1088.556
+#> 2543.864    0.752  650.779
 
-# the maximum log composite likelihood
--fit$value
-#> [1] -85189.44
+# then we improve by using Adaptive Gauss-Hermite quadrature
+system.time(
+  fit <- optim(
+    fit_Laplace$par, \(par) -ll_func_chol(par, n_threads = 4L, ghq_data), 
+    control = list(maxit = 10000L)))
+#>     user   system  elapsed 
+#> 3352.348    0.800  861.154
+
+# the log composite likelihood at different points
 ll_func_chol(truth)
 #> [1] -85239.77
+ll_func_chol(start$lower, 4L)
+#> [1] -91686.42
+ll_func_chol(fit_Laplace$par, 4L)
+#> [1] -85230.44
+-fit$value
+#> [1] -85201.97
 ```
 
 ``` r
-# It took quite a few iterations. This we be much better with a gradient 
+# It took quite a few iterations. This may be much smaller with a gradient 
 # approximation
+fit_Laplace$counts
+#> function gradient 
+#>     3445       NA
 fit$counts
 #> function gradient 
-#>     4387       NA
+#>     3437       NA
 
 # compare the estimates with the true values
-rbind(Estimate = head(fit$par, length(coef_risk)),
+rbind(`Estimate Laplace` = head(fit_Laplace$par, length(coef_risk)),
+      `Estimate AGHQ` = head(fit$par, length(coef_risk)),
       Truth = c(coef_risk))
-#>               [,1]     [,2]       [,3]       [,4]      [,5]      [,6]
-#> Estimate 0.5981285 1.017533 0.06244744 -0.4938095 0.1926391 0.3445786
-#> Truth    0.6700000 1.000000 0.10000000 -0.4000000 0.2500000 0.3000000
-rbind(Estimate = head(fit$par[-(1:length(coef_risk))], length(coef_traject)),
-      Truth = c(coef_traject_trans))
-#>                [,1]       [,2]      [,3]      [,4]      [,5]      [,6]
-#> Estimate -0.2365302 -0.4429992 0.8023732 0.3861404 0.1992220 0.1933424
-#> Truth    -0.2231436 -0.4500000 0.8000000 0.4000000 0.1823216 0.1500000
-#>               [,7]       [,8]
-#> Estimate 0.2343958 -0.2648146
-#> Truth    0.2500000 -0.2000000
+#>                       [,1]     [,2]       [,3]       [,4]      [,5]      [,6]
+#> Estimate Laplace 0.6314864 1.003365 0.08814717 -0.4784155 0.2161955 0.3697899
+#> Estimate AGHQ    0.6550825 1.047025 0.09543173 -0.4334760 0.2380396 0.3788838
+#> Truth            0.6700000 1.000000 0.10000000 -0.4000000 0.2500000 0.3000000
+rbind(`Estimate Laplace` = fit_Laplace$par[comp_obj$indices$coef_trajectory],
+      `Estimate AGHQ` = fit$par[comp_obj$indices$coef_trajectory],
+      Truth = truth[comp_obj$indices$coef_trajectory])
+#>                        [,1]       [,2]      [,3]      [,4]      [,5]      [,6]
+#> Estimate Laplace -0.1998897 -0.4818206 0.8491183 0.4168787 0.2390454 0.1858457
+#> Estimate AGHQ    -0.2113185 -0.4681889 0.8303657 0.4053286 0.2443848 0.1636976
+#> Truth            -0.2231436 -0.4500000 0.8000000 0.4000000 0.1823216 0.1500000
+#>                       [,7]       [,8]
+#> Estimate Laplace 0.2397182 -0.2787349
+#> Estimate AGHQ    0.2573541 -0.2620950
+#> Truth            0.2500000 -0.2000000
 
+n_vcov <- (2L * n_causes * (2L * n_causes + 1L)) %/% 2L
 Sigma
 #>        [,1]   [,2]   [,3]   [,4]
 #> [1,]  0.306  0.008 -0.138  0.197
 #> [2,]  0.008  0.759  0.251 -0.250
 #> [3,] -0.138  0.251  0.756 -0.319
 #> [4,]  0.197 -0.250 -0.319  0.903
-log_chol_inv(tail(fit$par, (2L * n_causes * (2L * n_causes + 1L)) %/% 2L))
-#>            [,1]       [,2]       [,3]       [,4]
-#> [1,]  0.2388979 -0.1461717 -0.1209125  0.1857533
-#> [2,] -0.1461717  0.7310855  0.2678374 -0.4092853
-#> [3,] -0.1209125  0.2678374  0.7295153 -0.3159355
-#> [4,]  0.1857533 -0.4092853 -0.3159355  1.0007673
+log_chol_inv(tail(fit$par, n_vcov))
+#>             [,1]        [,2]        [,3]       [,4]
+#> [1,]  0.37705251  0.07775905 -0.07329189  0.2257292
+#> [2,]  0.07775905  0.94952091  0.31111274 -0.3354658
+#> [3,] -0.07329189  0.31111274  0.82206028 -0.2911341
+#> [4,]  0.22572917 -0.33546584 -0.29113408  1.1894298
+log_chol_inv(tail(fit_Laplace$par, n_vcov))
+#>              [,1]         [,2]        [,3]       [,4]
+#> [1,]  0.181182026 -0.008633587 -0.05862232  0.1092230
+#> [2,] -0.008633587  0.863597830  0.29895262 -0.4362569
+#> [3,] -0.058622322  0.298952616  0.87315513 -0.2677827
+#> [4,]  0.109222996 -0.436256899 -0.26778270  1.1639585
 ```
 
 ## TODOs
@@ -385,7 +380,6 @@ The package is still under development. Here are a few TODOs:
     cubic splines to make the model more flexible. The log composite
     likelihood can then be optimized with an optimizer that allows for
     linear inequality constraints.
--   Implement a function to get starting values.
 -   Implement a function to do the estimation.
 -   Support delayed entry.
 

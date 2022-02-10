@@ -1,8 +1,8 @@
 #ifndef GHQ_H
 #define GHQ_H
 
-#include "simple_mem_stack.h"
-#include <RcppArmadillo.h>
+#include "simple-mem-stack.h"
+#include "arma-wrap.h"
 #include <algorithm>
 #include <stdexcept>
 #include <psqn-bfgs.h>

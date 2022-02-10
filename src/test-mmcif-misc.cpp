@@ -2,7 +2,7 @@
 #include "testthat.h"
 
 context("mmcif functions work") {
-  test_that("mmcif_log_Lik works with singleton data") {
+  test_that("mmcif_logLik works with singleton data") {
     /*
      set.seed(111)
      Sig <- rWishart(1, 3, diag(3)) |> round(3) |> drop()

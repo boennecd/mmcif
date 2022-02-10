@@ -2,7 +2,7 @@
 #define MMCIF_LOGLIK_H
 
 #include "ghq.h"
-#include "simple_mem_stack.h"
+#include "simple-mem-stack.h"
 #include "param-indexer.h"
 
 /// information about a given individual
@@ -26,7 +26,7 @@ struct mmcif_data {
  * computes the log composite likelihood term of a given pair. The parameters
  * should be stored with the full covariance matrix.
  */
-double mmcif_log_Lik
+double mmcif_logLik
   (double const * __restrict__ par, param_indexer const &indexer,
    mmcif_data const &obs1, mmcif_data const &obs2,
    ghqCpp::simple_mem_stack<double> &mem, ghqCpp::ghq_data const &dat);
@@ -34,7 +34,7 @@ double mmcif_log_Lik
 /**
  * overload of singletons.
  */
-double mmcif_log_Lik
+double mmcif_logLik
   (double const * __restrict__ par, param_indexer const &indexer,
    mmcif_data const &obs, ghqCpp::simple_mem_stack<double> &mem,
    ghqCpp::ghq_data const &dat);

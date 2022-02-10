@@ -1,7 +1,7 @@
 #ifndef WMEM_H
 #define WMEM_H
 
-#include "simple_mem_stack.h"
+#include "simple-mem-stack.h"
 #ifdef _OPENMP
 #include <omp.h>
 #endif

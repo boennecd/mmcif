@@ -1,8 +1,8 @@
 #ifndef MMCIF_MISC_H
 #define MMCIF_MISC_H
 
-#include "simple_mem_stack.h"
-#include <RcppArmadillo.h>
+#include "simple-mem-stack.h"
+#include "arma-wrap.h"
 #include <numeric>
 
 inline arma::mat mat_no_alloc

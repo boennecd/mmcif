@@ -96,7 +96,7 @@ public:
 };
 
 /// computes the log likelihood when both outcomes are observed
-double mmcif_log_Lik_both_obs
+double mmcif_logLik_both_obs
   (double const * __restrict__ par, param_indexer const &indexer,
    mmcif_data const &obs1, mmcif_data const &obs2,
    simple_mem_stack<double> &mem, ghq_data const &dat){
@@ -165,7 +165,7 @@ double mmcif_log_Lik_both_obs
  * computes the log likelihood when the first outcome is observed but the
  * second is not
  */
-double mmcif_log_Lik_one_obs
+double mmcif_logLik_one_obs
   (double const * __restrict__ par, param_indexer const &indexer,
    mmcif_data const &obs1, mmcif_data const &obs2,
    simple_mem_stack<double> &mem, ghq_data const &dat){
@@ -263,12 +263,12 @@ double mmcif_log_Lik_one_obs
 }
 
 /// computes the log likelihood when both outcomes are censored
-double mmcif_log_Lik_both_cens
+double mmcif_logLik_both_cens
   (double const * __restrict__ par, param_indexer const &indexer,
    mmcif_data const &obs1, mmcif_data const &obs2,
    simple_mem_stack<double> &mem, ghq_data const &dat){
   if(obs2.has_finite_trajectory_prob && !obs1.has_finite_trajectory_prob)
-    return mmcif_log_Lik_both_cens(par, indexer, obs2, obs1, mem, dat);
+    return mmcif_logLik_both_cens(par, indexer, obs2, obs1, mem, dat);
 
   mmcif_comp_helper helper{indexer, par, mem};
   auto const n_causes = indexer.n_causes();
@@ -341,7 +341,7 @@ double mmcif_log_Lik_both_cens
   }
 
   auto comp_main_terms = [&](mmcif_data const &obs){
-    return std::exp(mmcif_log_Lik(par, indexer, obs, mem, dat)) - 1;
+    return std::exp(mmcif_logLik(par, indexer, obs, mem, dat)) - 1;
   };
 
   double integral{1};
@@ -403,7 +403,7 @@ double mmcif_log_Lik_both_cens
 
 } // namespace
 
-double mmcif_log_Lik
+double mmcif_logLik
   (double const * __restrict__ par, param_indexer const &indexer,
    mmcif_data const &obs, simple_mem_stack<double> &mem,
    ghq_data const &dat){
@@ -497,7 +497,7 @@ double mmcif_log_Lik
   return out;
 }
 
-double mmcif_log_Lik
+double mmcif_logLik
   (double const * __restrict__ par, param_indexer const &indexer,
    mmcif_data const &obs1, mmcif_data const &obs2,
    simple_mem_stack<double> &mem, ghq_data const &dat){
@@ -506,10 +506,10 @@ double mmcif_log_Lik
              is_cens2{helper.is_censored(obs2)};
 
   if(is_cens1 && is_cens2)
-    return mmcif_log_Lik_both_cens(par, indexer, obs1, obs2, mem, dat);
+    return mmcif_logLik_both_cens(par, indexer, obs1, obs2, mem, dat);
   else if(!is_cens1 && is_cens2)
-    return mmcif_log_Lik_one_obs(par, indexer, obs1, obs2, mem, dat);
+    return mmcif_logLik_one_obs(par, indexer, obs1, obs2, mem, dat);
   else if(is_cens1 && !is_cens2)
-    return mmcif_log_Lik_one_obs(par, indexer, obs2, obs1, mem, dat);
-  return mmcif_log_Lik_both_obs(par, indexer, obs1, obs2, mem, dat);
+    return mmcif_logLik_one_obs(par, indexer, obs2, obs1, mem, dat);
+  return mmcif_logLik_both_obs(par, indexer, obs1, obs2, mem, dat);
 }

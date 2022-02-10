@@ -9,8 +9,8 @@ const ghqCpp::ghq_data ghq_dat_use{ghq_nodes, ghq_weights, 10};
 
 } // namespace
 
-context("mmcif_log_Lik works as expected with singleton data") {
-  test_that("mmcif_log_Lik works") {
+context("mmcif_logLik works as expected with singleton data") {
+  test_that("mmcif_logLik works") {
     /*
      set.seed(321)
      n_cov_traject <- 4L
@@ -130,7 +130,7 @@ context("mmcif_log_Lik works as expected with singleton data") {
     {
       // the censored case with one as the probability of the trajectory
       mmcif_data dat{covs_traject, d_covs_traject, covs_risk, false, n_causes};
-      double const res{mmcif_log_Lik(par, indexer, dat, mem, ghq_dat_use)};
+      double const res{mmcif_logLik(par, indexer, dat, mem, ghq_dat_use)};
       constexpr double truth{-1.21423993502317};
       expect_true(std::abs(res - truth) < std::abs(truth) * 1e-8);
     }
@@ -139,14 +139,14 @@ context("mmcif_log_Lik works as expected with singleton data") {
       // the observed case works
       constexpr unsigned cause{2L};
       mmcif_data dat{covs_traject, d_covs_traject, covs_risk, true, cause};
-      double const res{mmcif_log_Lik(par, indexer, dat, mem, ghq_dat_use)};
+      double const res{mmcif_logLik(par, indexer, dat, mem, ghq_dat_use)};
       constexpr double truth{-4.26186714415087};
       expect_true(std::abs(res - truth) < std::abs(truth) * 1e-8);
     }
 
     // the censored case with a probability of the trajectory in (0, 1) works
     mmcif_data dat{covs_traject, d_covs_traject, covs_risk, true, n_causes};
-    double const res{mmcif_log_Lik(par, indexer, dat, mem, ghq_dat_use)};
+    double const res{mmcif_logLik(par, indexer, dat, mem, ghq_dat_use)};
     constexpr double truth{-1.04608338904514};
     expect_true(std::abs(res - truth) < std::abs(truth) * 1e-8);
   }
@@ -227,8 +227,8 @@ constexpr double covs_risk1[]{-0.605, -0.876},
                         par[]{-0.647, 0.076, -0.439, -0.98, -0.806, 0.324, -0.5, -0.25, 0.355, -0.737, -0.475, -0.365, -0.5, -0.25, 0.353, -0.874, -0.871, 0.322, -0.5, -0.25, -0.791, 0.474, -0.85, 0.782, 1.974, -0.235, 0.154, 0.195, 0.108, 0.059, -0.235, 0.401, 0.163, -0.161, 0.597, -0.155, 0.154, 0.163, 0.4, 0.026, 0.047, 0.179, 0.195, -0.161, 0.026, 0.506, -0.493, 0.018, 0.108, 0.597, 0.047, -0.493, 2.031, 0.052, 0.059, -0.155, 0.179, 0.018, 0.052, 0.578};
 } // namespace
 
-context("mmcif_log_Lik works as expected with bivariate data") {
-  test_that("mmcif_log_Lik works when both individuals are observed") {
+context("mmcif_logLik works as expected with bivariate data") {
+  test_that("mmcif_logLik works when both individuals are observed") {
     /*
      library(ghqCpp)
      local({
@@ -265,12 +265,12 @@ context("mmcif_log_Lik works as expected with bivariate data") {
       obs1{covs_traject1, d_covs_traject1, covs_risk1, true, cause[0]},
       obs2{covs_traject2, d_covs_traject2, covs_risk2, true, cause[1]};
 
-    double const res{mmcif_log_Lik(par, indexer, obs1, obs2, mem, ghq_dat_use)};
+    double const res{mmcif_logLik(par, indexer, obs1, obs2, mem, ghq_dat_use)};
     constexpr double truth{-7.77301433778719};
     expect_true(std::abs(res - truth) < std::abs(truth) * 1e-8);
   }
 
-  test_that("mmcif_log_Lik works when one individual is observed and one is censored") {
+  test_that("mmcif_logLik works when one individual is observed and one is censored") {
     /*
      library(ghqCpp)
      local({
@@ -308,7 +308,7 @@ context("mmcif_log_Lik works as expected with bivariate data") {
         obs2{covs_traject2, d_covs_traject2, covs_risk2, false, n_causes};
 
       double const res
-        {mmcif_log_Lik(par, indexer, obs1, obs2, mem, ghq_dat_use)};
+        {mmcif_logLik(par, indexer, obs1, obs2, mem, ghq_dat_use)};
       constexpr double truth{-4.5240025456571};
       expect_true(std::abs(res - truth) < std::abs(truth) * 1e-8);
     }
@@ -368,17 +368,17 @@ context("mmcif_log_Lik works as expected with bivariate data") {
       constexpr double truth{-4.38551973954109};
       {
         double const res
-          {mmcif_log_Lik(par, indexer, obs1, obs2, mem, ghq_dat_use)};
+          {mmcif_logLik(par, indexer, obs1, obs2, mem, ghq_dat_use)};
         expect_true(std::abs(res - truth) < std::abs(truth) * 1e-8);
       }
 
       double const res
-        {mmcif_log_Lik(par, indexer, obs2, obs1, mem, ghq_dat_use)};
+        {mmcif_logLik(par, indexer, obs2, obs1, mem, ghq_dat_use)};
       expect_true(std::abs(res - truth) < std::abs(truth) * 1e-8);
     }
   }
 
-  test_that("mmcif_log_Lik works when both individuals are censored") {
+  test_that("mmcif_logLik works when both individuals are censored") {
     /*
      local({
      etas <- sapply(obs, \(x) x$covs_risk %*% coefs_risk)
@@ -397,7 +397,7 @@ context("mmcif_log_Lik works as expected with bivariate data") {
         obs2{covs_traject2, d_covs_traject2, covs_risk2, false, n_causes};
 
       double const res
-        {mmcif_log_Lik(par, indexer, obs1, obs2, mem, ghq_dat_use)};
+        {mmcif_logLik(par, indexer, obs1, obs2, mem, ghq_dat_use)};
       constexpr double truth{-3.01479043790748};
       expect_true(std::abs(res - truth) < std::abs(truth) * 1e-8);
     }
@@ -441,12 +441,12 @@ context("mmcif_log_Lik works as expected with bivariate data") {
       constexpr double truth{-2.18417107496657};
       {
         double const res
-          {mmcif_log_Lik(par, indexer, obs1, obs2, mem, ghq_dat_use)};
+          {mmcif_logLik(par, indexer, obs1, obs2, mem, ghq_dat_use)};
         expect_true(std::abs(res - truth) < std::abs(truth) * 1e-8);
       }
 
       double const res
-        {mmcif_log_Lik(par, indexer, obs2, obs1, mem, ghq_dat_use)};
+        {mmcif_logLik(par, indexer, obs2, obs1, mem, ghq_dat_use)};
       expect_true(std::abs(res - truth) < std::abs(truth) * 1e-8);
     }
 
@@ -509,7 +509,7 @@ context("mmcif_log_Lik works as expected with bivariate data") {
         obs2{covs_traject2, d_covs_traject2, covs_risk2, true, n_causes};
 
       double const res
-        {mmcif_log_Lik(par, indexer, obs1, obs2, mem, ghq_dat_use)};
+        {mmcif_logLik(par, indexer, obs1, obs2, mem, ghq_dat_use)};
       constexpr double truth{-2.00247380641032};
       expect_true(std::abs(res - truth) < std::abs(truth) * 1e-8);
     }
