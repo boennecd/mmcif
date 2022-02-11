@@ -6,6 +6,7 @@
 #include "mcif-logLik.h"
 #include "ghq.h"
 #include "wmem.h"
+#include "bases.h"
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -364,6 +365,39 @@ Rcpp::NumericVector mcif_logLik_grad_to_R
       out[i] += grad_res[i];
 
   out.attr("log_likelihood") = log_likelihood;
+
+  return out;
+}
+
+// [[Rcpp::export(rng = false)]]
+SEXP ns_ptr(const arma::vec &boundary_knots, const arma::vec &interior_knots){
+  return Rcpp::XPtr<bases::ns>(new bases::ns(boundary_knots, interior_knots));
+}
+
+// [[Rcpp::export(rng = false)]]
+Rcpp::NumericMatrix ns_eval
+  (SEXP ptr, Rcpp::NumericVector const points, int const ders){
+  Rcpp::XPtr<bases::ns> basis(ptr);
+  auto const n_wmem = basis->n_wmem();
+  std::vector<double> mem(n_wmem);
+
+  size_t const n_out = points.length();
+  auto const dim = basis->n_basis();
+  std::vector<double> res_i(dim);
+
+  Rcpp::NumericMatrix out(n_out, dim);
+
+  for(size_t j = 0; j < n_out; ++j){
+    if(!std::isfinite(points[j])){
+      for(size_t i = 0; i < dim; ++i)
+        out(j, i) = std::numeric_limits<double>::quiet_NaN();
+      continue;
+    }
+
+    (*basis)(res_i.data(), mem.data(), points[j], ders);
+    for(size_t i = 0; i < dim; ++i)
+      out(j, i) = res_i[i];
+  }
 
   return out;
 }

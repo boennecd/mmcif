@@ -33,7 +33,7 @@ where there are
 ![K](https://render.githubusercontent.com/render/math?math=K "K")
 competing risks. The
 ![\\vec x\_{ij}(t)^\\top\\vec\\gamma\_k](https://render.githubusercontent.com/render/math?math=%5Cvec%20x_%7Bij%7D%28t%29%5E%5Ctop%5Cvec%5Cgamma_k "\vec x_{ij}(t)^\top\vec\gamma_k")’s
-for the trajectory are subject to monotonically decreasing.
+for the trajectory are subject to a monotonically decreasing.
 
 ## Example
 
@@ -46,7 +46,7 @@ competing risks and
  b_{ij} &\sim \text{Unif}(-1, 1)\\ \vec z_{ij} &= (1, a_{ij}, b_{ij}) \end{align*}")
 
 We set the parameters below and plot the conditional cumulative
-incidence function when the random effects are zero and
+incidences function when the random effects are zero and
 ![a\_{ij} = b\_{ij} = 0](https://render.githubusercontent.com/render/math?math=a_%7Bij%7D%20%3D%20b_%7Bij%7D%20%3D%200 "a_{ij} = b_{ij} = 0").
 
 ``` r
@@ -62,7 +62,7 @@ coef_risk <- c(.67, 1, .1, -.4, .25, .3) |>
 coef_traject <- c(-.8, -.45, .8, .4, -1.2, .15, .25, -.2) |> 
   matrix(ncol = n_causes)
 
-# plot the conditional cumulative incidence when random effects and covariates
+# plot the conditional cumulative incidences when random effects and covariates
 # are all zero
 local({
   probs <- exp(coef_risk[1, ]) / (1 + sum(exp(coef_risk[1, ])))
@@ -197,14 +197,45 @@ Then we setup the C++ object to do the computation.
 library(mmcif)
 comp_obj <- mmcif_data(
   ~ a + b, dat, cause = cause, time = time, cluster_id = cluster_id, 
-  max_time = delta)
+  max_time = delta, spline_df = 2L)
 ```
+
+The `mmcif_data` function does not work with
+
+![h(t) = \\text{arcthan}\\left(\\frac{t - \\delta/2}{\\delta/2}\\right)](https://render.githubusercontent.com/render/math?math=h%28t%29%20%3D%20%5Ctext%7Barcthan%7D%5Cleft%28%5Cfrac%7Bt%20-%20%5Cdelta%2F2%7D%7B%5Cdelta%2F2%7D%5Cright%29 "h(t) = \text{arcthan}\left(\frac{t - \delta/2}{\delta/2}\right)")
+
+but instead with
+![\\vec g(h(t))](https://render.githubusercontent.com/render/math?math=%5Cvec%20g%28h%28t%29%29 "\vec g(h(t))")
+where
+![\\vec g](https://render.githubusercontent.com/render/math?math=%5Cvec%20g "\vec g")
+returns a natural cubic spline basis functions. The knots are based on
+quantiles of
+![h(t)](https://render.githubusercontent.com/render/math?math=h%28t%29 "h(t)")
+evaluated on the event times. The degrees of freedom of the spline is
+controlled with the `spline_df` argument. There is a `constraints`
+element on the object returned by the `mmcif_data` function which
+ensures that the
+![\\vec x\_{ij}(t)^\\top\\vec\\gamma\_k](https://render.githubusercontent.com/render/math?math=%5Cvec%20x_%7Bij%7D%28t%29%5E%5Ctop%5Cvec%5Cgamma_k "\vec x_{ij}(t)^\top\vec\gamma_k")s
+are monotonically decreasing if
+![C\\vec\\zeta &gt; \\vec 0](https://render.githubusercontent.com/render/math?math=C%5Cvec%5Czeta%20%3E%20%5Cvec%200 "C\vec\zeta > \vec 0")
+where ![C](https://render.githubusercontent.com/render/math?math=C "C")
+is the matrix and
+![\\vec\\zeta](https://render.githubusercontent.com/render/math?math=%5Cvec%5Czeta "\vec\zeta")
+is the concatenated vector of model parameters.
 
 The time to compute the log composite likelihood is illustrated below.
 
 ``` r
 NCOL(comp_obj$pair_indices) # the number of pairs in the composite likelihood
 #> [1] 5209
+
+# we need to find the combination of the spline bases that yield a straight 
+# line. You can skip this
+comb_slope <- local({
+  boundary_knots <- comp_obj$spline$boundary_knots
+  pts <- seq(boundary_knots[1], boundary_knots[2], length.out = 1000)
+  lm.fit(cbind(1, comp_obj$spline$expansion(pts)), pts)$coef
+})
 
 # assign a function to compute the log composite likelihood
 library(fastGHQuad)
@@ -213,26 +244,30 @@ ghq_data <- with(gaussHermiteData(5L), list(node = x, weight = w))
 
 ll_func <- \(par, n_threads = 1L)
   mmcif:::mmcif_logLik(
-    comp_obj$comp_obj, par = c(coef_risk, coef_traject, Sigma), 
-    ghq_data = ghq_data, n_threads = n_threads)
+    comp_obj$comp_obj, par = par, ghq_data = ghq_data, n_threads = n_threads)
 
 # the log composite likelihood at the true parameters
-ll_func(c(coef_risk, coef_traject, Sigma))
+coef_traject_spline <- 
+  rbind(t(coef_traject[1, ] %o% comb_slope[-1]), 
+        coef_traject[2, ] + comb_slope[1] * coef_traject[1, ],
+        coef_traject[-(1:2), ])
+true_values <- c(coef_risk, coef_traject_spline, Sigma)
+ll_func(true_values)
 #> [1] -8865.391
 
 # check the time to compute the log composite likelihood
 bench::mark(
-  `one thread` = ll_func(n_threads = 1L, c(coef_risk, coef_traject, Sigma)),
-  `two threads` = ll_func(n_threads = 2L, c(coef_risk, coef_traject, Sigma)),
-  `three threads` = ll_func(n_threads = 3L, c(coef_risk, coef_traject, Sigma)),
-  `four threads` = ll_func(n_threads = 4L, c(coef_risk, coef_traject, Sigma)))
+  `one thread` = ll_func(n_threads = 1L, true_values),
+  `two threads` = ll_func(n_threads = 2L, true_values),
+  `three threads` = ll_func(n_threads = 3L, true_values),
+  `four threads` = ll_func(n_threads = 4L, true_values))
 #> # A tibble: 4 × 6
 #>   expression         min   median `itr/sec` mem_alloc `gc/sec`
 #>   <bch:expr>    <bch:tm> <bch:tm>     <dbl> <bch:byt>    <dbl>
-#> 1 one thread      91.3ms   91.5ms      10.9    23.5KB        0
-#> 2 two threads     47.4ms   48.1ms      20.8      288B        0
-#> 3 three threads   31.6ms   32.2ms      31.1      288B        0
-#> 4 four threads    24.6ms   24.9ms      40.0      288B        0
+#> 1 one thread      91.4ms     92ms      10.8    19.8KB        0
+#> 2 two threads     47.3ms   48.7ms      20.6        0B        0
+#> 3 three threads   31.2ms   31.8ms      31.4        0B        0
+#> 4 four threads    24.3ms   24.8ms      39.8        0B        0
 ```
 
 Then we optimize the parameters (TODO: there will be a wrapper to work
@@ -243,12 +278,12 @@ estimation time will be much reduced when the gradient is implemented).
 # find the starting values
 system.time(start <- mmcif_start_values(comp_obj, n_threads = 4L))
 #>    user  system elapsed 
-#>   0.049   0.000   0.014
+#>   0.084   0.000   0.024
 
 # the maximum likelihood without the random effects. Note that this is not 
 # comparable with the composite likelihood
 attr(start, "logLik")
-#> [1] -3135.4
+#> [1] -3132.405
 
 # computes the log Cholesky decomposition
 log_chol <- \(x){
@@ -271,83 +306,108 @@ log_chol(Sigma)
 stopifnot(all.equal(Sigma, log_chol(Sigma) |> log_chol_inv()))
 
 # computes the log composite likelihood with a log Cholesky decomposition for
-# the covariance matrix. We handle the monotonicity constraint by log 
-# transforming the slopes
+# the covariance matrix
 ll_func_chol <- \(par, n_threads = 1L, ghq = ghq_data){
   n_vcov <- (2L * n_causes * (2L * n_causes + 1L)) %/% 2L
   par <- c(head(par, -n_vcov), tail(par, n_vcov) |> log_chol_inv())
-  coef_trajectory_time <- comp_obj$indices$coef_trajectory_time
-  par[coef_trajectory_time] <- -exp(par[coef_trajectory_time])
   
   mmcif:::mmcif_logLik(
     comp_obj$comp_obj, par = par, ghq_data = ghq, n_threads = n_threads)
 }
 
-# set starting values and true value
-truth <- c(coef_risk, coef_traject, log_chol(Sigma))
-truth[comp_obj$indices$coef_trajectory_time] <-
-  log(-truth[comp_obj$indices$coef_trajectory_time])
+# set true value
+truth <- c(coef_risk, coef_traject_spline, log_chol(Sigma))
 
-start$lower[comp_obj$indices$coef_trajectory_time] <- 
-  log(-start$lower[comp_obj$indices$coef_trajectory_time])
-
-# optimize the log composite likelihood. First with a Laplace approximation
-ghq_data_Laplace <- with(gaussHermiteData(1L), list(node = x, weight = w))
+# optimize the log composite likelihood
+constraints <- comp_obj$constraints$vcov_lower
 system.time(
-  fit_Laplace <- optim(
-    start$lower, \(par) -ll_func_chol(par, n_threads = 4L, ghq_data_Laplace), 
+  fit <- constrOptim(
+    start$lower, \(par) -ll_func_chol(par, n_threads = 4L, ghq_data), 
+    grad = NULL, ui = constraints, ci = rep(1e-8, NROW(constraints)),
     control = list(maxit = 10000L)))
-#>    user  system elapsed 
-#> 291.600   0.007  72.917
-
-# then we improve by using Adaptive Gauss-Hermite quadrature
-system.time(
-  fit <- optim(
-    fit_Laplace$par, \(par) -ll_func_chol(par, n_threads = 4L, ghq_data), 
-    control = list(maxit = 10000L)))
-#>    user  system elapsed 
-#> 490.367   0.008 122.614
+#>     user   system  elapsed 
+#> 5190.299    0.333 1298.104
 
 # the log composite likelihood at different points
-ll_func_chol(truth)
+ll_func_chol(truth, 4L)
 #> [1] -8865.391
 ll_func_chol(start$lower, 4L)
-#> [1] -9502.087
-ll_func_chol(fit_Laplace$par, 4L)
-#> [1] -8850.741
+#> [1] -9492.242
 -fit$value
-#> [1] -8843.321
+#> [1] -8836.451
 ```
+
+The estimated and true the conditional cumulative incidence functions
+when the random effects are zero and
+![a\_{ij} = b\_{ij} = 0](https://render.githubusercontent.com/render/math?math=a_%7Bij%7D%20%3D%20b_%7Bij%7D%20%3D%200 "a_{ij} = b_{ij} = 0")
+are shown below (the dashed curves are the estimates).
+
+``` r
+local({
+  # get the estimates
+  coef_risk_est <- fit$par[comp_obj$indices$coef_risk] |> 
+    matrix(ncol = n_causes)
+  coef_traject_time_est <- fit$par[comp_obj$indices$coef_trajectory_time] |> 
+    matrix(ncol = n_causes)
+  coef_traject_est <- fit$par[comp_obj$indices$coef_trajectory] |> 
+    matrix(ncol = n_causes)
+  coef_traject_intercept_est <- coef_traject_est[3, ]
+  
+  # compute the risk probabilities  
+  probs <- exp(coef_risk[1, ]) / (1 + sum(exp(coef_risk[1, ])))
+  probs_est <- exp(coef_risk_est[1, ]) / (1 + sum(exp(coef_risk_est[1, ])))
+  
+  # plot the estimated and true conditional cumulative incidence functions. The
+  # estimates are the dashed lines
+  par(mar = c(5, 5, 1, 1), mfcol = c(1, 2))
+  pts <- seq(1e-8, delta, length.out = 1000)
+  
+  for(i in 1:2){
+    true_vals <- probs[i] * pnorm(
+      -coef_traject[1, i] * atanh((pts - delta / 2) / (delta / 2)) - 
+        coef_traject[2, i])
+    
+    estimates <- probs_est[i] * pnorm(
+      -comp_obj$time_expansion(pts) %*% coef_traject_time_est[, i] - 
+        coef_traject_intercept_est[i]) |> drop()
+    
+    matplot(pts, cbind(true_vals, estimates), xlim = c(1e-8, delta), 
+            ylim = c(0, 1), bty = "l",  xlab = "Time", lty = c(1, 2),
+            ylab = sprintf("Cumulative incidence; cause %d", i),
+            yaxs = "i", xaxs = "i", type = "l", col = "black")
+    grid()
+  }
+})
+```
+
+<img src="man/figures/README-compare_estimated_incidence_funcs-1.png" width="100%" />
+
+Further illustrations of the estimated model are given below.
 
 ``` r
 # It took quite a few iterations. This may be much smaller with a gradient 
-# approximation
-fit_Laplace$counts
-#> function gradient 
-#>     3513       NA
+# approximation. It is possible that another non-linear optimizer that allows 
+# for linear inequality constraints would be faster
 fit$counts
 #> function gradient 
-#>     4253       NA
+#>    45571       NA
+fit$outer.iterations
+#> [1] 6
 
 # compare the estimates with the true values
-rbind(`Estimate Laplace` = head(fit_Laplace$par, length(coef_risk)),
-      `Estimate AGHQ` = head(fit$par, length(coef_risk)),
+rbind(`Estimate AGHQ` = head(fit$par, length(coef_risk)),
       Truth = c(coef_risk))
-#>                       [,1]      [,2]      [,3]       [,4]      [,5]      [,6]
-#> Estimate Laplace 0.6820169 0.9213513 0.2091015 -0.4297888 0.3127709 0.3116543
-#> Estimate AGHQ    0.6678179 0.9624318 0.2472146 -0.4646059 0.2948015 0.3738843
-#> Truth            0.6700000 1.0000000 0.1000000 -0.4000000 0.2500000 0.3000000
-rbind(`Estimate Laplace` = fit_Laplace$par[comp_obj$indices$coef_trajectory],
-      `Estimate AGHQ` = fit$par[comp_obj$indices$coef_trajectory],
+#>                    [,1]      [,2]      [,3]       [,4]      [,5]      [,6]
+#> Estimate AGHQ 0.5867711 0.9064343 0.2321381 -0.5534194 0.2358655 0.3723844
+#> Truth         0.6700000 1.0000000 0.1000000 -0.4000000 0.2500000 0.3000000
+rbind(`Estimate AGHQ` = fit$par[comp_obj$indices$coef_trajectory],
       Truth = truth[comp_obj$indices$coef_trajectory])
-#>                        [,1]       [,2]      [,3]      [,4]      [,5]       [,6]
-#> Estimate Laplace -0.2328143 -0.4796474 0.8355155 0.4058797 0.1630115 0.03025068
-#> Estimate AGHQ    -0.2255714 -0.4848914 0.8394861 0.4171070 0.1481107 0.09699559
-#> Truth            -0.2231436 -0.4500000 0.8000000 0.4000000 0.1823216 0.15000000
-#>                       [,7]       [,8]
-#> Estimate Laplace 0.1585224 -0.3294909
-#> Estimate AGHQ    0.1766491 -0.3056605
-#> Truth            0.2500000 -0.2000000
+#>                    [,1]      [,2]     [,3]      [,4]      [,5]      [,6]
+#> Estimate AGHQ -6.276342 -4.340013 2.653627 0.8405226 0.4148194 -9.393454
+#> Truth         -6.523907 -4.264840 2.816025 0.8000000 0.4000000 -9.785860
+#>                   [,7]     [,8]      [,9]      [,10]
+#> Estimate AGHQ -6.22526 4.883872 0.1764503 -0.3124393
+#> Truth         -6.39726 5.049037 0.2500000 -0.2000000
 
 n_vcov <- (2L * n_causes * (2L * n_causes + 1L)) %/% 2L
 Sigma
@@ -358,16 +418,10 @@ Sigma
 #> [4,]  0.197 -0.250 -0.319  0.903
 log_chol_inv(tail(fit$par, n_vcov))
 #>             [,1]       [,2]        [,3]        [,4]
-#> [1,]  0.40337303  0.2713524 -0.07630755  0.04580343
-#> [2,]  0.27135242  1.3752989  0.22911260 -0.26401829
-#> [3,] -0.07630755  0.2291126  0.68733205 -0.31152421
-#> [4,]  0.04580343 -0.2640183 -0.31152421  0.72142485
-log_chol_inv(tail(fit_Laplace$par, n_vcov))
-#>             [,1]       [,2]        [,3]       [,4]
-#> [1,]  0.24202930  0.3596424 -0.05965436 -0.1187252
-#> [2,]  0.35964241  1.2683645  0.19424410 -0.2862462
-#> [3,] -0.05965436  0.1942441  0.66533894 -0.3472695
-#> [4,] -0.11872517 -0.2862462 -0.34726954  0.7829966
+#> [1,]  0.02463172 -0.1479385 -0.06289012  0.07042713
+#> [2,] -0.14793848  0.9878765  0.19862164 -0.38548595
+#> [3,] -0.06289012  0.1986216  0.66864492 -0.32855872
+#> [4,]  0.07042713 -0.3854859 -0.32855872  0.75039193
 ```
 
 ## TODOs
@@ -376,10 +430,6 @@ The package is still under development. Here are a few TODOs:
 
 -   Implement the gradient. Most of the work is done in already in the
     package at <https://github.com/boennecd/ghq-cpp/tree/main/ghqCpp>.
--   Implement a setup functions that creates an expansion using natural
-    cubic splines to make the model more flexible. The log composite
-    likelihood can then be optimized with an optimizer that allows for
-    linear inequality constraints.
 -   Implement a function to do the estimation.
 -   Support delayed entry.
 

@@ -17,3 +17,11 @@ mcif_logLik_grad <- function(data_ptr, par, n_threads, with_risk) {
     .Call(`_mmcif_mcif_logLik_grad_to_R`, data_ptr, par, n_threads, with_risk)
 }
 
+ns_ptr <- function(boundary_knots, interior_knots) {
+    .Call(`_mmcif_ns_ptr`, boundary_knots, interior_knots)
+}
+
+ns_eval <- function(ptr, points, ders) {
+    .Call(`_mmcif_ns_eval`, ptr, points, ders)
+}
+

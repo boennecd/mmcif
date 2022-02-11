@@ -4,7 +4,7 @@
 \alias{mmcif_data}
 \title{Setup Object to Compute the Log Composite Likelihood}
 \usage{
-mmcif_data(formula, data, cause, time, cluster_id, max_time)
+mmcif_data(formula, data, cause, time, cluster_id, max_time, spline_df = 3L)
 }
 \arguments{
 \item{formula}{\code{formula} for covariates in the risk and trajectories.}
@@ -15,12 +15,15 @@ mmcif_data(formula, data, cause, time, cluster_id, max_time)
 \code{n_causes} of outcome, then the vector should have values in
 \code{1:(n_causes + 1)} with \code{n_causes + 1} indicating censoring.}
 
-\item{time}{a numeric vector with the observed time.}
+\item{time}{a numeric vector with the observed times.}
 
 \item{cluster_id}{an integer vector with the cluster id of each individual.}
 
 \item{max_time}{the maximum time after which there are no observed events. It
 is denoted by \eqn{\delta} in the original article.}
+
+\item{spline_df}{degrees of freedom to use for each spline in the
+cumulative incidence functions.}
 }
 \description{
 Setup Object to Compute the Log Composite Likelihood

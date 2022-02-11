@@ -67,6 +67,29 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// ns_ptr
+SEXP ns_ptr(const arma::vec& boundary_knots, const arma::vec& interior_knots);
+RcppExport SEXP _mmcif_ns_ptr(SEXP boundary_knotsSEXP, SEXP interior_knotsSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::traits::input_parameter< const arma::vec& >::type boundary_knots(boundary_knotsSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type interior_knots(interior_knotsSEXP);
+    rcpp_result_gen = Rcpp::wrap(ns_ptr(boundary_knots, interior_knots));
+    return rcpp_result_gen;
+END_RCPP
+}
+// ns_eval
+Rcpp::NumericMatrix ns_eval(SEXP ptr, Rcpp::NumericVector const points, int const ders);
+RcppExport SEXP _mmcif_ns_eval(SEXP ptrSEXP, SEXP pointsSEXP, SEXP dersSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::traits::input_parameter< SEXP >::type ptr(ptrSEXP);
+    Rcpp::traits::input_parameter< Rcpp::NumericVector const >::type points(pointsSEXP);
+    Rcpp::traits::input_parameter< int const >::type ders(dersSEXP);
+    rcpp_result_gen = Rcpp::wrap(ns_eval(ptr, points, ders));
+    return rcpp_result_gen;
+END_RCPP
+}
 
 RcppExport SEXP run_testthat_tests(SEXP);
 
@@ -75,6 +98,8 @@ static const R_CallMethodDef CallEntries[] = {
     {"_mmcif_mmcif_logLik_to_R", (DL_FUNC) &_mmcif_mmcif_logLik_to_R, 4},
     {"_mmcif_mcif_logLik_to_R", (DL_FUNC) &_mmcif_mcif_logLik_to_R, 4},
     {"_mmcif_mcif_logLik_grad_to_R", (DL_FUNC) &_mmcif_mcif_logLik_grad_to_R, 4},
+    {"_mmcif_ns_ptr", (DL_FUNC) &_mmcif_ns_ptr, 2},
+    {"_mmcif_ns_eval", (DL_FUNC) &_mmcif_ns_eval, 3},
     {"run_testthat_tests", (DL_FUNC) &run_testthat_tests, 1},
     {NULL, NULL, 0}
 };

@@ -5,16 +5,20 @@
 #' @param cause an integer vector with the cause of each outcome. If there are
 #' \code{n_causes} of outcome, then the vector should have values in
 #' \code{1:(n_causes + 1)} with \code{n_causes + 1} indicating censoring.
-#' @param time a numeric vector with the observed time.
+#' @param time a numeric vector with the observed times.
 #' @param cluster_id an integer vector with the cluster id of each individual.
 #' @param max_time the maximum time after which there are no observed events. It
 #' is denoted by \eqn{\delta} in the original article.
+#' @param spline_df degrees of freedom to use for each spline in the
+#' cumulative incidence functions.
 #'
 #' @importFrom stats model.frame model.matrix terms
 #' @export
-mmcif_data <- function(formula, data, cause, time, cluster_id, max_time){
+mmcif_data <- function(formula, data, cause, time, cluster_id, max_time,
+                       spline_df = 3L){
   stopifnot(inherits(formula, "formula"),
-            is.data.frame(data))
+            is.data.frame(data),
+            length(spline_df) == 1, is.finite(spline_df), spline_df > 0)
 
   # setup the design matrix
   mf <- model.frame(formula, data)
@@ -45,13 +49,25 @@ mmcif_data <- function(formula, data, cause, time, cluster_id, max_time){
 
   time_observed_trans <- suppressWarnings(
     ifelse(time_observed < max_time, time_trans(time_observed), NA))
-  d_time_observed_trans <- suppressWarnings(
-    ifelse(time_observed < max_time, d_time_trans(time_observed), NA))
 
-  covs_trajectory <-  cbind(time_observed_trans, covs_risk)
+  is_observed <- cause %in% 1:n_causes
+  spline <- monotone_ns(time_observed_trans[is_observed], df = spline_df)
 
+  time_expansion <- function(x){
+    x <- suppressWarnings(time_trans(x))
+    spline$expansion(x, ders = 0L)
+  }
+
+  d_time_expansion <- function(x){
+    z <- suppressWarnings(time_trans(x))
+    d_x <- suppressWarnings(d_time_trans(x))
+    spline$expansion(z, ders = 1L) * d_x
+  }
+
+  covs_trajectory <-  cbind(time_expansion(time_observed), covs_risk)
   d_covs_trajectory <- cbind(
-    d_time_observed_trans, matrix(0, NROW(covs_risk), NCOL(covs_risk)))
+    d_time_expansion(time_observed),
+    matrix(0, NROW(covs_risk), NCOL(covs_risk)))
 
   has_finite_trajectory_prob <- time_observed < max_time
 
@@ -64,7 +80,7 @@ mmcif_data <- function(formula, data, cause, time, cluster_id, max_time){
   pair_indices <- tapply(row_id, cluster_id, function(ids){
     # TODO: do this smarter
     out <- expand.grid(first = ids, second = ids)
-    out <- as.matrix(subset(out, first > second))
+    out <- as.matrix(out[out$first > out$second, ])
     t(out)
   }, simplify = FALSE)
 
@@ -72,7 +88,7 @@ mmcif_data <- function(formula, data, cause, time, cluster_id, max_time){
 
   # create the C++ object
   # TODO: this function should be exposed to advanced users
-  comp_obj <- mmcif:::mmcif_data_holder(
+  comp_obj <- mmcif_data_holder(
     covs_risk = t(covs_risk), covs_trajectory = t(covs_trajectory),
     d_covs_trajectory = t(d_covs_trajectory),
     has_finite_trajectory_prob = has_finite_trajectory_prob,
@@ -81,31 +97,56 @@ mmcif_data <- function(formula, data, cause, time, cluster_id, max_time){
 
   # create an object to do index the parameters
   n_coef_risk <- NCOL(covs_risk) * n_causes
-  n_coef_trajectory <- (1L + NCOL(covs_risk)) * n_causes
+  n_coef_trajectory <- (spline_df + NCOL(covs_risk)) * n_causes
 
   coef_trajectory_time <- matrix(
-    seq_len(n_coef_trajectory) + n_coef_risk, 1L + NCOL(covs_risk))
-  coef_trajectory_time <- coef_trajectory_time[1L, ]
+    seq_len(n_coef_trajectory) + n_coef_risk, spline_df + NCOL(covs_risk))
+  coef_trajectory_time <- coef_trajectory_time[1:spline_df, ]
 
   idx_coef_trajectory <- seq_len(n_coef_trajectory) + n_coef_risk
+
+  vcov_dim <- 2L * n_causes
+  vcov_full <- max(idx_coef_trajectory) + seq_len(vcov_dim^2)
+  vcov_lower <- max(idx_coef_trajectory) +
+    seq_len((vcov_dim * (vcov_dim + 1L)) %/% 2L)
 
   indices <- list(
     coef_risk = seq_len(n_coef_risk),
     coef_trajectory = idx_coef_trajectory,
     coef_trajectory_time = c(coef_trajectory_time),
+    vcov_full = vcov_full,
+    vcov_lower = vcov_lower,
     n_causes = n_causes,
-    n_par = max(idx_coef_trajectory) + n_causes * n_causes,
-    n_par_lower_tri =
-      max(idx_coef_trajectory) + (n_causes * (n_causes + 1L)) %/% 2L,
+    n_par = max(vcov_full),
+    n_par_lower_tri = max(vcov_lower),
     n_par_wo_vcov = max(idx_coef_trajectory))
+
+  # create the constrain matrices
+  n_constraints_per_spline <- NROW(spline$constraints)
+  constraints <- matrix(0., n_constraints_per_spline * n_causes,
+                        indices$n_par_wo_vcov)
+  for(i in 1:n_causes)
+    constraints[
+      1:n_constraints_per_spline + (i - 1L) * n_constraints_per_spline,
+      matrix(indices$coef_trajectory_time, spline_df)[, i]] <-
+      spline$constraints
+
+  constraints <- list(
+    wo_vcov = constraints,
+    vcov_full =
+      cbind(constraints, matrix(0., NROW(constraints), vcov_dim^2)),
+    vcov_lower =
+      cbind(constraints, matrix(0., NROW(constraints),
+                                (vcov_dim * (vcov_dim + 1L)) %/% 2L)))
 
   structure(
     list(comp_obj = comp_obj, pair_indices = pair_indices,
          covs_risk = covs_risk, covs_trajectory = covs_trajectory,
          time_observed = time_observed, cause = cause,
          time_trans = time_trans, d_time_trans = d_time_trans,
-         max_time = max_time, indices = indices,
-         d_covs_trajectory = d_covs_trajectory),
+         time_expansion = time_expansion, d_time_expansion = d_time_expansion,
+         max_time = max_time, indices = indices, spline = spline,
+         d_covs_trajectory = d_covs_trajectory, constraints = constraints),
     class = "mmcif")
 }
 
@@ -134,7 +175,7 @@ mmcif_data <- function(formula, data, cause, time, cluster_id, max_time){
 #' @param vcov_start starting value for the covariance matrix of the random
 #' effects. \code{NULL} yields the identity matrix.
 #'
-#' @importFrom stats lm.fit optim
+#' @importFrom stats lm.fit constrOptim na.omit sd
 #' @export
 mmcif_start_values <- function(object, n_threads = 4L, vcov_start = NULL){
   stopifnot(inherits(object, "mmcif"))
@@ -156,18 +197,29 @@ mmcif_start_values <- function(object, n_threads = 4L, vcov_start = NULL){
     c(slope = -1 / time_sd, intercept = mean(time_observed_trans) / time_sd)
   })
 
+  # find the linear combination which gives a line and a slope
+  comb_slope <- local({
+    boundary_knots <- object$spline$boundary_knots
+    pts <- seq(boundary_knots[1], boundary_knots[2], length.out = 1000)
+    lm.fit(cbind(1, object$spline$expansion(pts)), pts)$coef
+  })
+
+  comb_line <- local({
+    design_mat <- na.omit(object$covs_trajectory)
+    lm.fit(design_mat, rep(1, NROW(design_mat)))$coef
+  })
+
   # start the optimization. Start only with the trajectories
   par <- numeric(object$indices$n_par_wo_vcov)
   coef_trajectory_time <- object$indices$coef_trajectory_time
   coef_trajectory <- object$indices$coef_trajectory
 
-  # TODO: deal with splines later
-  par[coef_trajectory_time] <- sapply(slope_n_time, `[[`, "slope")
-
-  intercept_fit <- lm.fit(
-    object$covs_trajectory[is_observed, ], rep(1., sum(is_observed)))
+  par[coef_trajectory_time] <-
+    comb_slope[-1] %o% sapply(slope_n_time, `[[`, "slope")
   par[coef_trajectory] <- par[coef_trajectory] +
-    intercept_fit$coefficients %o% sapply(slope_n_time, `[[`, "intercept")
+    comb_line %o%
+      (sapply(slope_n_time, `[[`, "intercept") +
+         comb_slope[1] * sapply(slope_n_time, `[[`, "slope"))
 
   fn <- function(x, with_risk){
     if(!with_risk)
@@ -187,14 +239,19 @@ mmcif_start_values <- function(object, n_threads = 4L, vcov_start = NULL){
     if(with_risk) grs else grs[coef_trajectory]
   }
 
-  # TODO: deal with constraints on the trajectory parameters
-  opt_trajectory <- optim(par[coef_trajectory], fn, gr, method = "BFGS",
-                          control = list(maxit = 1000L), with_risk = FALSE)
+  constraints <- object$constraints$wo_vcov
+  opt_trajectory <-
+    constrOptim(
+      par[coef_trajectory], fn, gr, method = "BFGS",
+      ui = constraints[, coef_trajectory], ci = rep(1e-8, NROW(constraints)),
+      control = list(maxit = 1000L), with_risk = FALSE)
   stopifnot(opt_trajectory$convergence == 0)
 
   par[coef_trajectory] <- opt_trajectory$par
-  opt <- optim(par, fn, gr, method = "BFGS",
-               control = list(maxit = 1000L), with_risk = TRUE)
+  opt <- constrOptim(
+    par, fn, gr, method = "BFGS", ui = constraints,
+    ci = rep(1e-8, NROW(constraints)), control = list(maxit = 1000L),
+    with_risk = TRUE)
   stopifnot(opt$convergence == 0)
 
   if(is.null(vcov_start))
