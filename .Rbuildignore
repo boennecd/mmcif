@@ -5,3 +5,4 @@
 ^README\.bib$
 ^cache
 ^benchmark
+^\.github$

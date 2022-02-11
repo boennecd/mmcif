@@ -1,6 +1,8 @@
 
 # MMCIF: Mixed Multivariate Cumulative Incidence Functions
 
+[![R-CMD-check](https://github.com/boennecd/mmcif/workflows/R-CMD-check/badge.svg)](https://github.com/boennecd/mmcif/actions)
+
 This package provides an implementation of the model introduced by
 Cederkvist et al. (2018) to model within-cluster dependence of both risk
 and timing in competing risk.
