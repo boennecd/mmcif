@@ -216,12 +216,12 @@ quantiles of
 evaluated on the event times. The degrees of freedom of the spline is
 controlled with the `spline_df` argument. There is a `constraints`
 element on the object returned by the `mmcif_data` function which
-ensures that the
+contains matrices that ensures that the
 ![\\vec x\_{ij}(t)^\\top\\vec\\gamma\_k](https://render.githubusercontent.com/render/math?math=%5Cvec%20x_%7Bij%7D%28t%29%5E%5Ctop%5Cvec%5Cgamma_k "\vec x_{ij}(t)^\top\vec\gamma_k")s
 are monotonically decreasing if
 ![C\\vec\\zeta &gt; \\vec 0](https://render.githubusercontent.com/render/math?math=C%5Cvec%5Czeta%20%3E%20%5Cvec%200 "C\vec\zeta > \vec 0")
 where ![C](https://render.githubusercontent.com/render/math?math=C "C")
-is the matrix and
+is one of matrices and
 ![\\vec\\zeta](https://render.githubusercontent.com/render/math?math=%5Cvec%5Czeta "\vec\zeta")
 is the concatenated vector of model parameters.
 

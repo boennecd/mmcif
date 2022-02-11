@@ -188,9 +188,10 @@ where $\vec g$ returns a natural cubic spline basis functions. The knots are
 based on quantiles of $h(t)$ evaluated on the event times. 
 The degrees of freedom of the
 spline is controlled with the `spline_df` argument. There is a `constraints` 
-element on the object returned by the `mmcif_data` function which ensures that 
+element on the object returned by the `mmcif_data` function which 
+contains matrices that ensures that 
 the $\vec x_{ij}(t)^\top\vec\gamma_k$s are monotonically decreasing if 
-$C\vec\zeta > \vec 0$ where $C$ is the matrix and $\vec\zeta$ is the 
+$C\vec\zeta > \vec 0$ where $C$ is one of matrices and $\vec\zeta$ is the 
 concatenated vector of model parameters.
 
 The time to compute the log composite likelihood is illustrated below.

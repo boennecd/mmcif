@@ -1,7 +1,7 @@
 #' @importFrom stats quantile
 #' @importFrom splines splineDesign
 #' @importFrom utils head tail
-monotone_ns <- \(times, df){
+monotone_ns <- function(times, df){
   stopifnot(is.numeric(times), all(is.finite(times)),
             length(df) == 1, is.finite(df), df > 0)
 

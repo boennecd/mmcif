@@ -154,17 +154,17 @@ mmcif_data <- function(formula, data, cause, time, cluster_id, max_time,
   stopifnot(length(n_threads) == 1, is.finite(n_threads), n_threads > 0)
 }
 
-.log_chol <- \(x){
+.log_chol <- function(x){
   x <- chol(x)
-  diag(x) <- diag(x) |> log()
+  diag(x) <- log(diag(x))
   x[upper.tri(x, TRUE)]
 }
 
-.log_chol_inv <- \(x){
+.log_chol_inv <- function(x){
   dim <- (sqrt(8 * length(x) + 1) - 1) / 2
   out <- matrix(0, dim, dim)
   out[upper.tri(out, TRUE)] <- x
-  diag(out) <- diag(out) |> exp()
+  diag(out) <- exp(diag(out))
   crossprod(out)
 }
 
