@@ -266,10 +266,10 @@ bench::mark(
 #> # A tibble: 4 × 6
 #>   expression         min   median `itr/sec` mem_alloc `gc/sec`
 #>   <bch:expr>    <bch:tm> <bch:tm>     <dbl> <bch:byt>    <dbl>
-#> 1 one thread      91.4ms     92ms      10.8    19.8KB        0
-#> 2 two threads     47.3ms   48.7ms      20.6        0B        0
-#> 3 three threads   31.2ms   31.8ms      31.4        0B        0
-#> 4 four threads    24.3ms   24.8ms      39.8        0B        0
+#> 1 one thread      91.4ms   91.5ms      10.9    19.8KB        0
+#> 2 two threads     47.8ms   49.4ms      20.0        0B        0
+#> 3 three threads   31.9ms   33.5ms      28.5        0B        0
+#> 4 four threads    24.4ms   24.6ms      39.5        0B        0
 ```
 
 Then we optimize the parameters (TODO: there will be a wrapper to work
@@ -280,7 +280,7 @@ estimation time will be much reduced when the gradient is implemented).
 # find the starting values
 system.time(start <- mmcif_start_values(comp_obj, n_threads = 4L))
 #>    user  system elapsed 
-#>   0.084   0.000   0.024
+#>   0.061   0.000   0.019
 
 # the maximum likelihood without the random effects. Note that this is not 
 # comparable with the composite likelihood
@@ -328,7 +328,7 @@ system.time(
     grad = NULL, ui = constraints, ci = rep(1e-8, NROW(constraints)),
     control = list(maxit = 10000L)))
 #>     user   system  elapsed 
-#> 5190.299    0.333 1298.104
+#> 5270.243    0.727 1318.684
 
 # the log composite likelihood at different points
 ll_func_chol(truth, 4L)

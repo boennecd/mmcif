@@ -196,7 +196,7 @@ concatenated vector of model parameters.
 
 The time to compute the log composite likelihood is illustrated below.
 
-```{r check_comp_time, cache = 1, dependson="setup_data"}
+```{r check_comp_time, cache = 1}
 NCOL(comp_obj$pair_indices) # the number of pairs in the composite likelihood
 
 # we need to find the combination of the spline bases that yield a straight 
@@ -235,7 +235,7 @@ Then we optimize the parameters (TODO: there will be a wrapper to work with the
 log Cholesky decomposition and an estimation function; the estimation time will 
 be much reduced when the gradient is implemented). 
 
-```{r fit, dependson="setup_data", cache = 1}
+```{r fit, cache = 1}
 # find the starting values
 system.time(start <- mmcif_start_values(comp_obj, n_threads = 4L))
 

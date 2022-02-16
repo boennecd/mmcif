@@ -25,6 +25,14 @@ Type 'q()' to quit R.
 +   ~ a + b, dat, cause = cause, time = time, cluster_id = cluster_id,
 +   max_time = delta)
 > 
+> # we need to find the combination of the spline bases that yield a straight
+> # line. You can skip this
+> comb_slope <- local({
++   boundary_knots <- comp_obj$spline$boundary_knots
++   pts <- seq(boundary_knots[1], boundary_knots[2], length.out = 1000)
++   lm.fit(cbind(1, comp_obj$spline$expansion(pts)), pts)$coef
++ })
+> 
 > # assign a function to compute the log composite likelihood
 > library(fastGHQuad)
 Loading required package: Rcpp
@@ -32,29 +40,33 @@ Loading required package: Rcpp
 > 
 > ll_func <- \(par, n_threads = 1L)
 + mmcif:::mmcif_logLik(
-+   comp_obj$comp_obj, par = c(coef_risk, coef_traject, Sigma),
-+   ghq_data = ghq_data, n_threads = n_threads)
++   comp_obj$comp_obj, par = par, ghq_data = ghq_data, n_threads = n_threads)
 > 
 > # the log composite likelihood at the true parameters
-> ll_func(c(coef_risk, coef_traject, Sigma))
+> coef_traject_spline <-
++   rbind(t(coef_traject[1, ] %o% comb_slope[-1]),
++         coef_traject[2, ] + comb_slope[1] * coef_traject[1, ],
++         coef_traject[-(1:2), ])
+> true_values <- c(coef_risk, coef_traject_spline, Sigma)
+> ll_func(true_values)
 [1] -8865.391
 > 
 > # check the time to compute the log composite likelihood
 > bench::mark(
-+   `one thread` = ll_func(n_threads = 1L, c(coef_risk, coef_traject, Sigma)),
-+   `two threads` = ll_func(n_threads = 2L, c(coef_risk, coef_traject, Sigma)),
-+   `three threads` = ll_func(n_threads = 3L, c(coef_risk, coef_traject, Sigma)),
-+   `four threads` = ll_func(n_threads = 4L, c(coef_risk, coef_traject, Sigma)))
++   `one thread` = ll_func(n_threads = 1L, true_values),
++   `two threads` = ll_func(n_threads = 2L, true_values),
++   `three threads` = ll_func(n_threads = 3L, true_values),
++   `four threads` = ll_func(n_threads = 4L, true_values))
 # A tibble: 4 × 13
   expression         min   median `itr/sec` mem_alloc `gc/sec` n_itr  n_gc
   <bch:expr>    <bch:tm> <bch:tm>     <dbl> <bch:byt>    <dbl> <int> <dbl>
-1 one thread      90.1ms   91.5ms      10.9    3.88MB        0     6     0
-2 two threads     46.9ms   47.2ms      21.1      288B        0    11     0
-3 three threads   31.7ms   32.6ms      30.7      288B        0    16     0
-4 four threads    24.7ms     25ms      39.4      288B        0    20     0
+1 one thread      89.7ms   91.7ms      11.0    3.85MB        0     6     0
+2 two threads     47.9ms   48.5ms      20.6        0B        0    11     0
+3 three threads   31.8ms   32.4ms      30.9        0B        0    16     0
+4 four threads    24.4ms   24.5ms      40.7        0B        0    21     0
 # … with 5 more variables: total_time <bch:tm>, result <list>, memory <list>,
 #   time <list>, gc <list>
 > 
 > proc.time()
    user  system elapsed 
-  6.598   0.037   3.284 
+  6.605   0.050   3.243 
