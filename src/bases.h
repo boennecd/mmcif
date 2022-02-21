@@ -6,7 +6,7 @@
 #include <stdexcept> // invalid_argument
 #include <memory.h>
 #include "wmem.h"
-#include "lp-joint.h"
+#include "lp-mmcif.h"
 #include <algorithm>
 
 namespace bases {
@@ -477,7 +477,7 @@ class ns final : public basisMixin {
         s_basis(b, wk_mem, x, ders);
 
         std::fill(lhs, lhs + q_matrix.n_rows, 0);
-        lp_joint::mat_vec
+        lp_mmcif::mat_vec
           (lhs, q_matrix.begin(), b + (!intercept), q_matrix.n_rows,
            q_matrix.n_cols);
 
@@ -551,7 +551,7 @@ class ns final : public basisMixin {
     s_basis(b, wk_mem, x, ders);
 
     std::fill(lhs, lhs + q_matrix.n_rows, 0);
-    lp_joint::mat_vec
+    lp_mmcif::mat_vec
       (lhs, q_matrix.begin(), b + (!intercept), q_matrix.n_rows,
        q_matrix.n_cols);
 

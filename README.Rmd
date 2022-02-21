@@ -91,7 +91,7 @@ Sigma <- c(0.306, 0.008, -0.138, 0.197, 0.008, 0.759, 0.251,
 ```
 
 Next, we assign a function to simulate clusters. The cluster sizes are 
-uniformly sampled from two to the maximum size. The censoring times are drawn 
+uniformly sampled from one to the maximum size. The censoring times are drawn 
 from a uniform distribution from zero to $3\delta$.
 
 ```{r assing_sim_dat}
@@ -108,7 +108,7 @@ sim_dat <- \(n_clusters, max_cluster_size){
     U <- head(rng_effects, n_causes)
     eta <- tail(rng_effects, n_causes)
     
-    n_obs <- sample.int(max_cluster_size - 1L, 1L) + 1L
+    n_obs <- sample.int(max_cluster_size, 1L)
     cluster_id <<- cluster_id + 1L
     
     # draw the cause
@@ -157,7 +157,7 @@ We then sample a data set.
 ```{r sample_data, cache = 1}
 # sample a data set
 set.seed(8401828)
-n_clusters <- 1000L
+n_clusters <- 2000L
 max_cluster_size <- 5L
 dat <- sim_dat(n_clusters, max_cluster_size = max_cluster_size)
 
@@ -198,6 +198,7 @@ The time to compute the log composite likelihood is illustrated below.
 
 ```{r check_comp_time, cache = 1}
 NCOL(comp_obj$pair_indices) # the number of pairs in the composite likelihood
+length(comp_obj$singletons) # the number of clusters with one observation
 
 # we need to find the combination of the spline bases that yield a straight 
 # line. You can skip this
@@ -228,7 +229,8 @@ bench::mark(
   `one thread` = ll_func(n_threads = 1L, true_values),
   `two threads` = ll_func(n_threads = 2L, true_values),
   `three threads` = ll_func(n_threads = 3L, true_values),
-  `four threads` = ll_func(n_threads = 4L, true_values))
+  `four threads` = ll_func(n_threads = 4L, true_values), 
+  min_time = 4)
 ```
 
 Then we optimize the parameters (TODO: there will be a wrapper to work with the 

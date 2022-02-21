@@ -1,13 +1,13 @@
 #ifndef SIMPLE_MAT_H
 #define SIMPLE_MAT_H
 
-#include <memory.h>
+#include <vector>
 #include <algorithm>
 
 /// a simple matrix container in column-major order
 template<class T>
 class simple_mat {
-  std::unique_ptr<T[]> mem{};
+  std::vector<T> mem{};
   size_t n_rows_v{}, n_cols_v{};
   T * external{nullptr};
 
@@ -19,23 +19,20 @@ public:
 
   /// allocates memory for a given size matrix
   simple_mat(size_t const n_rows, size_t const n_cols):
-  mem{new T[n_cols * n_rows]},
+  mem{std::vector<T>(static_cast<size_t>(n_cols * n_rows))},
   n_rows_v{n_rows}, n_cols_v{n_cols}, external{nullptr} { }
 
   /// copy constructor which always copies
   simple_mat(const simple_mat &o):
-  mem{new T[o.n_rows_v * o.n_cols_v]},
+  mem{o.mem},
   n_rows_v{o.n_rows_v},
   n_cols_v{o.n_cols_v}
-  {
-    std::copy(o.begin(), o.end(), mem.get());
-  }
+  { }
 
   simple_mat& operator=(const simple_mat &o) {
-    mem.reset(new T[o.n_rows_v * o.n_cols_v]);
     n_rows_v = o.n_rows_v;
     n_cols_v = o.n_cols_v;
-    std::copy(o.begin(), o.end(), mem.get());
+    mem = o.mem;
     return *this;
   }
 
@@ -62,10 +59,10 @@ public:
 
   /// returns a pointer to the memory
   T * get(){
-    return external ? external : mem.get();
+    return external ? external : mem.data();
   }
   T const * get() const {
-    return external ? external : mem.get();
+    return external ? external : mem.data();
   }
 
   /// begin and end end functions

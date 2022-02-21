@@ -148,7 +148,7 @@ double mcif_logLik
           [](double const sum, double const v){ return sum + std::exp(v); })
     };
 
-  return out + logit_offsets[obs.cause] - std::log(denom);;
+  return out + logit_offsets[obs.cause] - std::log(denom);
 }
 
 template<bool with_risk>
@@ -248,7 +248,7 @@ double mcif_logLik_grad
 
   helper.fill_logit_offsets_backprop(d_logit_offsets, obs, grad);
 
-  return out + logit_offsets[obs.cause] - std::log(denom);;
+  return out + logit_offsets[obs.cause] - std::log(denom);
 }
 
 template double mcif_logLik<false>

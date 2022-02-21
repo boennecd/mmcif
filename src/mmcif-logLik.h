@@ -27,7 +27,7 @@ struct mmcif_data {
  * should be stored with the full covariance matrix.
  */
 double mmcif_logLik
-  (double const * __restrict__ par, param_indexer const &indexer,
+  (double const * par, param_indexer const &indexer,
    mmcif_data const &obs1, mmcif_data const &obs2,
    ghqCpp::simple_mem_stack<double> &mem, ghqCpp::ghq_data const &dat);
 
@@ -35,7 +35,15 @@ double mmcif_logLik
  * overload of singletons.
  */
 double mmcif_logLik
-  (double const * __restrict__ par, param_indexer const &indexer,
+  (double const * par, param_indexer const &indexer,
+   mmcif_data const &obs, ghqCpp::simple_mem_stack<double> &mem,
+   ghqCpp::ghq_data const &dat);
+
+/**
+ * overload of singletons.
+ */
+double mmcif_logLik_grad
+  (double const * par, double * __restrict__ gr, param_indexer const &indexer,
    mmcif_data const &obs, ghqCpp::simple_mem_stack<double> &mem,
    ghqCpp::ghq_data const &dat);
 

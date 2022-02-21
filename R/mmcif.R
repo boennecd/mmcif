@@ -72,19 +72,22 @@ mmcif_data <- function(formula, data, cause, time, cluster_id, max_time,
   has_finite_trajectory_prob <- time_observed < max_time
 
   # find all permutation of indices in each cluster
-  stopifnot(
-    # TODO: support singleton clusters (the C++ code is there)
-    max(table(cluster_id)) > 1L)
+  cluster_length <- ave(cluster_id, cluster_id, FUN = length)
 
   row_id <- seq_len(length(cluster_id))
-  pair_indices <- tapply(row_id, cluster_id, function(ids){
-    # TODO: do this smarter
-    out <- expand.grid(first = ids, second = ids)
-    out <- as.matrix(out[out$first > out$second, ])
-    t(out)
-  }, simplify = FALSE)
+  pair_indices <- tapply(
+    row_id[cluster_length > 1], cluster_id[cluster_length > 1],
+    function(ids){
+      # TODO: do this smarter
+      out <- expand.grid(first = ids, second = ids)
+      out <- as.matrix(out[out$first > out$second, ])
+      t(out)
+    },
+    simplify = FALSE)
 
   pair_indices <- do.call(cbind, pair_indices)
+
+  singletons <- row_id[cluster_length < 2]
 
   # create the C++ object
   # TODO: this function should be exposed to advanced users
@@ -93,7 +96,7 @@ mmcif_data <- function(formula, data, cause, time, cluster_id, max_time,
     d_covs_trajectory = t(d_covs_trajectory),
     has_finite_trajectory_prob = has_finite_trajectory_prob,
     cause = cause - 1L, n_causes = n_causes, pair_indices = pair_indices - 1L,
-    singletons = integer())
+    singletons = singletons)
 
   # create an object to do index the parameters
   n_coef_risk <- NCOL(covs_risk) * n_causes
@@ -141,9 +144,9 @@ mmcif_data <- function(formula, data, cause, time, cluster_id, max_time,
 
   structure(
     list(comp_obj = comp_obj, pair_indices = pair_indices,
-         covs_risk = covs_risk, covs_trajectory = covs_trajectory,
-         time_observed = time_observed, cause = cause,
-         time_trans = time_trans, d_time_trans = d_time_trans,
+         singletons = singletons, covs_risk = covs_risk,
+         covs_trajectory = covs_trajectory, time_observed = time_observed,
+         cause = cause, time_trans = time_trans, d_time_trans = d_time_trans,
          time_expansion = time_expansion, d_time_expansion = d_time_expansion,
          max_time = max_time, indices = indices, spline = spline,
          d_covs_trajectory = d_covs_trajectory, constraints = constraints),

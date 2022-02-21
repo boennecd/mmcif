@@ -7,6 +7,31 @@ constexpr double ghq_nodes[]{-3.43615911883774, -2.53273167423279, -1.7566836492
 
 const ghqCpp::ghq_data ghq_dat_use{ghq_nodes, ghq_weights, 10};
 
+/*
+# util functions
+ upper_to_full <- \(x){
+ dim <- (sqrt(8 * length(x) + 1) - 1) / 2
+ out <- matrix(0, dim, dim)
+ out[upper.tri(out, TRUE)] <- x
+ out[lower.tri(out)] <- t(out)[lower.tri(out)]
+ out
+ }
+ get_n_remove <- \(x, n){
+ out <- x[1:n]
+ eval(substitute(out <- out[-(1:n)], list(out = substitute(x), n = n)),
+ parent.frame())
+ out
+ }
+ d_upper_to_full <- \(x){
+ dim <- (sqrt(8 * length(x) + 1) - 1) / 2
+ out <- matrix(0, dim, dim)
+ out[upper.tri(out, TRUE)] <- x
+ out[upper.tri(out)] <- out[upper.tri(out)] / 2
+ out[lower.tri(out)] <- t(out)[lower.tri(out)]
+ out
+ }
+ */
+
 } // namespace
 
 context("mmcif_logLik works as expected with singleton data") {
@@ -63,16 +88,34 @@ context("mmcif_logLik works as expected with singleton data") {
 # compute the log densities we need. Start with the censored case
 # trajectory probability is one
      library(ghqCpp)
-     local({
+     f <- \(x){
+     coefs_risk <- get_n_remove(x, length(coefs_risk)) |> matrix(NROW(coefs_risk))
+     coefs_traject <- get_n_remove(x, length(coefs_traject)) |>
+     matrix(NROW(coefs_traject))
+     vcov <- upper_to_full(x)
+
      etas <- covs_risk %*% coefs_risk |> drop()
      res <- mixed_mult_logit_term(
      eta = as.matrix(etas), Sigma = vcov[1:n_causes, 1:n_causes],
      which_category = 0L, weights = gl$w, nodes = gl$x)
-     dput(log(res))
-     })
+     log(res)
+     }
+
+     par <- c(coefs_risk, coefs_traject, vcov[upper.tri(vcov, TRUE)])
+     f(par) |> dput()
+
+     gr <- numDeriv::grad(f, par)
+     dim_vcov <- (2L * n_causes * (2L * n_causes + 1L)) %/% 2L
+     gr <- c(head(gr, -dim_vcov), d_upper_to_full(tail(gr, dim_vcov)))
+     dput(gr + 1.5)
 
 # then with the observed outcome
-     local({
+     f <- \(x){
+     coefs_risk <- get_n_remove(x, length(coefs_risk)) |> matrix(NROW(coefs_risk))
+     coefs_traject <- get_n_remove(x, length(coefs_traject)) |>
+     matrix(NROW(coefs_traject))
+     vcov <- upper_to_full(x)
+
      idx_cause <- cause + n_causes
 
      res <- log(-d_covs_traject_w_time %*% coefs_traject[, cause]) |> drop()
@@ -92,11 +135,23 @@ context("mmcif_logLik works as expected with singleton data") {
      eta = as.matrix(etas), Sigma = M[1:n_causes, 1:n_causes],
      which_category = cause, weights = gl$w, nodes = gl$x)
 
-     dput(res + log(res_integral))
-     })
+     res + log(res_integral)
+     }
+
+     f(par) |> dput()
+
+     gr <- numDeriv::grad(f, par)
+     dim_vcov <- (2L * n_causes * (2L * n_causes + 1L)) %/% 2L
+     gr <- c(head(gr, -dim_vcov), d_upper_to_full(tail(gr, dim_vcov)))
+     dput(gr + .5)
 
 # the censored case
-     local({
+     f <- \(x){
+     coefs_risk <- get_n_remove(x, length(coefs_risk)) |> matrix(NROW(coefs_risk))
+     coefs_traject <- get_n_remove(x, length(coefs_traject)) |>
+     matrix(NROW(coefs_traject))
+     vcov <- upper_to_full(x)
+
      integrand <- 1
      etas <- covs_risk %*% coefs_risk |> drop()
      vcov_sub <- vcov[1:n_causes, 1:n_causes]
@@ -114,8 +169,15 @@ context("mmcif_logLik works as expected with singleton data") {
      which_category = cause, s = s, eta_probit = offset,
      Sigma = vcov_sub, z = z, weights = gl$w, nodes = gl$x)
      }
-     dput(log(integrand))
-     })
+     log(integrand)
+     }
+
+     f(par) |> dput()
+
+     gr <- numDeriv::grad(f, par)
+     dim_vcov <- (2L * n_causes * (2L * n_causes + 1L)) %/% 2L
+     gr <- c(head(gr, -dim_vcov), d_upper_to_full(tail(gr, dim_vcov)))
+     dput(gr + .5)
      */
 
     constexpr size_t n_causes{3}, n_cov_risk{2}, n_cov_traject{6};
@@ -130,25 +192,58 @@ context("mmcif_logLik works as expected with singleton data") {
     {
       // the censored case with one as the probability of the trajectory
       mmcif_data dat{covs_traject, d_covs_traject, covs_risk, false, n_causes};
-      double const res{mmcif_logLik(par, indexer, dat, mem, ghq_dat_use)};
+      double res{mmcif_logLik(par, indexer, dat, mem, ghq_dat_use)};
       constexpr double truth{-1.21423993502317};
       expect_true(std::abs(res - truth) < std::abs(truth) * 1e-8);
+
+      double * gr{mem.get(indexer.n_par<false>())};
+      constexpr double shift{1.5},
+                   true_gr[]{1.26365754060744, 1.2732459955188, 1.34146548646436, 1.34789725971731, 1.30061198121401, 1.30870118784666, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.46383170621554, 1.53592172902375, 1.54244818397882, 1.5, 1.5, 1.5, 1.53592172902375, 1.4623397748844, 1.53217128260594, 1.5, 1.5, 1.5, 1.54244818397882, 1.53217128260594, 1.46703163289562, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5};
+
+      std::fill(gr, gr + indexer.n_par<false>(), shift);
+      res = mmcif_logLik_grad(par, gr, indexer, dat, mem, ghq_dat_use);
+      expect_true(std::abs(res - truth) < std::abs(truth) * 1e-8);
+
+      for(size_t i = 0; i < indexer.n_par<false>(); ++i)
+        expect_true(std::abs(gr[i] - true_gr[i]) < std::abs(true_gr[i]) * 1e-6);
     }
 
     {
       // the observed case works
       constexpr unsigned cause{2L};
       mmcif_data dat{covs_traject, d_covs_traject, covs_risk, true, cause};
-      double const res{mmcif_logLik(par, indexer, dat, mem, ghq_dat_use)};
+      double res{mmcif_logLik(par, indexer, dat, mem, ghq_dat_use)};
       constexpr double truth{-4.26186714415087};
       expect_true(std::abs(res - truth) < std::abs(truth) * 1e-8);
+
+      double * gr{mem.get(indexer.n_par<false>())};
+      constexpr double shift{.5},
+                   true_gr[]{0.351552206482173, 0.357574759929686, 0.282709259050858, 0.2915247825613, 1.10517471974935, 1.0806226750331, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 3.43029581567022, 1.68645040335615, -0.0894243337010308, -0.0511792441427352, 0.253656624124913, 0.142295919574298, 0.461770301601013, 0.532975866589409, 0.45954237109379, 0.500000003534147, 0.500000000567034, 0.402421270586787, 0.532975866589409, 0.460900127868904, 0.447644291654297, 0.499999999797272, 0.499999999555276, 0.393827579249467, 0.45954237109379, 0.447644291654297, 0.648183312792179, 0.500000000362377, 0.499999999926135, 0.852567814444038, 0.500000003534147, 0.499999999797272, 0.500000000362377, 0.499999999996471, 0.500000000000939, 0.499999999532829, 0.500000000567034, 0.499999999555276, 0.499999999926135, 0.500000000000939, 0.499999999824738, 0.5, 0.402421270586787, 0.393827579249467, 0.852567814444038, 0.499999999532829, 0.5, 0.846467447468548};
+
+      std::fill(gr, gr + indexer.n_par<false>(), shift);
+      res = mmcif_logLik_grad(par, gr, indexer, dat, mem, ghq_dat_use);
+      expect_true(std::abs(res - truth) < std::abs(truth) * 1e-8);
+
+      for(size_t i = 0; i < indexer.n_par<false>(); ++i)
+        expect_true(std::abs(gr[i] - true_gr[i]) < std::abs(true_gr[i]) * 1e-5);
     }
 
     // the censored case with a probability of the trajectory in (0, 1) works
     mmcif_data dat{covs_traject, d_covs_traject, covs_risk, true, n_causes};
-    double const res{mmcif_logLik(par, indexer, dat, mem, ghq_dat_use)};
+    double res{mmcif_logLik(par, indexer, dat, mem, ghq_dat_use)};
     constexpr double truth{-1.04608338904514};
     expect_true(std::abs(res - truth) < std::abs(truth) * 1e-8);
+
+    double * gr{mem.get(indexer.n_par<false>())};
+    constexpr double shift{.5},
+                 true_gr[]{0.330648438629487, 0.33751906083885, 0.350726364390927, 0.356782421714224, 0.352693743921712, 0.358669984812303, 0.833300440713479, 0.613936613988158, 0.458353757359891, 0.461055994306309, 0.482594413812261, 0.47472613513888, 0.638228487237129, 0.547252520431373, 0.482728204306005, 0.48384889336008, 0.492781444202289, 0.489518261901478, 0.800680721846452, 0.60278577298994, 0.462429625797045, 0.464867397951781, 0.484297878241694, 0.47719965841653, 0.477058826417935, 0.524688031342338, 0.532398053180518, 0.524647165965919, 0.493874870084439, 0.494164701133886, 0.524688031342338, 0.468439391298966, 0.525877057569041, 0.491270491704209, 0.511791124947451, 0.491458569479165, 0.532398053180518, 0.525877057569041, 0.477259089716002, 0.494835460522858, 0.498832652888146, 0.523788667244225, 0.524647165965919, 0.491270491704209, 0.494835460522858, 0.527860742985394, 0.5, 0.5, 0.493874870084439, 0.511791124947451, 0.498832652888146, 0.5, 0.517999932390265, 0.5, 0.494164701133886, 0.491458569479165, 0.523788667244225, 0.5, 0.5, 0.540325615606095};
+
+    std::fill(gr, gr + indexer.n_par<false>(), shift);
+    res = mmcif_logLik_grad(par, gr, indexer, dat, mem, ghq_dat_use);
+    expect_true(std::abs(res - truth) < std::abs(truth) * 1e-8);
+
+    for(size_t i = 0; i < indexer.n_par<false>(); ++i)
+      expect_true(std::abs(gr[i] - true_gr[i]) < std::abs(true_gr[i]) * 1e-5);
   }
 }
 
