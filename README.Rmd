@@ -234,19 +234,13 @@ bench::mark(
   min_time = 4)
 
 # next, we compute the gradient of the log composite likelihood at the true 
-# parameters. First we assing a few functions to verify the result. You can 
+# parameters. First we assign a few functions to verify the result. You can 
 # skip these
 upper_to_full <- \(x){
   dim <- (sqrt(8 * length(x) + 1) - 1) / 2
   out <- matrix(0, dim, dim)
   out[upper.tri(out, TRUE)] <- x
   out[lower.tri(out)] <- t(out)[lower.tri(out)]
-  out
-}
-get_n_remove <- \(x, n){
-  out <- x[1:n]
-  eval(substitute(out <- out[-(1:n)], list(out = substitute(x), n = n)),
-  parent.frame())
   out
 }
 d_upper_to_full <- \(x){

@@ -242,36 +242,41 @@ double mmcif_logLik_to_R
   auto ghq_data_pass = ghq_data_from_list(ghq_data);
 
   double out{};
-  size_t const n_pairs{data->pair_indices.n_cols()};
+  size_t const n_pairs{data->pair_indices.n_cols()},
+          n_singletons{data->singletons.size()};
   double const * const par_ptr{&par[0]};
 
 #ifdef _OPENMP
-#pragma omp parallel for num_threads(n_threads) reduction(+:out)
+#pragma omp parallel num_threads(n_threads)
 #endif
-  for(size_t i = 0; i < n_pairs; ++i)
-    out += nan_if_fail_and_parallel([&]{
-      auto mmcif_dat1 =
-        mmcif_data_from_idx(*data, data->pair_indices.col(i)[0]);
-      auto mmcif_dat2 =
-        mmcif_data_from_idx(*data, data->pair_indices.col(i)[1]);
-
-      wmem::mem_stack().reset();
-      return mmcif_logLik(par_ptr, data->indexer, mmcif_dat1, mmcif_dat2,
-                          wmem::mem_stack(), ghq_data_pass);
-    });
-
-  size_t const n_singletons{data->singletons.size()};
+  {
 #ifdef _OPENMP
-#pragma omp parallel for num_threads(n_threads) reduction(+:out)
+#pragma omp for reduction(+:out)
 #endif
-  for(size_t i = 0; i < n_singletons; ++i)
-    out += nan_if_fail_and_parallel([&]{
-      auto mmcif_dat = mmcif_data_from_idx(*data, data->singletons[i]);
+    for(size_t i = 0; i < n_pairs; ++i)
+      out += nan_if_fail_and_parallel([&]{
+        auto mmcif_dat1 =
+          mmcif_data_from_idx(*data, data->pair_indices.col(i)[0]);
+        auto mmcif_dat2 =
+          mmcif_data_from_idx(*data, data->pair_indices.col(i)[1]);
 
-      wmem::mem_stack().reset();
-      return mmcif_logLik
-        (par_ptr,  data->indexer, mmcif_dat, wmem::mem_stack(), ghq_data_pass);
-    });
+        wmem::mem_stack().reset();
+        return mmcif_logLik(par_ptr, data->indexer, mmcif_dat1, mmcif_dat2,
+                            wmem::mem_stack(), ghq_data_pass);
+      });
+
+#ifdef _OPENMP
+#pragma omp for reduction(+:out)
+#endif
+    for(size_t i = 0; i < n_singletons; ++i)
+      out += nan_if_fail_and_parallel([&]{
+        auto mmcif_dat = mmcif_data_from_idx(*data, data->singletons[i]);
+
+        wmem::mem_stack().reset();
+        return mmcif_logLik
+          (par_ptr,  data->indexer, mmcif_dat, wmem::mem_stack(), ghq_data_pass);
+      });
+  }
 
   return out;
 }

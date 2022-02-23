@@ -271,25 +271,19 @@ bench::mark(
 #> # A tibble: 4 × 6
 #>   expression         min   median `itr/sec` mem_alloc `gc/sec`
 #>   <bch:expr>    <bch:tm> <bch:tm>     <dbl> <bch:byt>    <dbl>
-#> 1 one thread       619ms    620ms      1.61    19.8KB        0
-#> 2 two threads      318ms    320ms      3.11        0B        0
-#> 3 three threads    216ms    217ms      4.57        0B        0
-#> 4 four threads     168ms    172ms      5.72        0B        0
+#> 1 one thread       617ms    618ms      1.62    19.8KB        0
+#> 2 two threads      314ms    316ms      3.17        0B        0
+#> 3 three threads    213ms    214ms      4.67        0B        0
+#> 4 four threads     163ms    169ms      5.92        0B        0
 
 # next, we compute the gradient of the log composite likelihood at the true 
-# parameters. First we assing a few functions to verify the result. You can 
+# parameters. First we assign a few functions to verify the result. You can 
 # skip these
 upper_to_full <- \(x){
   dim <- (sqrt(8 * length(x) + 1) - 1) / 2
   out <- matrix(0, dim, dim)
   out[upper.tri(out, TRUE)] <- x
   out[lower.tri(out)] <- t(out)[lower.tri(out)]
-  out
-}
-get_n_remove <- \(x, n){
-  out <- x[1:n]
-  eval(substitute(out <- out[-(1:n)], list(out = substitute(x), n = n)),
-  parent.frame())
   out
 }
 d_upper_to_full <- \(x){
@@ -350,10 +344,10 @@ bench::mark(
 #> # A tibble: 4 × 6
 #>   expression         min   median `itr/sec` mem_alloc `gc/sec`
 #>   <bch:expr>    <bch:tm> <bch:tm>     <dbl> <bch:byt>    <dbl>
-#> 1 one thread       1.54s    1.56s     0.641    7.09KB        0
-#> 2 two threads   786.47ms 787.97ms     1.27       336B        0
-#> 3 three threads 548.87ms 552.69ms     1.81       336B        0
-#> 4 four threads  415.47ms 420.57ms     2.35       336B        0
+#> 1 one thread       1.54s    1.54s     0.650    7.09KB        0
+#> 2 two threads   786.01ms 794.73ms     1.26       336B        0
+#> 3 three threads 549.67ms 556.88ms     1.78       336B        0
+#> 4 four threads  430.52ms 441.56ms     2.24       336B        0
 ```
 
 Then we optimize the parameters (TODO: there will be a wrapper to work
@@ -363,7 +357,7 @@ with the log Cholesky decomposition and an estimation function).
 # find the starting values
 system.time(start <- mmcif_start_values(comp_obj, n_threads = 4L))
 #>    user  system elapsed 
-#>   0.381   0.000   0.104
+#>   0.387   0.000   0.105
 
 # the maximum likelihood without the random effects. Note that this is not 
 # comparable with the composite likelihood
@@ -452,7 +446,7 @@ system.time(
     method = "BFGS", ui = constraints, ci = rep(1e-8, NROW(constraints)),
     control = list(maxit = 10000L)))
 #>    user  system elapsed 
-#> 179.198   0.000  45.249
+#> 178.499   0.004  44.967
 
 # the log composite likelihood at different points
 ll_func_chol(truth, 4L)
@@ -514,7 +508,7 @@ Further illustrations of the estimated model are given below.
 # the number of call we made
 fit$counts
 #> function gradient 
-#>      218       42
+#>      219       42
 fit$outer.iterations
 #> [1] 2
 
