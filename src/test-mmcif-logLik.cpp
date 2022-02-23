@@ -542,7 +542,7 @@ context("mmcif_logLik works as expected with bivariate data") {
 
       double * gr{mem.get(indexer.n_par<false>())};
       std::fill(gr, gr + indexer.n_par<false>(), shift);
-      res = mmcif_logLik_grad(par, gr, indexer, obs1, obs2, mem, ghq_dat_use);
+      res = mmcif_logLik_grad(par, gr, indexer, obs2, obs1, mem, ghq_dat_use);
       expect_true(std::abs(res - truth) < std::abs(truth) * 1e-8);
 
       for(size_t i = 0; i < indexer.n_par<false>(); ++i)
@@ -664,7 +664,7 @@ context("mmcif_logLik works as expected with bivariate data") {
 
       double * gr{mem.get(indexer.n_par<false>())};
       std::fill(gr, gr + indexer.n_par<false>(), shift);
-      res = mmcif_logLik_grad(par, gr, indexer, obs1, obs2, mem, ghq_dat_use);
+      res = mmcif_logLik_grad(par, gr, indexer, obs2, obs1, mem, ghq_dat_use);
       expect_true(std::abs(res - truth) < std::abs(truth) * 1e-8);
 
       for(size_t i = 0; i < indexer.n_par<false>(); ++i)

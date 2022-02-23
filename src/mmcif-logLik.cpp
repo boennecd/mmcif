@@ -797,7 +797,7 @@ double mmcif_logLik_both_cens_grad
    mmcif_data const &obs1, mmcif_data const &obs2,
    simple_mem_stack<double> &mem, ghq_data const &dat){
   if(obs2.has_finite_trajectory_prob && !obs1.has_finite_trajectory_prob)
-    return mmcif_logLik_both_cens(par, indexer, obs2, obs1, mem, dat);
+    return mmcif_logLik_both_cens_grad(par, gr, indexer, obs2, obs1, mem, dat);
 
   mmcif_comp_helper helper{indexer, par, mem};
   auto const n_causes = indexer.n_causes();

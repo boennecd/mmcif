@@ -42,7 +42,7 @@ individual $j$ in cluster $i$ is
 $$\begin{align*} F_{kij}(t\mid \vec u_i, \vec\eta_i) &= \pi_k(\vec z_{ij}, \vec u_i) \Phi(-\vec x_{ij}(t)^\top\vec\gamma_k - \eta_{ik}) \\ \pi_k(\vec z_{ij}, \vec u_i) &= \frac{\exp(\vec z_{ij}^\top\vec\beta_k + u_{ik})}{1 + \sum_{l = 1}^K\exp(\vec z_{ij}^\top\vec\beta_l + u_{il})} \\ \begin{pmatrix} \vec U_i \\ \vec\eta_i \end{pmatrix} &\sim N^{(2K)}(\vec 0;\Sigma).\end{align*}$$
 
 where there are $K$ competing risks. The $\vec x_{ij}(t)^\top\vec\gamma_k$'s for
-the trajectory are subject to a monotonically decreasing.
+the trajectory must be constrained to be monotonically decreasing in $t$.
 
 ## Example
 
@@ -52,7 +52,8 @@ $$\begin{align*} \vec x_{ij}(t) &= \left(\text{arcthan}\left(\frac{t - \delta/2}
  b_{ij} &\sim \text{Unif}(-1, 1)\\ \vec z_{ij} &= (1, a_{ij}, b_{ij}) \end{align*}$$
 
 We set the parameters below and plot the conditional cumulative incidences 
-function when the random effects are zero and $a_{ij} = b_{ij} = 0$.
+function when the random effects are zero and the covariates are zero, 
+$a_{ij} = b_{ij} = 0$.
 
 ```{r assign_model_parameters, fig.height=knitr::opts_chunk$get("fig.width") * .5}
 # assign model parameters
@@ -157,7 +158,7 @@ We then sample a data set.
 ```{r sample_data, cache = 1}
 # sample a data set
 set.seed(8401828)
-n_clusters <- 2000L
+n_clusters <- 10000L
 max_cluster_size <- 5L
 dat <- sim_dat(n_clusters, max_cluster_size = max_cluster_size)
 
@@ -176,7 +177,7 @@ Then we setup the C++ object to do the computation.
 library(mmcif)
 comp_obj <- mmcif_data(
   ~ a + b, dat, cause = cause, time = time, cluster_id = cluster_id, 
-  max_time = delta, spline_df = 2L)
+  max_time = delta, spline_df = 4L)
 ```
 
 The `mmcif_data` function does not work with 
@@ -231,11 +232,64 @@ bench::mark(
   `three threads` = ll_func(n_threads = 3L, true_values),
   `four threads` = ll_func(n_threads = 4L, true_values), 
   min_time = 4)
+
+# next, we compute the gradient of the log composite likelihood at the true 
+# parameters. First we assing a few functions to verify the result. You can 
+# skip these
+upper_to_full <- \(x){
+  dim <- (sqrt(8 * length(x) + 1) - 1) / 2
+  out <- matrix(0, dim, dim)
+  out[upper.tri(out, TRUE)] <- x
+  out[lower.tri(out)] <- t(out)[lower.tri(out)]
+  out
+}
+get_n_remove <- \(x, n){
+  out <- x[1:n]
+  eval(substitute(out <- out[-(1:n)], list(out = substitute(x), n = n)),
+  parent.frame())
+  out
+}
+d_upper_to_full <- \(x){
+  dim <- (sqrt(8 * length(x) + 1) - 1) / 2
+  out <- matrix(0, dim, dim)
+  out[upper.tri(out, TRUE)] <- x
+  out[upper.tri(out)] <- out[upper.tri(out)] / 2
+  out[lower.tri(out)] <- t(out)[lower.tri(out)]
+  out
+}
+
+# then we can compute the gradient with the function from the package and with 
+# numerical differentiation
+gr_func <- \(par, n_threads = 1L)
+  mmcif:::mmcif_logLik_grad(
+    comp_obj$comp_obj, par = par, ghq_data = ghq_data, n_threads = n_threads)
+
+gr_package <- gr_func(true_values)
+
+true_values_upper <- 
+  c(coef_risk, coef_traject_spline, Sigma[upper.tri(Sigma, TRUE)])
+gr_num <- numDeriv::grad(
+  \(x) ll_func(c(head(x, -10), upper_to_full(tail(x, 10)))), 
+  true_values_upper, method = "simple")
+
+# they are very close but not exactly equal as expected (this is due to the 
+# adaptive quadrature)
+rbind(
+  `Numerical gradient` = 
+    c(head(gr_num, -10), d_upper_to_full(tail(gr_num, 10))), 
+  `Gradient package` = gr_package)
+
+# check the time to compute the gradient of the log composite likelihood
+bench::mark(
+  `one thread` = gr_func(n_threads = 1L, true_values),
+  `two threads` = gr_func(n_threads = 2L, true_values),
+  `three threads` = gr_func(n_threads = 3L, true_values),
+  `four threads` = gr_func(n_threads = 4L, true_values), 
+  min_time = 4)
 ```
 
 Then we optimize the parameters (TODO: there will be a wrapper to work with the 
-log Cholesky decomposition and an estimation function; the estimation time will 
-be much reduced when the gradient is implemented). 
+log Cholesky decomposition and an estimation function). 
 
 ```{r fit, cache = 1}
 # find the starting values
@@ -273,15 +327,41 @@ ll_func_chol <- \(par, n_threads = 1L, ghq = ghq_data){
     comp_obj$comp_obj, par = par, ghq_data = ghq, n_threads = n_threads)
 }
 
+# the gradient of the log composite likelihood with a log Cholesky 
+# decomposition for the covariance matrix
+ll_func_chol_grad <- \(par, n_threads = 1L, ghq = ghq_data){
+  n_vcov <- (2L * n_causes * (2L * n_causes + 1L)) %/% 2L
+  vcov <- tail(par, n_vcov) |> log_chol_inv()
+  par <- c(head(par, -n_vcov), vcov)
+  
+  gr <- mmcif:::mmcif_logLik_grad(
+    comp_obj$comp_obj, par = par, ghq_data = ghq, n_threads = n_threads)
+  
+  # back propagate the gradients w.r.t. the random effects
+  d_vcov <- tail(gr, 4L * n_causes * n_causes) |> matrix(2L * n_causes)
+  C <- chol(vcov)
+  d_vcov <- 2 * C %*% d_vcov 
+  diag(d_vcov) <- diag(d_vcov) * diag(C)
+  
+  c(head(gr, -4L * n_causes * n_causes), d_vcov[upper.tri(d_vcov, TRUE)])
+}
+
 # set true value
 truth <- c(coef_risk, coef_traject_spline, log_chol(Sigma))
+
+# we can verify that the gradient is correct
+gr_package <- ll_func_chol_grad(truth)
+gr_num <- numDeriv::grad(ll_func_chol, truth, method = "simple")
+
+rbind(`Numerical gradient` = gr_num, `Gradient package` = gr_package)
 
 # optimize the log composite likelihood
 constraints <- comp_obj$constraints$vcov_lower
 system.time(
   fit <- constrOptim(
     start$lower, \(par) -ll_func_chol(par, n_threads = 4L, ghq_data), 
-    grad = NULL, ui = constraints, ci = rep(1e-8, NROW(constraints)),
+    grad = \(par) -ll_func_chol_grad(par, n_threads = 4L, ghq_data), 
+    method = "BFGS", ui = constraints, ci = rep(1e-8, NROW(constraints)),
     control = list(maxit = 10000L)))
 
 # the log composite likelihood at different points
@@ -290,9 +370,11 @@ ll_func_chol(start$lower, 4L)
 -fit$value
 ```
 
-The estimated and true the conditional cumulative incidence 
-functions when the random effects are zero and $a_{ij} = b_{ij} = 0$ are shown 
-below (the dashed curves are the estimates).
+We show
+the estimated and true the conditional cumulative incidence 
+functions (the dashed curves are the estimates) 
+when the random effects are zero and the covariates are zero, 
+$a_{ij} = b_{ij} = 0$.
 
 ```{r compare_estimated_incidence_funcs, fig.height=knitr::opts_chunk$get("fig.width") * .5}
 local({
@@ -303,7 +385,7 @@ local({
     matrix(ncol = n_causes)
   coef_traject_est <- fit$par[comp_obj$indices$coef_trajectory] |> 
     matrix(ncol = n_causes)
-  coef_traject_intercept_est <- coef_traject_est[3, ]
+  coef_traject_intercept_est <- coef_traject_est[5, ]
   
   # compute the risk probabilities  
   probs <- exp(coef_risk[1, ]) / (1 + sum(exp(coef_risk[1, ])))
@@ -335,9 +417,7 @@ local({
 Further illustrations of the estimated model are given below.
 
 ```{r show_res}
-# It took quite a few iterations. This may be much smaller with a gradient 
-# approximation. It is possible that another non-linear optimizer that allows 
-# for linear inequality constraints would be faster
+# the number of call we made
 fit$counts
 fit$outer.iterations
 
@@ -356,8 +436,7 @@ log_chol_inv(tail(fit$par, n_vcov))
 
 The package is still under development. Here are a few TODOs:
 
- - Implement the gradient. Most of the work is done in already in the 
-   package at https://github.com/boennecd/ghq-cpp/tree/main/ghqCpp.
+ - Implement a function to compute the sandwich estimator.
  - Implement a function to do the estimation.
  - Support delayed entry.
 

@@ -86,6 +86,8 @@ mmcif_data <- function(formula, data, cause, time, cluster_id, max_time,
     simplify = FALSE)
 
   pair_indices <- do.call(cbind, pair_indices)
+  if(is.null(pair_indices))
+    pair_indices <- matrix(0L, 2L, 0L)
 
   singletons <- row_id[cluster_length < 2]
 
@@ -96,7 +98,7 @@ mmcif_data <- function(formula, data, cause, time, cluster_id, max_time,
     d_covs_trajectory = t(d_covs_trajectory),
     has_finite_trajectory_prob = has_finite_trajectory_prob,
     cause = cause - 1L, n_causes = n_causes, pair_indices = pair_indices - 1L,
-    singletons = singletons)
+    singletons = singletons - 1L)
 
   # create an object to do index the parameters
   n_coef_risk <- NCOL(covs_risk) * n_causes

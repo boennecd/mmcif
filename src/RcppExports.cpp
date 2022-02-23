@@ -29,39 +29,52 @@ BEGIN_RCPP
 END_RCPP
 }
 // mmcif_logLik_to_R
-double mmcif_logLik_to_R(SEXP data_ptr, NumericVector const par, Rcpp::List ghq_data, unsigned const n_threads);
+double mmcif_logLik_to_R(SEXP data_ptr, NumericVector const par, Rcpp::List ghq_data, unsigned n_threads);
 RcppExport SEXP _mmcif_mmcif_logLik_to_R(SEXP data_ptrSEXP, SEXP parSEXP, SEXP ghq_dataSEXP, SEXP n_threadsSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::traits::input_parameter< SEXP >::type data_ptr(data_ptrSEXP);
     Rcpp::traits::input_parameter< NumericVector const >::type par(parSEXP);
     Rcpp::traits::input_parameter< Rcpp::List >::type ghq_data(ghq_dataSEXP);
-    Rcpp::traits::input_parameter< unsigned const >::type n_threads(n_threadsSEXP);
+    Rcpp::traits::input_parameter< unsigned >::type n_threads(n_threadsSEXP);
     rcpp_result_gen = Rcpp::wrap(mmcif_logLik_to_R(data_ptr, par, ghq_data, n_threads));
     return rcpp_result_gen;
 END_RCPP
 }
+// mmcif_logLik_grad_to_R
+Rcpp::NumericVector mmcif_logLik_grad_to_R(SEXP data_ptr, NumericVector const par, Rcpp::List ghq_data, unsigned n_threads);
+RcppExport SEXP _mmcif_mmcif_logLik_grad_to_R(SEXP data_ptrSEXP, SEXP parSEXP, SEXP ghq_dataSEXP, SEXP n_threadsSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::traits::input_parameter< SEXP >::type data_ptr(data_ptrSEXP);
+    Rcpp::traits::input_parameter< NumericVector const >::type par(parSEXP);
+    Rcpp::traits::input_parameter< Rcpp::List >::type ghq_data(ghq_dataSEXP);
+    Rcpp::traits::input_parameter< unsigned >::type n_threads(n_threadsSEXP);
+    rcpp_result_gen = Rcpp::wrap(mmcif_logLik_grad_to_R(data_ptr, par, ghq_data, n_threads));
+    return rcpp_result_gen;
+END_RCPP
+}
 // mcif_logLik_to_R
-double mcif_logLik_to_R(SEXP data_ptr, NumericVector const par, unsigned const n_threads, bool const with_risk);
+double mcif_logLik_to_R(SEXP data_ptr, NumericVector const par, unsigned n_threads, bool const with_risk);
 RcppExport SEXP _mmcif_mcif_logLik_to_R(SEXP data_ptrSEXP, SEXP parSEXP, SEXP n_threadsSEXP, SEXP with_riskSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::traits::input_parameter< SEXP >::type data_ptr(data_ptrSEXP);
     Rcpp::traits::input_parameter< NumericVector const >::type par(parSEXP);
-    Rcpp::traits::input_parameter< unsigned const >::type n_threads(n_threadsSEXP);
+    Rcpp::traits::input_parameter< unsigned >::type n_threads(n_threadsSEXP);
     Rcpp::traits::input_parameter< bool const >::type with_risk(with_riskSEXP);
     rcpp_result_gen = Rcpp::wrap(mcif_logLik_to_R(data_ptr, par, n_threads, with_risk));
     return rcpp_result_gen;
 END_RCPP
 }
 // mcif_logLik_grad_to_R
-Rcpp::NumericVector mcif_logLik_grad_to_R(SEXP data_ptr, NumericVector const par, unsigned const n_threads, bool const with_risk);
+Rcpp::NumericVector mcif_logLik_grad_to_R(SEXP data_ptr, NumericVector const par, unsigned n_threads, bool const with_risk);
 RcppExport SEXP _mmcif_mcif_logLik_grad_to_R(SEXP data_ptrSEXP, SEXP parSEXP, SEXP n_threadsSEXP, SEXP with_riskSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::traits::input_parameter< SEXP >::type data_ptr(data_ptrSEXP);
     Rcpp::traits::input_parameter< NumericVector const >::type par(parSEXP);
-    Rcpp::traits::input_parameter< unsigned const >::type n_threads(n_threadsSEXP);
+    Rcpp::traits::input_parameter< unsigned >::type n_threads(n_threadsSEXP);
     Rcpp::traits::input_parameter< bool const >::type with_risk(with_riskSEXP);
     rcpp_result_gen = Rcpp::wrap(mcif_logLik_grad_to_R(data_ptr, par, n_threads, with_risk));
     return rcpp_result_gen;
@@ -96,6 +109,7 @@ RcppExport SEXP run_testthat_tests(SEXP);
 static const R_CallMethodDef CallEntries[] = {
     {"_mmcif_mmcif_data_holder_to_R", (DL_FUNC) &_mmcif_mmcif_data_holder_to_R, 8},
     {"_mmcif_mmcif_logLik_to_R", (DL_FUNC) &_mmcif_mmcif_logLik_to_R, 4},
+    {"_mmcif_mmcif_logLik_grad_to_R", (DL_FUNC) &_mmcif_mmcif_logLik_grad_to_R, 4},
     {"_mmcif_mcif_logLik_to_R", (DL_FUNC) &_mmcif_mcif_logLik_to_R, 4},
     {"_mmcif_mcif_logLik_grad_to_R", (DL_FUNC) &_mmcif_mcif_logLik_grad_to_R, 4},
     {"_mmcif_ns_ptr", (DL_FUNC) &_mmcif_ns_ptr, 2},

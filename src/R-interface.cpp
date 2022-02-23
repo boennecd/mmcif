@@ -233,10 +233,11 @@ SEXP mmcif_data_holder_to_R
 // [[Rcpp::export("mmcif_logLik", rng = false)]]
 double mmcif_logLik_to_R
   (SEXP data_ptr, NumericVector const par, Rcpp::List ghq_data,
-   unsigned const n_threads){
+   unsigned n_threads){
 
   Rcpp::XPtr<mmcif_data_holder const> data(data_ptr);
   throw_if_invalid_par(*data, par);
+  n_threads = std::max<unsigned>(1, n_threads);
   wmem::setup_working_memory(n_threads);
   auto ghq_data_pass = ghq_data_from_list(ghq_data);
 
@@ -255,10 +256,8 @@ double mmcif_logLik_to_R
         mmcif_data_from_idx(*data, data->pair_indices.col(i)[1]);
 
       wmem::mem_stack().reset();
-      double const new_term
-      {mmcif_logLik(par_ptr, data->indexer, mmcif_dat1, mmcif_dat2,
-                    wmem::mem_stack(), ghq_data_pass)};
-      return new_term;
+      return mmcif_logLik(par_ptr, data->indexer, mmcif_dat1, mmcif_dat2,
+                          wmem::mem_stack(), ghq_data_pass);
     });
 
   size_t const n_singletons{data->singletons.size()};
@@ -277,13 +276,80 @@ double mmcif_logLik_to_R
   return out;
 }
 
+// [[Rcpp::export("mmcif_logLik_grad", rng = false)]]
+Rcpp::NumericVector mmcif_logLik_grad_to_R
+  (SEXP data_ptr, NumericVector const par, Rcpp::List ghq_data,
+   unsigned n_threads){
+
+  Rcpp::XPtr<mmcif_data_holder const> data(data_ptr);
+  throw_if_invalid_par(*data, par);
+  n_threads = std::max<unsigned>(1, n_threads);
+  wmem::setup_working_memory(n_threads);
+  auto ghq_data_pass = ghq_data_from_list(ghq_data);
+
+  double log_lik{};
+  size_t const n_pairs{data->pair_indices.n_cols()},
+          n_singletons{data->singletons.size()},
+                 n_par{data->indexer.n_par<false>()};
+  double const * const par_ptr{&par[0]};
+
+  std::vector<std::vector<double> > grs
+    (n_threads, std::vector<double>(n_par, 0.));
+
+#ifdef _OPENMP
+#pragma omp parallel num_threads(n_threads)
+#endif
+  {
+   std::vector<double> &gr = grs[wmem::thread_num()];
+
+#ifdef _OPENMP
+#pragma omp for reduction(+:log_lik)
+#endif
+    for(size_t i = 0; i < n_pairs; ++i)
+      log_lik += nan_if_fail_and_parallel([&]{
+        auto mmcif_dat1 =
+          mmcif_data_from_idx(*data, data->pair_indices.col(i)[0]);
+        auto mmcif_dat2 =
+          mmcif_data_from_idx(*data, data->pair_indices.col(i)[1]);
+
+        wmem::mem_stack().reset();
+        return mmcif_logLik_grad(
+          par_ptr, gr.data(), data->indexer, mmcif_dat1, mmcif_dat2,
+          wmem::mem_stack(), ghq_data_pass);
+      });
+
+#ifdef _OPENMP
+#pragma omp for reduction(+:log_lik)
+#endif
+    for(size_t i = 0; i < n_singletons; ++i)
+      log_lik += nan_if_fail_and_parallel([&]{
+        auto mmcif_dat = mmcif_data_from_idx(*data, data->singletons[i]);
+
+        wmem::mem_stack().reset();
+        return mmcif_logLik_grad
+          (par_ptr, gr.data(), data->indexer, mmcif_dat, wmem::mem_stack(),
+           ghq_data_pass);
+      });
+  }
+
+  Rcpp::NumericVector res(n_par);
+  res.attr("logLik") = log_lik;
+
+  for(size_t thread = 0; thread < n_threads; ++thread)
+    for(size_t i = 0; i < n_par; ++i)
+      res[i] += grs[thread][i];
+
+  return res;
+}
+
 // [[Rcpp::export("mcif_logLik", rng = false)]]
 double mcif_logLik_to_R
-  (SEXP data_ptr, NumericVector const par, unsigned const n_threads,
+  (SEXP data_ptr, NumericVector const par, unsigned n_threads,
    bool const with_risk){
 
   Rcpp::XPtr<mmcif_data_holder const> data(data_ptr);
   throw_if_invalid_par_wo_vcov(*data, par);
+  n_threads = std::max<unsigned>(1, n_threads);
   wmem::setup_working_memory(n_threads);
 
   double out{};
@@ -318,11 +384,12 @@ double mcif_logLik_to_R
 
 // [[Rcpp::export("mcif_logLik_grad", rng = false)]]
 Rcpp::NumericVector mcif_logLik_grad_to_R
-  (SEXP data_ptr, NumericVector const par, unsigned const n_threads,
+  (SEXP data_ptr, NumericVector const par, unsigned n_threads,
    bool const with_risk){
 
   Rcpp::XPtr<mmcif_data_holder const> data(data_ptr);
   throw_if_invalid_par_wo_vcov(*data, par);
+  n_threads = std::max<unsigned>(1, n_threads);
   wmem::setup_working_memory(n_threads);
 
   double log_likelihood{};

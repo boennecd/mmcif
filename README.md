@@ -35,7 +35,8 @@ where there are
 ![K](https://render.githubusercontent.com/render/math?math=K "K")
 competing risks. The
 ![\\vec x\_{ij}(t)^\\top\\vec\\gamma\_k](https://render.githubusercontent.com/render/math?math=%5Cvec%20x_%7Bij%7D%28t%29%5E%5Ctop%5Cvec%5Cgamma_k "\vec x_{ij}(t)^\top\vec\gamma_k")’s
-for the trajectory are subject to a monotonically decreasing.
+for the trajectory must be constrained to be monotonically decreasing in
+![t](https://render.githubusercontent.com/render/math?math=t "t").
 
 ## Example
 
@@ -48,7 +49,8 @@ competing risks and
  b_{ij} &\sim \text{Unif}(-1, 1)\\ \vec z_{ij} &= (1, a_{ij}, b_{ij}) \end{align*}")
 
 We set the parameters below and plot the conditional cumulative
-incidences function when the random effects are zero and
+incidences function when the random effects are zero and the covariates
+are zero,
 ![a\_{ij} = b\_{ij} = 0](https://render.githubusercontent.com/render/math?math=a_%7Bij%7D%20%3D%20b_%7Bij%7D%20%3D%200 "a_{ij} = b_{ij} = 0").
 
 ``` r
@@ -92,7 +94,7 @@ Sigma <- c(0.306, 0.008, -0.138, 0.197, 0.008, 0.759, 0.251,
 ```
 
 Next, we assign a function to simulate clusters. The cluster sizes are
-uniformly sampled from two to the maximum size. The censoring times are
+uniformly sampled from one to the maximum size. The censoring times are
 drawn from a uniform distribution from zero to
 ![3\\delta](https://render.githubusercontent.com/render/math?math=3%5Cdelta "3\delta").
 
@@ -110,7 +112,7 @@ sim_dat <- \(n_clusters, max_cluster_size){
     U <- head(rng_effects, n_causes)
     eta <- tail(rng_effects, n_causes)
     
-    n_obs <- sample.int(max_cluster_size - 1L, 1L) + 1L
+    n_obs <- sample.int(max_cluster_size, 1L)
     cluster_id <<- cluster_id + 1L
     
     # draw the cause
@@ -159,36 +161,36 @@ We then sample a data set.
 ``` r
 # sample a data set
 set.seed(8401828)
-n_clusters <- 1000L
+n_clusters <- 10000L
 max_cluster_size <- 5L
 dat <- sim_dat(n_clusters, max_cluster_size = max_cluster_size)
 
 # show some stats
 NROW(dat) # number of individuals
-#> [1] 3573
+#> [1] 29968
 table(dat$cause) # distribution of causes (3 is censored)
 #> 
-#>    1    2    3 
-#> 1527  623 1423
+#>     1     2     3 
+#> 13168  5238 11562
 
 # distribution of observed times by cause
 tapply(dat$time, dat$cause, quantile, 
        probs = seq(0, 1, length.out = 11), na.rm = TRUE)
 #> $`1`
 #>           0%          10%          20%          30%          40%          50% 
-#> 1.037532e-06 4.393086e-03 2.549201e-02 8.553160e-02 1.954232e-01 4.183183e-01 
+#> 5.257375e-07 5.174792e-03 2.564810e-02 7.863649e-02 1.967725e-01 4.413597e-01 
 #>          60%          70%          80%          90%         100% 
-#> 7.995275e-01 1.341151e+00 1.727572e+00 1.944052e+00 1.999995e+00 
+#> 8.252684e-01 1.310347e+00 1.734937e+00 1.949810e+00 1.999998e+00 
 #> 
 #> $`2`
 #>           0%          10%          20%          30%          40%          50% 
-#> 0.0009666954 0.0601977831 0.1514903014 0.2832340702 0.4514909913 0.6938606243 
+#> 0.0002289942 0.0577883402 0.1415916659 0.2631213266 0.4419615800 0.6554170608 
 #>          60%          70%          80%          90%         100% 
-#> 0.9512206696 1.3040148597 1.5707337955 1.8322967104 1.9983337883 
+#> 0.9220373015 1.2436285180 1.5466109693 1.8220248514 1.9997238579 
 #> 
 #> $`3`
 #>           0%          10%          20%          30%          40%          50% 
-#> 0.0005559647 0.3034055659 0.6145405803 0.9248298794 1.3095068850 1.8354668445 
+#> 0.0002596225 0.2815441000 0.6283755401 0.9823111117 1.3845409666 1.8905316826 
 #>          60%          70%          80%          90%         100% 
 #> 2.0000000000 2.0000000000 2.0000000000 2.0000000000 2.0000000000
 ```
@@ -199,7 +201,7 @@ Then we setup the C++ object to do the computation.
 library(mmcif)
 comp_obj <- mmcif_data(
   ~ a + b, dat, cause = cause, time = time, cluster_id = cluster_id, 
-  max_time = delta, spline_df = 2L)
+  max_time = delta, spline_df = 4L)
 ```
 
 The `mmcif_data` function does not work with
@@ -229,7 +231,9 @@ The time to compute the log composite likelihood is illustrated below.
 
 ``` r
 NCOL(comp_obj$pair_indices) # the number of pairs in the composite likelihood
-#> [1] 5209
+#> [1] 39726
+length(comp_obj$singletons) # the number of clusters with one observation
+#> [1] 1977
 
 # we need to find the combination of the spline bases that yield a straight 
 # line. You can skip this
@@ -255,37 +259,116 @@ coef_traject_spline <-
         coef_traject[-(1:2), ])
 true_values <- c(coef_risk, coef_traject_spline, Sigma)
 ll_func(true_values)
-#> [1] -8865.391
+#> [1] -69864.07
 
 # check the time to compute the log composite likelihood
 bench::mark(
   `one thread` = ll_func(n_threads = 1L, true_values),
   `two threads` = ll_func(n_threads = 2L, true_values),
   `three threads` = ll_func(n_threads = 3L, true_values),
-  `four threads` = ll_func(n_threads = 4L, true_values))
+  `four threads` = ll_func(n_threads = 4L, true_values), 
+  min_time = 4)
 #> # A tibble: 4 × 6
 #>   expression         min   median `itr/sec` mem_alloc `gc/sec`
 #>   <bch:expr>    <bch:tm> <bch:tm>     <dbl> <bch:byt>    <dbl>
-#> 1 one thread      91.4ms   91.5ms      10.9    19.8KB        0
-#> 2 two threads     47.8ms   49.4ms      20.0        0B        0
-#> 3 three threads   31.9ms   33.5ms      28.5        0B        0
-#> 4 four threads    24.4ms   24.6ms      39.5        0B        0
+#> 1 one thread       619ms    620ms      1.61    19.8KB        0
+#> 2 two threads      318ms    320ms      3.11        0B        0
+#> 3 three threads    216ms    217ms      4.57        0B        0
+#> 4 four threads     168ms    172ms      5.72        0B        0
+
+# next, we compute the gradient of the log composite likelihood at the true 
+# parameters. First we assing a few functions to verify the result. You can 
+# skip these
+upper_to_full <- \(x){
+  dim <- (sqrt(8 * length(x) + 1) - 1) / 2
+  out <- matrix(0, dim, dim)
+  out[upper.tri(out, TRUE)] <- x
+  out[lower.tri(out)] <- t(out)[lower.tri(out)]
+  out
+}
+get_n_remove <- \(x, n){
+  out <- x[1:n]
+  eval(substitute(out <- out[-(1:n)], list(out = substitute(x), n = n)),
+  parent.frame())
+  out
+}
+d_upper_to_full <- \(x){
+  dim <- (sqrt(8 * length(x) + 1) - 1) / 2
+  out <- matrix(0, dim, dim)
+  out[upper.tri(out, TRUE)] <- x
+  out[upper.tri(out)] <- out[upper.tri(out)] / 2
+  out[lower.tri(out)] <- t(out)[lower.tri(out)]
+  out
+}
+
+# then we can compute the gradient with the function from the package and with 
+# numerical differentiation
+gr_func <- \(par, n_threads = 1L)
+  mmcif:::mmcif_logLik_grad(
+    comp_obj$comp_obj, par = par, ghq_data = ghq_data, n_threads = n_threads)
+
+gr_package <- gr_func(true_values)
+
+true_values_upper <- 
+  c(coef_risk, coef_traject_spline, Sigma[upper.tri(Sigma, TRUE)])
+gr_num <- numDeriv::grad(
+  \(x) ll_func(c(head(x, -10), upper_to_full(tail(x, 10)))), 
+  true_values_upper, method = "simple")
+
+# they are very close but not exactly equal as expected (this is due to the 
+# adaptive quadrature)
+rbind(
+  `Numerical gradient` = 
+    c(head(gr_num, -10), d_upper_to_full(tail(gr_num, 10))), 
+  `Gradient package` = gr_package)
+#>                        [,1]     [,2]      [,3]      [,4]      [,5]     [,6]
+#> Numerical gradient 147.6561 288.3880 -95.08746 -72.04594 -248.7902 88.15532
+#> Gradient package   148.4757 288.9434 -94.88415 -72.00976 -248.3909 88.32859
+#>                        [,7]      [,8]      [,9]     [,10]     [,11]     [,12]
+#> Numerical gradient 202.2185 -35.72080 -243.5082 -52.87079 -54.54853 -97.04450
+#> Gradient package   202.6837 -35.36141 -243.3177 -52.62701 -53.72854 -95.98335
+#>                        [,13]     [,14]     [,15]     [,16]    [,17]     [,18]
+#> Numerical gradient -290.3414 -227.9222 -28.27648 -69.21042 77.55546 -355.0063
+#> Gradient package   -289.9349 -227.7802 -28.19683 -69.18012 77.58975 -354.7077
+#>                        [,19]     [,20]     [,21]    [,22]     [,23]    [,24]
+#> Numerical gradient -124.8397 -157.9143 -113.1931 77.88803 -21.16448 73.71993
+#> Gradient package   -124.4192 -157.7813 -113.3295 78.14345 -21.04247 73.82650
+#>                       [,25]     [,26]    [,27]     [,28]     [,29]    [,30]
+#> Numerical gradient 77.88803 -56.21169 18.07621 -118.9189 -21.16448 18.07621
+#> Gradient package   78.14345 -51.78413 17.38095 -118.7676 -21.04247 17.38095
+#>                        [,31]    [,32]    [,33]     [,34]    [,35]    [,36]
+#> Numerical gradient -286.3637 36.95665 73.71993 -118.9189 36.95665 120.8844
+#> Gradient package   -286.0021 36.98897 73.82650 -118.7676 36.98897 120.9828
+
+# check the time to compute the gradient of the log composite likelihood
+bench::mark(
+  `one thread` = gr_func(n_threads = 1L, true_values),
+  `two threads` = gr_func(n_threads = 2L, true_values),
+  `three threads` = gr_func(n_threads = 3L, true_values),
+  `four threads` = gr_func(n_threads = 4L, true_values), 
+  min_time = 4)
+#> # A tibble: 4 × 6
+#>   expression         min   median `itr/sec` mem_alloc `gc/sec`
+#>   <bch:expr>    <bch:tm> <bch:tm>     <dbl> <bch:byt>    <dbl>
+#> 1 one thread       1.54s    1.56s     0.641    7.09KB        0
+#> 2 two threads   786.47ms 787.97ms     1.27       336B        0
+#> 3 three threads 548.87ms 552.69ms     1.81       336B        0
+#> 4 four threads  415.47ms 420.57ms     2.35       336B        0
 ```
 
 Then we optimize the parameters (TODO: there will be a wrapper to work
-with the log Cholesky decomposition and an estimation function; the
-estimation time will be much reduced when the gradient is implemented).
+with the log Cholesky decomposition and an estimation function).
 
 ``` r
 # find the starting values
 system.time(start <- mmcif_start_values(comp_obj, n_threads = 4L))
 #>    user  system elapsed 
-#>   0.061   0.000   0.019
+#>   0.381   0.000   0.104
 
 # the maximum likelihood without the random effects. Note that this is not 
 # comparable with the composite likelihood
 attr(start, "logLik")
-#> [1] -3132.405
+#> [1] -26193.57
 
 # computes the log Cholesky decomposition
 log_chol <- \(x){
@@ -317,32 +400,73 @@ ll_func_chol <- \(par, n_threads = 1L, ghq = ghq_data){
     comp_obj$comp_obj, par = par, ghq_data = ghq, n_threads = n_threads)
 }
 
+# the gradient of the log composite likelihood with a log Cholesky 
+# decomposition for the covariance matrix
+ll_func_chol_grad <- \(par, n_threads = 1L, ghq = ghq_data){
+  n_vcov <- (2L * n_causes * (2L * n_causes + 1L)) %/% 2L
+  vcov <- tail(par, n_vcov) |> log_chol_inv()
+  par <- c(head(par, -n_vcov), vcov)
+  
+  gr <- mmcif:::mmcif_logLik_grad(
+    comp_obj$comp_obj, par = par, ghq_data = ghq, n_threads = n_threads)
+  
+  # back propagate the gradients w.r.t. the random effects
+  d_vcov <- tail(gr, 4L * n_causes * n_causes) |> matrix(2L * n_causes)
+  C <- chol(vcov)
+  d_vcov <- 2 * C %*% d_vcov 
+  diag(d_vcov) <- diag(d_vcov) * diag(C)
+  
+  c(head(gr, -4L * n_causes * n_causes), d_vcov[upper.tri(d_vcov, TRUE)])
+}
+
 # set true value
 truth <- c(coef_risk, coef_traject_spline, log_chol(Sigma))
+
+# we can verify that the gradient is correct
+gr_package <- ll_func_chol_grad(truth)
+gr_num <- numDeriv::grad(ll_func_chol, truth, method = "simple")
+
+rbind(`Numerical gradient` = gr_num, `Gradient package` = gr_package)
+#>                        [,1]     [,2]      [,3]      [,4]      [,5]     [,6]
+#> Numerical gradient 147.6561 288.3880 -95.08746 -72.04594 -248.7902 88.15532
+#> Gradient package   148.4757 288.9434 -94.88415 -72.00976 -248.3909 88.32859
+#>                        [,7]      [,8]      [,9]     [,10]     [,11]     [,12]
+#> Numerical gradient 202.2185 -35.72080 -243.5082 -52.87079 -54.54853 -97.04450
+#> Gradient package   202.6837 -35.36141 -243.3177 -52.62701 -53.72854 -95.98335
+#>                        [,13]     [,14]     [,15]     [,16]    [,17]     [,18]
+#> Numerical gradient -290.3414 -227.9222 -28.27648 -69.21042 77.55546 -355.0063
+#> Gradient package   -289.9349 -227.7802 -28.19683 -69.18012 77.58975 -354.7077
+#>                        [,19]     [,20]     [,21]     [,22]     [,23]    [,24]
+#> Numerical gradient -124.8397 -157.9143 -33.15133 -9.135805 -15.47944 146.1701
+#> Gradient package   -124.4192 -157.7813 -33.21198 -8.309043  -9.12881 146.2659
+#>                        [,25]     [,26]    [,27]     [,28]    [,29]    [,30]
+#> Numerical gradient -157.5147 -359.2097 145.8281 -256.4344 12.82710 158.5795
+#> Gradient package   -158.5782 -358.6617 145.9577 -256.1650 12.85821 158.7373
 
 # optimize the log composite likelihood
 constraints <- comp_obj$constraints$vcov_lower
 system.time(
   fit <- constrOptim(
     start$lower, \(par) -ll_func_chol(par, n_threads = 4L, ghq_data), 
-    grad = NULL, ui = constraints, ci = rep(1e-8, NROW(constraints)),
+    grad = \(par) -ll_func_chol_grad(par, n_threads = 4L, ghq_data), 
+    method = "BFGS", ui = constraints, ci = rep(1e-8, NROW(constraints)),
     control = list(maxit = 10000L)))
-#>     user   system  elapsed 
-#> 5270.243    0.727 1318.684
+#>    user  system elapsed 
+#> 179.198   0.000  45.249
 
 # the log composite likelihood at different points
 ll_func_chol(truth, 4L)
-#> [1] -8865.391
+#> [1] -69864.07
 ll_func_chol(start$lower, 4L)
-#> [1] -9492.242
+#> [1] -75100.48
 -fit$value
-#> [1] -8836.451
+#> [1] -69809.5
 ```
 
-The estimated and true the conditional cumulative incidence functions
-when the random effects are zero and
-![a\_{ij} = b\_{ij} = 0](https://render.githubusercontent.com/render/math?math=a_%7Bij%7D%20%3D%20b_%7Bij%7D%20%3D%200 "a_{ij} = b_{ij} = 0")
-are shown below (the dashed curves are the estimates).
+We show the estimated and true the conditional cumulative incidence
+functions (the dashed curves are the estimates) when the random effects
+are zero and the covariates are zero,
+![a\_{ij} = b\_{ij} = 0](https://render.githubusercontent.com/render/math?math=a_%7Bij%7D%20%3D%20b_%7Bij%7D%20%3D%200 "a_{ij} = b_{ij} = 0").
 
 ``` r
 local({
@@ -353,7 +477,7 @@ local({
     matrix(ncol = n_causes)
   coef_traject_est <- fit$par[comp_obj$indices$coef_trajectory] |> 
     matrix(ncol = n_causes)
-  coef_traject_intercept_est <- coef_traject_est[3, ]
+  coef_traject_intercept_est <- coef_traject_est[5, ]
   
   # compute the risk probabilities  
   probs <- exp(coef_risk[1, ]) / (1 + sum(exp(coef_risk[1, ])))
@@ -387,29 +511,30 @@ local({
 Further illustrations of the estimated model are given below.
 
 ``` r
-# It took quite a few iterations. This may be much smaller with a gradient 
-# approximation. It is possible that another non-linear optimizer that allows 
-# for linear inequality constraints would be faster
+# the number of call we made
 fit$counts
 #> function gradient 
-#>    45571       NA
+#>      218       42
 fit$outer.iterations
-#> [1] 6
+#> [1] 2
 
 # compare the estimates with the true values
 rbind(`Estimate AGHQ` = head(fit$par, length(coef_risk)),
       Truth = c(coef_risk))
-#>                    [,1]      [,2]      [,3]       [,4]      [,5]      [,6]
-#> Estimate AGHQ 0.5867711 0.9064343 0.2321381 -0.5534194 0.2358655 0.3723844
-#> Truth         0.6700000 1.0000000 0.1000000 -0.4000000 0.2500000 0.3000000
+#>                    [,1]     [,2]       [,3]       [,4]      [,5]      [,6]
+#> Estimate AGHQ 0.6897047 1.013095 0.08454711 -0.4051271 0.2324695 0.3197769
+#> Truth         0.6700000 1.000000 0.10000000 -0.4000000 0.2500000 0.3000000
 rbind(`Estimate AGHQ` = fit$par[comp_obj$indices$coef_trajectory],
       Truth = truth[comp_obj$indices$coef_trajectory])
-#>                    [,1]      [,2]     [,3]      [,4]      [,5]      [,6]
-#> Estimate AGHQ -6.276342 -4.340013 2.653627 0.8405226 0.4148194 -9.393454
-#> Truth         -6.523907 -4.264840 2.816025 0.8000000 0.4000000 -9.785860
-#>                   [,7]     [,8]      [,9]      [,10]
-#> Estimate AGHQ -6.22526 4.883872 0.1764503 -0.3124393
-#> Truth         -6.39726 5.049037 0.2500000 -0.2000000
+#>                    [,1]      [,2]      [,3]      [,4]     [,5]     [,6]
+#> Estimate AGHQ -2.720973 -3.359790 -6.254128 -4.666525 2.714610 0.799606
+#> Truth         -2.716513 -3.335158 -6.159469 -4.649314 2.687941 0.800000
+#>                    [,7]      [,8]      [,9]     [,10]     [,11]    [,12]
+#> Estimate AGHQ 0.3647859 -4.068753 -4.983885 -9.147150 -6.847682 4.807038
+#> Truth         0.4000000 -4.074770 -5.002737 -9.239203 -6.973971 4.856911
+#>                   [,13]      [,14]
+#> Estimate AGHQ 0.2179501 -0.2445392
+#> Truth         0.2500000 -0.2000000
 
 n_vcov <- (2L * n_causes * (2L * n_causes + 1L)) %/% 2L
 Sigma
@@ -419,19 +544,18 @@ Sigma
 #> [3,] -0.138  0.251  0.756 -0.319
 #> [4,]  0.197 -0.250 -0.319  0.903
 log_chol_inv(tail(fit$par, n_vcov))
-#>             [,1]       [,2]        [,3]        [,4]
-#> [1,]  0.02463172 -0.1479385 -0.06289012  0.07042713
-#> [2,] -0.14793848  0.9878765  0.19862164 -0.38548595
-#> [3,] -0.06289012  0.1986216  0.66864492 -0.32855872
-#> [4,]  0.07042713 -0.3854859 -0.32855872  0.75039193
+#>             [,1]        [,2]       [,3]       [,4]
+#> [1,]  0.27035089  0.07523342 -0.1343073  0.1920847
+#> [2,]  0.07523342  0.84796892  0.2603790 -0.2853482
+#> [3,] -0.13430731  0.26037902  0.7210608 -0.2790476
+#> [4,]  0.19208466 -0.28534816 -0.2790476  0.9088556
 ```
 
 ## TODOs
 
 The package is still under development. Here are a few TODOs:
 
--   Implement the gradient. Most of the work is done in already in the
-    package at <https://github.com/boennecd/ghq-cpp/tree/main/ghqCpp>.
+-   Implement a function to compute the sandwich estimator.
 -   Implement a function to do the estimation.
 -   Support delayed entry.
 
