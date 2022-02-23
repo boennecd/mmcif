@@ -38,6 +38,14 @@ double mmcif_logLik
   (double const * par, param_indexer const &indexer,
    mmcif_data const &obs, ghqCpp::simple_mem_stack<double> &mem,
    ghqCpp::ghq_data const &dat);
+   
+/**
+ * computes the log composite likelihood term of a given pair and the gradient.
+ */
+double mmcif_logLik_grad
+  (double const * par, double * __restrict__ gr, param_indexer const &indexer,
+   mmcif_data const &obs1, mmcif_data const &obs2,
+   ghqCpp::simple_mem_stack<double> &mem, ghqCpp::ghq_data const &dat);
 
 /**
  * overload of singletons.

@@ -98,7 +98,6 @@ public:
 
     auto const vcov_dim = 2 * n_causes();
     if constexpr (upper_tri){
-      size_t counter{};
       for(size_t counter = 0; counter < (vcov_dim * (vcov_dim + 1)) / 2;)
         out.emplace_back("vcov[" + std::to_string(++counter) + "]");
 

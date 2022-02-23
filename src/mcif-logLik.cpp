@@ -10,12 +10,10 @@ namespace {
 class mcif_comp_helper {
   param_indexer const &indexer;
   double const * const par;
-  simple_mem_stack<double> &mem;
 
 public:
-  mcif_comp_helper(param_indexer const &indexer, double const *par,
-                   simple_mem_stack<double> &mem):
-  indexer{indexer}, par{par}, mem{mem} { }
+  mcif_comp_helper(param_indexer const &indexer, double const *par):
+  indexer{indexer}, par{par} { }
 
   bool is_censored(mmcif_data const &obs){
     return obs.cause == indexer.n_causes();
@@ -98,7 +96,7 @@ template<bool with_risk>
 double mcif_logLik
   (double const * __restrict__ par, param_indexer const &indexer,
    mmcif_data const &obs, ghqCpp::simple_mem_stack<double> &mem) {
-  mcif_comp_helper helper{indexer, par, mem};
+  mcif_comp_helper helper{indexer, par};
 
   bool const is_censored{helper.is_censored(obs)};
   if(is_censored){
@@ -156,7 +154,7 @@ double mcif_logLik_grad
   (double const * __restrict__ par, double * __restrict__ grad,
    param_indexer const &indexer, mmcif_data const &obs,
    ghqCpp::simple_mem_stack<double> &mem) {
-  mcif_comp_helper helper{indexer, par, mem};
+  mcif_comp_helper helper{indexer, par};
 
   bool const is_censored{helper.is_censored(obs)};
   if(is_censored){

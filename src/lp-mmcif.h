@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <numeric>
 #include <vector>
+#include <string.h>
 #include <stdexcept>
 #include "simple-mem-stack.h"
 

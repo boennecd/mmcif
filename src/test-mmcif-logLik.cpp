@@ -326,7 +326,13 @@ context("mmcif_logLik works as expected with bivariate data") {
   test_that("mmcif_logLik works when both individuals are observed") {
     /*
      library(ghqCpp)
-     local({
+     f <- \(x){
+     coefs_risk <- get_n_remove(x, length(coefs_risk)) |>
+     matrix(NROW(coefs_risk))
+     coefs_traject <- get_n_remove(x, length(coefs_traject)) |>
+     matrix(NROW(coefs_traject))
+     vcov <- upper_to_full(x)
+
      etas <- sapply(obs, \(x) x$covs_risk %*% coefs_risk)
      covs_traject <- sapply(
      obs,
@@ -351,8 +357,14 @@ context("mmcif_logLik works as expected with bivariate data") {
      which_category = sapply(obs, `[[`, "cause"),
      weights = gl$w, nodes = gl$x)
 
-     dput(out + log(integral))
-     })
+     out + log(integral)
+     }
+
+     par <- c(coefs_risk, coefs_traject, vcov[upper.tri(vcov, TRUE)])
+     f(par) |> dput()
+     gr <- numDeriv::grad(f, par)
+     dim_vcov <- (2L * n_causes * (2L * n_causes + 1L)) %/% 2L
+     (c(head(gr, -dim_vcov), d_upper_to_full(tail(gr, dim_vcov))) - 4) |> dput()
      */
     ghqCpp::simple_mem_stack<double> mem;
 
@@ -360,15 +372,33 @@ context("mmcif_logLik works as expected with bivariate data") {
       obs1{covs_traject1, d_covs_traject1, covs_risk1, true, cause[0]},
       obs2{covs_traject2, d_covs_traject2, covs_risk2, true, cause[1]};
 
-    double const res{mmcif_logLik(par, indexer, obs1, obs2, mem, ghq_dat_use)};
+    double res{mmcif_logLik(par, indexer, obs1, obs2, mem, ghq_dat_use)};
     constexpr double truth{-7.77301433778719};
     expect_true(std::abs(res - truth) < std::abs(truth) * 1e-8);
+
+    double * gr{mem.get(indexer.n_par<false>())};
+    constexpr double shift{-4},
+                 true_gr[]{-4.60044096320519, -4.76143069955199, -3.88925107716226, -3.81874883303431, -3.44226495101285, -3.38684934060633, -4.63995658752879, -5.58289389453021, -4.53343755123284, -3.95494124232041, -3.30449627176941, -3.85610267649002, -4, -4, -4, -4, -4, -4, 0.276190040738317, -2.38723521835543, -3.61357900292289, -3.66061050597717, -4.85038041763269, -3.7406911732045, -4.08660377973573, -4.01372576629899, -3.9001876680933, -3.91005332184739, -4.00000000811773, -3.8691233090845, -4.01372576629899, -4.04876332825872, -4.03306286597394, -4.13643808454184, -3.99999997350787, -4.22974199345051, -3.9001876680933, -4.03306286597394, -4.02777117647809, -3.81863162075935, -4.00000061380221, -3.66503522108475, -3.91005332184739, -4.13643808454184, -3.81863162075935, -4.0715034184455, -4.00000001334417, -3.53643481460751, -4.00000000811773, -3.99999997350787, -4.00000061380221, -4.00000001334417, -4.0000000095682, -3.99999984574, -3.8691233090845, -4.22974199345051, -3.66503522108475, -3.53643481460751, -3.99999984574, -3.51292697279014};
+
+    std::fill(gr, gr + indexer.n_par<false>(), shift);
+    res = mmcif_logLik_grad(par, gr, indexer, obs1, obs2, mem, ghq_dat_use);
+    expect_true(std::abs(res - truth) < std::abs(truth) * 1e-8);
+
+    for(size_t i = 0; i < indexer.n_par<false>(); ++i)
+      expect_true(std::abs(gr[i] - true_gr[i]) < std::abs(true_gr[i]) * 1e-5);
   }
 
   test_that("mmcif_logLik works when one individual is observed and one is censored") {
     /*
      library(ghqCpp)
-     local({
+     f <- \(x){
+     coefs_risk <- get_n_remove(x, length(coefs_risk)) |>
+     matrix(NROW(coefs_risk))
+     coefs_traject <- get_n_remove(x, length(coefs_traject)) |>
+     matrix(NROW(coefs_traject))
+     vcov <- upper_to_full(x)
+     vcov <- (vcov + t(vcov)) / 2
+
      etas <- sapply(obs, \(x) x$covs_risk %*% coefs_risk)
      covs_traject <- sapply(
      obs,
@@ -391,8 +421,14 @@ context("mmcif_logLik works as expected with bivariate data") {
      which_category = c(obs[[1]]$cause, 0L),
      weights = gl$w, nodes = gl$x)
 
-     dput(out + log(integral))
-     })
+     out + log(integral)
+     }
+
+     par <- c(coefs_risk, coefs_traject, vcov[upper.tri(vcov, TRUE)])
+     f(par) |> dput()
+     gr <- numDeriv::grad(f, par)
+     dim_vcov <- (2L * n_causes * (2L * n_causes + 1L)) %/% 2L
+     (c(head(gr, -dim_vcov), d_upper_to_full(tail(gr, dim_vcov))) - 4) |> dput()
      */
 
     ghqCpp::simple_mem_stack<double> mem;
@@ -402,14 +438,31 @@ context("mmcif_logLik works as expected with bivariate data") {
         obs1{covs_traject1, d_covs_traject1, covs_risk1, true, cause[0]},
         obs2{covs_traject2, d_covs_traject2, covs_risk2, false, n_causes};
 
-      double const res
-        {mmcif_logLik(par, indexer, obs1, obs2, mem, ghq_dat_use)};
+      double res{mmcif_logLik(par, indexer, obs1, obs2, mem, ghq_dat_use)};
       constexpr double truth{-4.5240025456571};
       expect_true(std::abs(res - truth) < std::abs(truth) * 1e-8);
+
+      double * gr{mem.get(indexer.n_par<false>())};
+      constexpr double shift{-4},
+                   true_gr[]{-4.60677825999459, -4.76876219981359, -3.86894022626248, -3.78371293952945, -4.02220331100695, -3.97886624482647, -4.62087217947148, -5.58628242493471, -4.54975238220723, -3.95356315005794, -3.28322475503409, -3.85170167375117, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4.08651843041873, -4.01607930345544, -3.99983074431344, -3.90823923485969, -3.99999986891621, -4.00000003552164, -4.01607930345544, -4.03105028895141, -3.88643373484883, -4.16983704586129, -4.00000001555981, -3.9999999372787, -3.99983074431344, -3.88643373484883, -4.05931545957518, -4.12982271375971, -3.99999956557467, -4.00000006439723, -3.90823923485969, -4.16983704586129, -4.12982271375971, -4.05536084376252, -4.00000000252952, -3.99999957702496, -3.99999986891621, -4.00000001555981, -3.99999956557467, -4.00000000252952, -3.99999999300296, -4.00000024008675, -4.00000003552164, -3.9999999372787, -4.00000006439723, -3.99999957702496, -4.00000024008675, -4.00000001062483};
+
+      std::fill(gr, gr + indexer.n_par<false>(), shift);
+      res = mmcif_logLik_grad(par, gr, indexer, obs1, obs2, mem, ghq_dat_use);
+      expect_true(std::abs(res - truth) < std::abs(truth) * 1e-8);
+
+      for(size_t i = 0; i < indexer.n_par<false>(); ++i)
+        expect_true(std::abs(gr[i] - true_gr[i]) < std::abs(true_gr[i]) * 1e-5);
     }
 
     /*
-     local({
+     f <- \(x){
+     coefs_risk <- get_n_remove(x, length(coefs_risk)) |>
+     matrix(NROW(coefs_risk))
+     coefs_traject <- get_n_remove(x, length(coefs_traject)) |>
+     matrix(NROW(coefs_traject))
+     vcov <- upper_to_full(x)
+     vcov <- (vcov + t(vcov)) / 2
+
      etas <- sapply(obs, \(x) x$covs_risk %*% coefs_risk)
      covs_traject <- sapply(
      obs,
@@ -451,8 +504,14 @@ context("mmcif_logLik works as expected with bivariate data") {
      })
      integral <- integral - sum(integrals)
 
-     dput(out + log(integral))
-     })
+     out + log(integral)
+     }
+
+     par <- c(coefs_risk, coefs_traject, vcov[upper.tri(vcov, TRUE)])
+     f(par) |> dput()
+     gr <- numDeriv::grad(f, par)
+     dim_vcov <- (2L * n_causes * (2L * n_causes + 1L)) %/% 2L
+     (c(head(gr, -dim_vcov), d_upper_to_full(tail(gr, dim_vcov))) - 4) |> dput()
      */
 
     {
@@ -460,28 +519,59 @@ context("mmcif_logLik works as expected with bivariate data") {
         obs1{covs_traject1, d_covs_traject1, covs_risk1, true, cause[0]},
         obs2{covs_traject2, d_covs_traject2, covs_risk2, true, n_causes};
 
-      constexpr double truth{-4.38551973954109};
+      constexpr double truth{-4.38551973954109},
+                       shift{-4},
+                   true_gr[]{-4.5671761432415, -4.72543744207062, -3.85884139924293, -3.77625459152193, -3.9998547663936, -3.95693855135666, -4.034641265227, -5.37854908528959, -4.48343114496485, -3.9213991068482, -3.40487582437673, -3.83268709528386, -3.87120856084756, -3.95787590094769, -3.99182408151401, -3.99281917690393, -4.01799239946641, -3.99451352851197, -3.70694231274736, -3.90414897823354, -3.98139615681146, -3.98366044018079, -4.04094069464688, -3.9875158420464, -4.06985265337591, -4.01580871407255, -3.99979185548028, -3.86305499015696, -3.99623191508629, -3.99371522788762, -4.01580871407255, -4.03410448588676, -3.89887558953613, -4.16294785134668, -3.99471714867857, -4.01026172632862, -3.99979185548028, -3.89887558953613, -4.05858870479936, -4.12763313213162, -4.0044183991572, -3.98484286950757, -3.86305499015696, -4.16294785134668, -4.12763313213162, -3.94364666714109, -3.98520159014463, -3.97776221043803, -3.99623191508629, -3.99471714867857, -4.0044183991572, -3.98520159014463, -3.98865659435786, -4.00000027578256, -3.99371522788762, -4.01026172632862, -3.98484286950757, -3.97776221043803, -4.00000027578256, -3.96110568888788};
       {
-        double const res
+        double res
           {mmcif_logLik(par, indexer, obs1, obs2, mem, ghq_dat_use)};
         expect_true(std::abs(res - truth) < std::abs(truth) * 1e-8);
+
+        double * gr{mem.get(indexer.n_par<false>())};
+        std::fill(gr, gr + indexer.n_par<false>(), shift);
+        res = mmcif_logLik_grad(par, gr, indexer, obs1, obs2, mem, ghq_dat_use);
+        expect_true(std::abs(res - truth) < std::abs(truth) * 1e-8);
+
+        for(size_t i = 0; i < indexer.n_par<false>(); ++i)
+          expect_true(std::abs(gr[i] - true_gr[i]) < std::abs(true_gr[i]) * 1e-5);
       }
 
-      double const res
+      double res
         {mmcif_logLik(par, indexer, obs2, obs1, mem, ghq_dat_use)};
       expect_true(std::abs(res - truth) < std::abs(truth) * 1e-8);
+
+      double * gr{mem.get(indexer.n_par<false>())};
+      std::fill(gr, gr + indexer.n_par<false>(), shift);
+      res = mmcif_logLik_grad(par, gr, indexer, obs1, obs2, mem, ghq_dat_use);
+      expect_true(std::abs(res - truth) < std::abs(truth) * 1e-8);
+
+      for(size_t i = 0; i < indexer.n_par<false>(); ++i)
+        expect_true(std::abs(gr[i] - true_gr[i]) < std::abs(true_gr[i]) * 1e-5);
     }
   }
 
   test_that("mmcif_logLik works when both individuals are censored") {
     /*
-     local({
+     f <- \(x){
+     coefs_risk <- get_n_remove(x, length(coefs_risk)) |>
+     matrix(NROW(coefs_risk))
+     coefs_traject <- get_n_remove(x, length(coefs_traject)) |>
+     matrix(NROW(coefs_traject))
+     vcov <- upper_to_full(x)
+     vcov <- (vcov + t(vcov)) / 2
+
      etas <- sapply(obs, \(x) x$covs_risk %*% coefs_risk)
      mixed_mult_logit_term(
      eta = etas, Sigma = vcov[1:n_causes, 1:n_causes],
      which_category = integer(2), weights = gl$w, nodes = gl$x) |>
-     log() |> dput()
-     })
+     log()
+     }
+
+     par <- c(coefs_risk, coefs_traject, vcov[upper.tri(vcov, TRUE)])
+     f(par) |> dput()
+     gr <- numDeriv::grad(f, par)
+     dim_vcov <- (2L * n_causes * (2L * n_causes + 1L)) %/% 2L
+     (c(head(gr, -dim_vcov), d_upper_to_full(tail(gr, dim_vcov))) - 4) |> dput()
      */
 
     ghqCpp::simple_mem_stack<double> mem;
@@ -491,16 +581,33 @@ context("mmcif_logLik works as expected with bivariate data") {
         obs1{covs_traject1, d_covs_traject1, covs_risk1, false, n_causes},
         obs2{covs_traject2, d_covs_traject2, covs_risk2, false, n_causes};
 
-      double const res
+      double res
         {mmcif_logLik(par, indexer, obs1, obs2, mem, ghq_dat_use)};
       constexpr double truth{-3.01479043790748};
       expect_true(std::abs(res - truth) < std::abs(truth) * 1e-8);
+
+      double * gr{mem.get(indexer.n_par<false>())};
+      constexpr double shift{-4},
+                   true_gr[]{-4.00600061167854, -3.95429338506848, -3.81463703103875, -3.68922104267058, -4.03296854671522, -3.98498043300022, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4.00651859808217, -3.86236765460961, -3.89687944480354, -4, -4, -4, -3.86236765460961, -3.95860579328351, -3.82086704477511, -4, -4, -4, -3.89687944480354, -3.82086704477511, -4.05656998194764, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4};
+
+      std::fill(gr, gr + indexer.n_par<false>(), shift);
+      res = mmcif_logLik_grad(par, gr, indexer, obs1, obs2, mem, ghq_dat_use);
+      expect_true(std::abs(res - truth) < std::abs(truth) * 1e-8);
+
+      for(size_t i = 0; i < indexer.n_par<false>(); ++i)
+        expect_true(std::abs(gr[i] - true_gr[i]) < std::abs(true_gr[i]) * 1e-5);
     }
 
     /*
-     local({
-     etas <- sapply(obs, \(x) x$covs_risk %*% coefs_risk)
+     f <- function(x){
+     coefs_risk <- get_n_remove(x, length(coefs_risk)) |>
+     matrix(NROW(coefs_risk))
+     coefs_traject <- get_n_remove(x, length(coefs_traject)) |>
+     matrix(NROW(coefs_traject))
+     vcov <- upper_to_full(x)
+     vcov <- (vcov + t(vcov)) / 2
 
+     etas <- sapply(obs, \(x) x$covs_risk %*% coefs_risk)
      integral <- mixed_mult_logit_term(
      eta = as.matrix(etas[, 2]), Sigma = vcov[1:n_causes, 1:n_causes],
      which_category = 0L, weights = gl$w, nodes = gl$x)
@@ -508,24 +615,25 @@ context("mmcif_logLik works as expected with bivariate data") {
      integrals <- sapply(1:n_causes, \(cause){
      lp_traject <- -obs[[1]]$covs_traject_w_time %*% coefs_traject[, cause] |>
      drop()
-
      idx_cause <- cause + n_causes
      rng_coefs <-
      solve(vcov[1:n_causes, 1:n_causes], vcov[1:n_causes, idx_cause])
-
      s <- sqrt(1 + vcov[idx_cause, idx_cause] -
      vcov[idx_cause, 1:n_causes] %*% rng_coefs)
-
      rng_coefs <- -rng_coefs
-
      mixed_mult_logit_n_probit_term(
      eta = etas, which_category = c(cause, 0L), s = s,
      eta_probit = lp_traject, Sigma = vcov[1:n_causes, 1:n_causes],
      z = rng_coefs, weights = gl$w, nodes = gl$x)
      })
+     log(integral - sum(integrals))
+     }
 
-     log(integral - sum(integrals)) |> dput()
-     })
+     par <- c(coefs_risk, coefs_traject, vcov[upper.tri(vcov, TRUE)])
+     f(par) |> dput()
+     gr <- numDeriv::grad(f, par)
+     dim_vcov <- (2L * n_causes * (2L * n_causes + 1L)) %/% 2L
+     (c(head(gr, -dim_vcov), d_upper_to_full(tail(gr, dim_vcov))) + 1.5) |> dput()
      */
 
     {
@@ -533,21 +641,46 @@ context("mmcif_logLik works as expected with bivariate data") {
         obs1{covs_traject1, d_covs_traject1, covs_risk1, true, n_causes},
         obs2{covs_traject2, d_covs_traject2, covs_risk2, false, n_causes};
 
-      constexpr double truth{-2.18417107496657};
+      constexpr double truth{-2.18417107496657},
+                       shift{1.5},
+                   true_gr[]{1.42886432212848, 1.45568701354807, 1.52143756531699, 1.57829984536793, 1.34545167726186, 1.34168374815065, 1.60455529481686, 1.4814356903032, 1.41061803300473, 1.50754997550706, 1.61653752380935, 1.52411121171035, 1.68542942744349, 1.46707608763835, 1.34148055836095, 1.51338992552404, 1.70667998038838, 1.54276137510894, 1.62477679072493, 1.47784526361077, 1.39333113149789, 1.50901017690837, 1.63907644033356, 1.52877443596108, 1.48077385432297, 1.58360118439227, 1.5560064124667, 1.51232498904552, 1.46513088846104, 1.47203468864447, 1.58360118439227, 1.47288847995647, 1.58987619120269, 1.47503865108853, 1.52039508343806, 1.45664598170391, 1.5560064124667, 1.58987619120269, 1.43986715799987, 1.47858474718355, 1.4588547390977, 1.53606382712226, 1.51232498904552, 1.47503865108853, 1.47858474718355, 1.54560315711551, 1.5, 1.5, 1.46513088846104, 1.52039508343806, 1.4588547390977, 1.5, 1.55038611784376, 1.5, 1.47203468864447, 1.45664598170391, 1.53606382712226, 1.5, 1.5, 1.51294882404452};
       {
-        double const res
+        double res
           {mmcif_logLik(par, indexer, obs1, obs2, mem, ghq_dat_use)};
         expect_true(std::abs(res - truth) < std::abs(truth) * 1e-8);
+
+        double * gr{mem.get(indexer.n_par<false>())};
+        std::fill(gr, gr + indexer.n_par<false>(), shift);
+        res = mmcif_logLik_grad(par, gr, indexer, obs1, obs2, mem, ghq_dat_use);
+        expect_true(std::abs(res - truth) < std::abs(truth) * 1e-8);
+
+        for(size_t i = 0; i < indexer.n_par<false>(); ++i)
+          expect_true(std::abs(gr[i] - true_gr[i]) < std::abs(true_gr[i]) * 1e-5);
       }
 
-      double const res
+      double res
         {mmcif_logLik(par, indexer, obs2, obs1, mem, ghq_dat_use)};
       expect_true(std::abs(res - truth) < std::abs(truth) * 1e-8);
+
+      double * gr{mem.get(indexer.n_par<false>())};
+      std::fill(gr, gr + indexer.n_par<false>(), shift);
+      res = mmcif_logLik_grad(par, gr, indexer, obs1, obs2, mem, ghq_dat_use);
+      expect_true(std::abs(res - truth) < std::abs(truth) * 1e-8);
+
+      for(size_t i = 0; i < indexer.n_par<false>(); ++i)
+        expect_true(std::abs(gr[i] - true_gr[i]) < std::abs(true_gr[i]) * 1e-5);
     }
 
     /*
      library(ghqCpp)
-     local({
+     f <- \(x){
+     coefs_risk <- get_n_remove(x, length(coefs_risk)) |>
+     matrix(NROW(coefs_risk))
+     coefs_traject <- get_n_remove(x, length(coefs_traject)) |>
+     matrix(NROW(coefs_traject))
+     vcov <- upper_to_full(x)
+     vcov <- (vcov + t(vcov)) / 2
+
      vcov_sub <- vcov[1:n_causes, 1:n_causes]
 
      integrals_substract <- sapply(obs, \(obs_i){
@@ -568,6 +701,8 @@ context("mmcif_logLik works as expected with bivariate data") {
      Sigma = vcov_sub, z = z, weights = gl$w, nodes = gl$x)
      })
      })
+
+     vcov_sub <- vcov[1:n_causes, 1:n_causes]
 
      etas <- sapply(obs, \(x) x$covs_risk %*% coefs_risk)
      rng_coefs <- solve(vcov_sub, vcov[1:n_causes, -(1:n_causes)]) |> t()
@@ -594,8 +729,14 @@ context("mmcif_logLik works as expected with bivariate data") {
      Sigma = vcov_sub, weights = gl$w, nodes = gl$x)
      }))
 
-     log(1 - sum(integrals_substract) + sum(integrals_adds)) |> dput()
-     })
+     log(1 - sum(integrals_substract) + sum(integrals_adds))
+     }
+
+     par <- c(coefs_risk, coefs_traject, vcov[upper.tri(vcov, TRUE)])
+     f(par) |> dput()
+     gr <- numDeriv::grad(f, par)
+     dim_vcov <- (2L * n_causes * (2L * n_causes + 1L)) %/% 2L
+     (c(head(gr, -dim_vcov), d_upper_to_full(tail(gr, dim_vcov))) + 1.5) |> dput()
      */
 
     {
@@ -603,10 +744,21 @@ context("mmcif_logLik works as expected with bivariate data") {
         obs1{covs_traject1, d_covs_traject1, covs_risk1, true, n_causes},
         obs2{covs_traject2, d_covs_traject2, covs_risk2, true, n_causes};
 
-      double const res
+      double res
         {mmcif_logLik(par, indexer, obs1, obs2, mem, ghq_dat_use)};
       constexpr double truth{-2.00247380641032};
       expect_true(std::abs(res - truth) < std::abs(truth) * 1e-8);
+
+      double * gr{mem.get(indexer.n_par<false>())};
+      constexpr double shift{1.5},
+                   true_gr[]{1.4392362543624, 1.4657164371737, 1.55664825291928, 1.60435190353244, 1.37028357120591, 1.36660932696277, 1.77073755216239, 1.53802079510158, 1.42522865934166, 1.51674277488534, 1.5877749109731, 1.53035913222007, 2.06304090224125, 1.59159588972652, 1.36729663448639, 1.5344107677658, 1.65140759199596, 1.5584698669516, 1.94148079104312, 1.58523847207786, 1.4203664235269, 1.52654397141941, 1.58536679406214, 1.54084713201152, 1.48091073070106, 1.56488498397801, 1.54783934446057, 1.52202302260823, 1.4560063687567, 1.46367963873689, 1.56488498397801, 1.49314850571281, 1.56749376537132, 1.47422099404467, 1.56126698068742, 1.45113517043605, 1.54783934446057, 1.56749376537132, 1.45156009955787, 1.47872440662632, 1.45122709058752, 1.56317435473337, 1.52202302260823, 1.47422099404467, 1.47872440662632, 1.58411611553288, 1.50274810184889, 1.50547469903672, 1.4560063687567, 1.56126698068742, 1.45122709058752, 1.50274810184889, 1.58144204720316, 1.50857653786166, 1.46367963873689, 1.45113517043605, 1.56317435473337, 1.50547469903672, 1.50857653786166, 1.5622719445094};
+
+      std::fill(gr, gr + indexer.n_par<false>(), shift);
+      res = mmcif_logLik_grad(par, gr, indexer, obs1, obs2, mem, ghq_dat_use);
+      expect_true(std::abs(res - truth) < std::abs(truth) * 1e-8);
+
+      for(size_t i = 0; i < indexer.n_par<false>(); ++i)
+        expect_true(std::abs(gr[i] - true_gr[i]) < std::abs(true_gr[i]) * 1e-3);
     }
   }
 }
