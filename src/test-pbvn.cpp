@@ -44,38 +44,53 @@ context("pbvn functions works as expected") {
   test_that("pbvn_grad works") {
     {
       double gr[6];
-      expect_true(std::abs(pbvn_grad<0>(mu, Sigma, gr) - truth) < truth * 1e-4);
+      expect_true(std::abs(pbvn_grad<0, true>(mu, Sigma, gr) - truth) < truth * 1e-4);
       for(unsigned i = 0; i < 6; ++i)
         expect_true
           (std::abs(gr[i] - true_grad[i]) < std::abs(true_grad[i]) * 1e-4);
     }
     {
        double gr[6];
-       expect_true
-         (std::abs(pbvn_grad<1>(mu, Sigma, gr) - truth) < truth * 1e-8);
+       expect_true(std::abs(pbvn_grad<1, true>(mu, Sigma, gr) - truth) < truth * 1e-4);
        for(unsigned i = 0; i < 6; ++i)
-         expect_true
-           (std::abs(gr[i] - true_grad[i]) < std::abs(true_grad[i]) * 1e-4);
+          expect_true
+          (std::abs(gr[i] - true_grad[i]) < std::abs(true_grad[i]) * 1e-4);
     }
-    double gr[2];
-    expect_true
-      (std::abs(pbvn_grad<1, false>(mu, Sigma, gr) - truth) < truth * 1e-8);
-    for(unsigned i = 0; i < 2; ++i)
+    {
+       double gr[2];
        expect_true
-         (std::abs(gr[i] - true_grad[i]) < std::abs(true_grad[i]) * 1e-4);
-  }
+         (std::abs(pbvn_grad<0, false>(mu, Sigma, gr) - truth) < truth * 1e-8);
+       for(unsigned i = 0; i < 2; ++i)
+          expect_true
+            (std::abs(gr[i] - true_grad[i]) < std::abs(true_grad[i]) * 1e-4);
+    }
+   double gr[2];
+   expect_true
+     (std::abs(pbvn_grad<1, false>(mu, Sigma, gr) - truth) < truth * 1e-8);
+   for(unsigned i = 0; i < 2; ++i)
+     expect_true
+     (std::abs(gr[i] - true_grad[i]) < std::abs(true_grad[i]) * 1e-4);
+
+    }
 
    test_that("pbvn_hess works") {
       double hess[4];
-      {
-         pbvn_hess<0>(mu, Sigma, hess);
-         for(unsigned i = 0; i < 4; ++i)
-            expect_true
-            (std::abs(hess[i] - true_hess[i]) < std::abs(true_hess[i]) * 1e-4);
-      }
-      pbvn_hess<1>(mu, Sigma, hess);
+      pbvn_hess(mu, Sigma, hess);
       for(unsigned i = 0; i < 4; ++i)
          expect_true
-            (std::abs(hess[i] - true_hess[i]) < std::abs(true_hess[i]) * 1e-4);
+         (std::abs(hess[i] - true_hess[i]) < std::abs(true_hess[i]) * 1e-4);
+   }
+
+   test_that("pbvn works in a special extreme case") {
+      /*
+       Sigma <- c(0.28100000000000003, -0.39800000000000002, -0.39800000000000002, 0.623) |> matrix(2)
+       mu <- c(2.1256907051178309, -0.87838136502927344)
+       mvtnorm::pmvnorm(upper = -mu, sigma = Sigma) |> dput()
+       */
+      constexpr double mu_special[]{2.1256907051178309, -0.87838136502927344},
+                    Sigma_special[]{0.28100000000000003, -0.39800000000000002, -0.39800000000000002, 0.623},
+                      truth_special{4.0401649079904e-24};
+      expect_true(
+         std::abs(pbvn<1>(mu_special, Sigma_special) - truth_special) < truth_special * 1e-8);
    }
 }

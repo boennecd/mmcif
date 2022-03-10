@@ -271,10 +271,10 @@ bench::mark(
 #> # A tibble: 4 × 6
 #>   expression         min   median `itr/sec` mem_alloc `gc/sec`
 #>   <bch:expr>    <bch:tm> <bch:tm>     <dbl> <bch:byt>    <dbl>
-#> 1 one thread       617ms    618ms      1.62    19.8KB        0
-#> 2 two threads      314ms    316ms      3.17        0B        0
-#> 3 three threads    213ms    214ms      4.67        0B        0
-#> 4 four threads     163ms    169ms      5.92        0B        0
+#> 1 one thread       588ms    589ms      1.70    19.8KB        0
+#> 2 two threads      301ms    302ms      3.31        0B        0
+#> 3 three threads    212ms    214ms      4.68        0B        0
+#> 4 four threads     164ms    169ms      5.93        0B        0
 
 # next, we compute the gradient of the log composite likelihood at the true 
 # parameters. First we assign a few functions to verify the result. You can 
@@ -316,23 +316,23 @@ rbind(
     c(head(gr_num, -10), d_upper_to_full(tail(gr_num, 10))), 
   `Gradient package` = gr_package)
 #>                        [,1]     [,2]      [,3]      [,4]      [,5]     [,6]
-#> Numerical gradient 147.6561 288.3880 -95.08746 -72.04594 -248.7902 88.15532
-#> Gradient package   148.4757 288.9434 -94.88415 -72.00976 -248.3909 88.32859
+#> Numerical gradient 147.6567 288.3878 -95.08727 -72.04778 -248.7893 88.15468
+#> Gradient package   148.4763 288.9433 -94.88396 -72.01159 -248.3900 88.32796
 #>                        [,7]      [,8]      [,9]     [,10]     [,11]     [,12]
-#> Numerical gradient 202.2185 -35.72080 -243.5082 -52.87079 -54.54853 -97.04450
-#> Gradient package   202.6837 -35.36141 -243.3177 -52.62701 -53.72854 -95.98335
+#> Numerical gradient 202.2188 -35.72068 -243.5081 -52.87083 -54.54801 -97.04477
+#> Gradient package   202.6696 -35.36726 -243.3225 -52.62546 -53.75476 -95.99369
 #>                        [,13]     [,14]     [,15]     [,16]    [,17]     [,18]
-#> Numerical gradient -290.3414 -227.9222 -28.27648 -69.21042 77.55546 -355.0063
-#> Gradient package   -289.9349 -227.7802 -28.19683 -69.18012 77.58975 -354.7077
+#> Numerical gradient -290.3411 -227.9211 -28.27628 -69.21009 77.55528 -355.0045
+#> Gradient package   -289.9341 -227.7834 -28.19866 -69.18107 77.59002 -354.7138
 #>                        [,19]     [,20]     [,21]    [,22]     [,23]    [,24]
-#> Numerical gradient -124.8397 -157.9143 -113.1931 77.88803 -21.16448 73.71993
-#> Gradient package   -124.4192 -157.7813 -113.3295 78.14345 -21.04247 73.82650
+#> Numerical gradient -124.8408 -157.9135 -113.1920 77.88573 -21.16438 73.71955
+#> Gradient package   -124.4184 -157.7805 -113.3144 78.13745 -21.01588 73.81219
 #>                       [,25]     [,26]    [,27]     [,28]     [,29]    [,30]
-#> Numerical gradient 77.88803 -56.21169 18.07621 -118.9189 -21.16448 18.07621
-#> Gradient package   78.14345 -51.78413 17.38095 -118.7676 -21.04247 17.38095
+#> Numerical gradient 77.88573 -56.21940 18.07612 -118.9175 -21.16438 18.07612
+#> Gradient package   78.13745 -51.76274 17.35737 -118.7620 -21.01588 17.35737
 #>                        [,31]    [,32]    [,33]     [,34]    [,35]    [,36]
-#> Numerical gradient -286.3637 36.95665 73.71993 -118.9189 36.95665 120.8844
-#> Gradient package   -286.0021 36.98897 73.82650 -118.7676 36.98897 120.9828
+#> Numerical gradient -286.3636 36.95668 73.71955 -118.9175 36.95668 120.8843
+#> Gradient package   -285.9172 36.99053 73.81219 -118.7620 36.99053 121.0079
 
 # check the time to compute the gradient of the log composite likelihood
 bench::mark(
@@ -344,10 +344,10 @@ bench::mark(
 #> # A tibble: 4 × 6
 #>   expression         min   median `itr/sec` mem_alloc `gc/sec`
 #>   <bch:expr>    <bch:tm> <bch:tm>     <dbl> <bch:byt>    <dbl>
-#> 1 one thread       1.54s    1.54s     0.650    7.09KB        0
-#> 2 two threads   786.01ms 794.73ms     1.26       336B        0
-#> 3 three threads 549.67ms 556.88ms     1.78       336B        0
-#> 4 four threads  430.52ms 441.56ms     2.24       336B        0
+#> 1 one thread       1.65s    1.65s     0.605    7.09KB        0
+#> 2 two threads   844.15ms 845.31ms     1.18       336B        0
+#> 3 three threads 575.57ms 579.98ms     1.72       336B        0
+#> 4 four threads  470.32ms 471.15ms     2.12       336B        0
 ```
 
 Then we optimize the parameters (TODO: there will be a wrapper to work
@@ -357,7 +357,7 @@ with the log Cholesky decomposition and an estimation function).
 # find the starting values
 system.time(start <- mmcif_start_values(comp_obj, n_threads = 4L))
 #>    user  system elapsed 
-#>   0.387   0.000   0.105
+#>   0.380   0.000   0.102
 
 # the maximum likelihood without the random effects. Note that this is not 
 # comparable with the composite likelihood
@@ -422,20 +422,20 @@ gr_num <- numDeriv::grad(ll_func_chol, truth, method = "simple")
 
 rbind(`Numerical gradient` = gr_num, `Gradient package` = gr_package)
 #>                        [,1]     [,2]      [,3]      [,4]      [,5]     [,6]
-#> Numerical gradient 147.6561 288.3880 -95.08746 -72.04594 -248.7902 88.15532
-#> Gradient package   148.4757 288.9434 -94.88415 -72.00976 -248.3909 88.32859
+#> Numerical gradient 147.6567 288.3878 -95.08727 -72.04778 -248.7893 88.15468
+#> Gradient package   148.4763 288.9433 -94.88396 -72.01159 -248.3900 88.32796
 #>                        [,7]      [,8]      [,9]     [,10]     [,11]     [,12]
-#> Numerical gradient 202.2185 -35.72080 -243.5082 -52.87079 -54.54853 -97.04450
-#> Gradient package   202.6837 -35.36141 -243.3177 -52.62701 -53.72854 -95.98335
+#> Numerical gradient 202.2188 -35.72068 -243.5081 -52.87083 -54.54801 -97.04477
+#> Gradient package   202.6696 -35.36726 -243.3225 -52.62546 -53.75476 -95.99369
 #>                        [,13]     [,14]     [,15]     [,16]    [,17]     [,18]
-#> Numerical gradient -290.3414 -227.9222 -28.27648 -69.21042 77.55546 -355.0063
-#> Gradient package   -289.9349 -227.7802 -28.19683 -69.18012 77.58975 -354.7077
-#>                        [,19]     [,20]     [,21]     [,22]     [,23]    [,24]
-#> Numerical gradient -124.8397 -157.9143 -33.15133 -9.135805 -15.47944 146.1701
-#> Gradient package   -124.4192 -157.7813 -33.21198 -8.309043  -9.12881 146.2659
+#> Numerical gradient -290.3411 -227.9211 -28.27628 -69.21009 77.55528 -355.0045
+#> Gradient package   -289.9341 -227.7834 -28.19866 -69.18107 77.59002 -354.7138
+#>                        [,19]     [,20]     [,21]     [,22]      [,23]    [,24]
+#> Numerical gradient -124.8408 -157.9135 -33.15087 -9.137580 -15.491863 146.1701
+#> Gradient package   -124.4184 -157.7805 -33.21583 -8.299317  -9.111213 146.2535
 #>                        [,25]     [,26]    [,27]     [,28]    [,29]    [,30]
-#> Numerical gradient -157.5147 -359.2097 145.8281 -256.4344 12.82710 158.5795
-#> Gradient package   -158.5782 -358.6617 145.9577 -256.1650 12.85821 158.7373
+#> Numerical gradient -157.5148 -359.2096 145.8276 -256.4320 12.82721 158.5793
+#> Gradient package   -158.5706 -358.5589 145.9591 -256.1691 12.85134 158.7702
 
 # optimize the log composite likelihood
 constraints <- comp_obj$constraints$vcov_lower
@@ -446,7 +446,7 @@ system.time(
     method = "BFGS", ui = constraints, ci = rep(1e-8, NROW(constraints)),
     control = list(maxit = 10000L)))
 #>    user  system elapsed 
-#> 178.499   0.004  44.967
+#> 182.279   0.012  46.245
 
 # the log composite likelihood at different points
 ll_func_chol(truth, 4L)
@@ -454,7 +454,7 @@ ll_func_chol(truth, 4L)
 ll_func_chol(start$lower, 4L)
 #> [1] -75100.48
 -fit$value
-#> [1] -69809.5
+#> [1] -69809.51
 ```
 
 We show the estimated and true the conditional cumulative incidence
@@ -508,27 +508,27 @@ Further illustrations of the estimated model are given below.
 # the number of call we made
 fit$counts
 #> function gradient 
-#>      219       42
+#>      213       42
 fit$outer.iterations
 #> [1] 2
 
 # compare the estimates with the true values
 rbind(`Estimate AGHQ` = head(fit$par, length(coef_risk)),
       Truth = c(coef_risk))
-#>                    [,1]     [,2]       [,3]       [,4]      [,5]      [,6]
-#> Estimate AGHQ 0.6897047 1.013095 0.08454711 -0.4051271 0.2324695 0.3197769
-#> Truth         0.6700000 1.000000 0.10000000 -0.4000000 0.2500000 0.3000000
+#>                    [,1]   [,2]       [,3]      [,4]      [,5]     [,6]
+#> Estimate AGHQ 0.6897055 1.0131 0.08454691 -0.405137 0.2324679 0.319778
+#> Truth         0.6700000 1.0000 0.10000000 -0.400000 0.2500000 0.300000
 rbind(`Estimate AGHQ` = fit$par[comp_obj$indices$coef_trajectory],
       Truth = truth[comp_obj$indices$coef_trajectory])
-#>                    [,1]      [,2]      [,3]      [,4]     [,5]     [,6]
-#> Estimate AGHQ -2.720973 -3.359790 -6.254128 -4.666525 2.714610 0.799606
-#> Truth         -2.716513 -3.335158 -6.159469 -4.649314 2.687941 0.800000
+#>                    [,1]      [,2]      [,3]      [,4]     [,5]      [,6]
+#> Estimate AGHQ -2.721012 -3.359838 -6.254217 -4.666590 2.714633 0.7996219
+#> Truth         -2.716513 -3.335158 -6.159469 -4.649314 2.687941 0.8000000
 #>                    [,7]      [,8]      [,9]     [,10]     [,11]    [,12]
-#> Estimate AGHQ 0.3647859 -4.068753 -4.983885 -9.147150 -6.847682 4.807038
+#> Estimate AGHQ 0.3647909 -4.068855 -4.984007 -9.147376 -6.847848 4.807135
 #> Truth         0.4000000 -4.074770 -5.002737 -9.239203 -6.973971 4.856911
-#>                   [,13]      [,14]
-#> Estimate AGHQ 0.2179501 -0.2445392
-#> Truth         0.2500000 -0.2000000
+#>                   [,13]     [,14]
+#> Estimate AGHQ 0.2179502 -0.244544
+#> Truth         0.2500000 -0.200000
 
 n_vcov <- (2L * n_causes * (2L * n_causes + 1L)) %/% 2L
 Sigma
@@ -539,10 +539,10 @@ Sigma
 #> [4,]  0.197 -0.250 -0.319  0.903
 log_chol_inv(tail(fit$par, n_vcov))
 #>             [,1]        [,2]       [,3]       [,4]
-#> [1,]  0.27035089  0.07523342 -0.1343073  0.1920847
-#> [2,]  0.07523342  0.84796892  0.2603790 -0.2853482
-#> [3,] -0.13430731  0.26037902  0.7210608 -0.2790476
-#> [4,]  0.19208466 -0.28534816 -0.2790476  0.9088556
+#> [1,]  0.27037589  0.07522873 -0.1342800  0.1920601
+#> [2,]  0.07522873  0.84800895  0.2603734 -0.2853447
+#> [3,] -0.13428001  0.26037345  0.7211115 -0.2790578
+#> [4,]  0.19206013 -0.28534470 -0.2790578  0.9089483
 ```
 
 ## TODOs
