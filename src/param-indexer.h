@@ -61,6 +61,11 @@ public:
     return traject_param_start + cause * n_cov_traject();
   }
 
+  /// returns the index for the trajectory covariates of a given cause
+  size_t cov_traject(size_t const cause) const {
+    return cause * n_cov_traject();
+  }
+
   /// returns the index for the covariance parameter
   size_t vcov() const {
     return vcov_start;

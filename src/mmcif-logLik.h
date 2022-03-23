@@ -20,6 +20,29 @@ struct mmcif_data {
    * be the number of causes.
    */
   unsigned cause;
+  /**
+   * covariates for the trajectory for possibly delayed entry. Use a nullptr
+   * if there is no delayed entry
+   */
+  double const * cov_trajectory_delayed;
+
+  bool has_delayed_entry() const {
+    return cov_trajectory_delayed;
+  }
+
+  mmcif_data to_delayed(param_indexer const &indexer) const {
+    return {
+      cov_trajectory_delayed, nullptr,
+      cov_risk, true, static_cast<unsigned>(indexer.n_causes()),
+      nullptr
+    };
+  }
+
+  mmcif_data without_delayed() const {
+    mmcif_data cp = *this;
+    cp.cov_trajectory_delayed = nullptr;
+    return cp;
+  }
 };
 
 /**
@@ -38,7 +61,7 @@ double mmcif_logLik
   (double const * par, param_indexer const &indexer,
    mmcif_data const &obs, ghqCpp::simple_mem_stack<double> &mem,
    ghqCpp::ghq_data const &dat);
-   
+
 /**
  * computes the log composite likelihood term of a given pair and the gradient.
  */
@@ -54,5 +77,18 @@ double mmcif_logLik_grad
   (double const * par, double * __restrict__ gr, param_indexer const &indexer,
    mmcif_data const &obs, ghqCpp::simple_mem_stack<double> &mem,
    ghqCpp::ghq_data const &dat);
+
+/// computes the log likelihood of the model without the random effects.
+template<bool with_risk>
+double mcif_logLik
+  (double const * __restrict__ par, param_indexer const &indexer,
+   mmcif_data const &obs, ghqCpp::simple_mem_stack<double> &mem);
+
+/// computes the gradient of mcif_logLik
+template<bool with_risk>
+double mcif_logLik_grad
+  (double const * __restrict__ par, double * __restrict__ grad,
+   param_indexer const &indexer, mmcif_data const &obs,
+   ghqCpp::simple_mem_stack<double> &mem);
 
 #endif

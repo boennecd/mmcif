@@ -1,4 +1,4 @@
-#include "mcif-logLik.h"
+#include "mmcif-logLik.h"
 #include <Rmath.h> // Rf_dnorm4
 #include "mmcif-misc.h"
 #include <algorithm>
@@ -21,8 +21,10 @@ public:
 
   double comp_lp_traject
   (mmcif_data const &obs, unsigned const cause){
+    double const *cov_trajectory
+      {obs.cov_trajectory + indexer.cov_traject(cause)};
     return -std::inner_product
-      (obs.cov_trajectory, obs.cov_trajectory + indexer.n_cov_traject(),
+      (cov_trajectory, cov_trajectory + indexer.n_cov_traject(),
        par + indexer.traject(cause), 0.);
   }
 
@@ -33,10 +35,12 @@ public:
   void comp_lp_traject_backprop
     (double const grad_lp_traject, mmcif_data const &obs, unsigned const cause,
      double * __restrict__ grad){
+    double const *cov_trajectory
+      {obs.cov_trajectory + indexer.cov_traject(cause)};
     grad += indexer.traject(cause);
     auto const n_cov_traject = indexer.n_cov_traject();
     for(size_t i = 0; i < n_cov_traject; ++i)
-      grad[i] -= obs.cov_trajectory[i] * grad_lp_traject;
+      grad[i] -= cov_trajectory[i] * grad_lp_traject;
   }
 
   void comp_lp_traject_backprop
@@ -47,9 +51,11 @@ public:
 
   double comp_d_lp_traject
   (mmcif_data const &obs, unsigned const cause){
+    double const * d_cov_trajectory
+      {obs.d_cov_trajectory + indexer.cov_traject(cause)};
     return -std::inner_product
-    (obs.d_cov_trajectory, obs.d_cov_trajectory + indexer.n_cov_traject(),
-     par + indexer.traject(cause), 0.);
+      (d_cov_trajectory, d_cov_trajectory + indexer.n_cov_traject(),
+       par + indexer.traject(cause), 0.);
   }
 
   double comp_d_lp_traject(mmcif_data const &obs){
@@ -62,8 +68,10 @@ public:
     auto const cause = obs.cause;
     grad += indexer.traject(cause);
     auto const n_cov_traject = indexer.n_cov_traject();
+    double const *d_cov_trajectory
+      {obs.d_cov_trajectory + indexer.cov_traject(cause)};
     for(size_t i = 0; i < n_cov_traject; ++i)
-      grad[i] -= obs.d_cov_trajectory[i] * grad_lp_traject;
+      grad[i] -= d_cov_trajectory[i] * grad_lp_traject;
   }
 
   void fill_logit_offsets
@@ -96,6 +104,15 @@ template<bool with_risk>
 double mcif_logLik
   (double const * __restrict__ par, param_indexer const &indexer,
    mmcif_data const &obs, ghqCpp::simple_mem_stack<double> &mem) {
+  if(obs.has_delayed_entry()){
+    double const delayed_term
+      {mcif_logLik<with_risk>(par, indexer, obs.to_delayed(indexer), mem)};
+
+    return
+      mcif_logLik<with_risk>(par, indexer, obs.without_delayed(), mem)
+      - delayed_term;
+  }
+
   mcif_comp_helper helper{indexer, par};
 
   bool const is_censored{helper.is_censored(obs)};
@@ -154,6 +171,24 @@ double mcif_logLik_grad
   (double const * __restrict__ par, double * __restrict__ grad,
    param_indexer const &indexer, mmcif_data const &obs,
    ghqCpp::simple_mem_stack<double> &mem) {
+  if(obs.has_delayed_entry()){
+    double * const gr_delayed{mem.get(indexer.n_par_wo_vcov())};
+    auto gr_marker = mem.set_mark_raii();
+    std::fill(gr_delayed, gr_delayed + indexer.n_par_wo_vcov(), 0);
+
+    double const delayed_term
+      {mcif_logLik_grad<with_risk>
+        (par, gr_delayed, indexer, obs.to_delayed(indexer), mem)};
+
+    double const out
+      {mcif_logLik_grad<with_risk>
+        (par, grad, indexer, obs.without_delayed(), mem) - delayed_term};
+    for(size_t i = 0; i < indexer.n_par_wo_vcov(); ++i)
+      grad[i] -= gr_delayed[i];
+
+    return out;
+  }
+
   mcif_comp_helper helper{indexer, par};
 
   bool const is_censored{helper.is_censored(obs)};

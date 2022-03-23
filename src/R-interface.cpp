@@ -3,7 +3,6 @@
 #include <vector>
 #include "param-indexer.h"
 #include "mmcif-logLik.h"
-#include "mcif-logLik.h"
 #include "ghq.h"
 #include "wmem.h"
 #include "bases.h"
@@ -64,13 +63,16 @@ struct mmcif_data_holder {
   std::vector<size_t> singletons;
   /// the indexer for the parameters
   param_indexer indexer;
+  /// covariates for the trajectory with delayed entry
+  simple_mat<double> covs_trajectory_delayed;
 
   mmcif_data_holder
     (NumericMatrix const covs_trajectory_in,
      NumericMatrix const d_covs_trajectory_in, NumericMatrix const covs_risk_in,
      IntegerVector const has_finite_trajectory_prob_in,
      IntegerVector const cause_in, size_t const n_causes,
-     Rcpp::IntegerMatrix pair_indices_in, IntegerVector const singletons_in):
+     Rcpp::IntegerMatrix pair_indices_in, IntegerVector const singletons_in,
+     NumericMatrix const covs_trajectory_delayed_in):
     covs_trajectory{NumericMatrix_to_simple_mat(covs_trajectory_in)},
     d_covs_trajectory{NumericMatrix_to_simple_mat(d_covs_trajectory_in)},
     covs_risk{NumericMatrix_to_simple_mat(covs_risk_in)},
@@ -129,25 +131,36 @@ struct mmcif_data_holder {
         return out;
       })()
     },
-    indexer{covs_risk.n_rows(), covs_trajectory.n_rows(), n_causes}
+    indexer{covs_risk.n_rows(), covs_trajectory.n_rows(), n_causes},
+    covs_trajectory_delayed
+      {NumericMatrix_to_simple_mat(covs_trajectory_delayed_in)}
     {
       throw_if_invalidt();
     }
+
+  bool has_delayed_entry(size_t const idx) const {
+    return !std::isnan(*covs_trajectory_delayed.col(idx));
+  }
 
 private:
   void throw_if_invalidt(){
     if(covs_risk.n_rows() != indexer.n_cov_risk())
       throw std::invalid_argument("covs_risk.n_rows() != indexer.n_cov_risk()");
-    if(covs_trajectory.n_rows() != indexer.n_cov_traject())
-      throw std::invalid_argument("covs_trajectory.n_rows() != indexer.n_cov_traject()");
-    if(d_covs_trajectory.n_rows() != indexer.n_cov_traject())
-      throw std::invalid_argument("d_covs_trajectory.n_rows() != indexer.n_cov_traject()");
+
+    if(covs_trajectory.n_rows() != indexer.n_cov_traject() * indexer.n_causes())
+      throw std::invalid_argument("covs_trajectory.n_rows() != indexer.n_cov_traject() * indexer.n_causes()");
+    if(d_covs_trajectory.n_rows() != indexer.n_cov_traject() * indexer.n_causes())
+      throw std::invalid_argument("d_covs_trajectory.n_rows() != indexer.n_cov_traject() * indexer.n_causes()");
+    if(covs_trajectory_delayed.n_rows() != indexer.n_cov_traject() * indexer.n_causes())
+      throw std::invalid_argument("covs_trajectory_delayed.n_rows() != indexer.n_cov_traject() * indexer.n_causes()");
 
     size_t const n_obs{covs_risk.n_cols()};
     if(covs_trajectory.n_cols() != n_obs)
       throw std::invalid_argument("covs_trajectory.n_cols() != n_obs");
     if(d_covs_trajectory.n_cols() != n_obs)
       throw std::invalid_argument("d_covs_trajectory.n_cols() != n_obs");
+    if(covs_trajectory_delayed.n_cols() != n_obs)
+      throw std::invalid_argument("covs_trajectory_delayed.n_cols() != n_obs");
     if(has_finite_trajectory_prob.size() != n_obs)
       throw std::invalid_argument("has_finite_trajectory_prob.size() != n_obs");
     if(cause.size() != n_obs)
@@ -207,9 +220,13 @@ void throw_if_invalid_par_wo_vcov
 
 mmcif_data mmcif_data_from_idx
   (mmcif_data_holder const &data, size_t const idx){
-  return { data.covs_trajectory.col(idx), data.d_covs_trajectory.col(idx),
-           data.covs_risk.col(idx), data.has_finite_trajectory_prob[idx] == 1,
-           data.cause[idx] };
+  return {
+    data.covs_trajectory.col(idx), data.d_covs_trajectory.col(idx),
+    data.covs_risk.col(idx), data.has_finite_trajectory_prob[idx] == 1,
+    data.cause[idx],
+    data.has_delayed_entry(idx) ? data.covs_trajectory_delayed.col(idx)
+                                : nullptr
+  };
 }
 
 } // namespace
@@ -222,12 +239,13 @@ SEXP mmcif_data_holder_to_R
    NumericMatrix const covs_risk,
    IntegerVector const has_finite_trajectory_prob,
    IntegerVector const cause, size_t const n_causes,
-   Rcpp::IntegerMatrix pair_indices, IntegerVector const singletons){
+   Rcpp::IntegerMatrix pair_indices, IntegerVector const singletons,
+   NumericMatrix const covs_trajectory_delayed){
   return Rcpp::XPtr<mmcif_data_holder const>
     (new mmcif_data_holder
        (covs_trajectory, d_covs_trajectory, covs_risk,
         has_finite_trajectory_prob, cause, n_causes, pair_indices,
-        singletons));
+        singletons, covs_trajectory_delayed));
 }
 
 // [[Rcpp::export("mmcif_logLik", rng = false)]]

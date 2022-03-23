@@ -21,6 +21,11 @@ context("param_indexer") {
     expect_true(index.traject(2) == 16);
     expect_true(index.traject(3) == 18);
 
+    expect_true(index.cov_traject(0) == 0);
+    expect_true(index.cov_traject(1) == 2);
+    expect_true(index.cov_traject(2) == 4);
+    expect_true(index.cov_traject(3) == 6);
+
     expect_true(index.vcov() == 20);
 
     expect_true(index.n_par_wo_vcov() == 20);

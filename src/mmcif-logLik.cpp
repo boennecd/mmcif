@@ -30,9 +30,11 @@ public:
 
   double comp_lp_traject
   (mmcif_data const &obs, unsigned const cause){
+    double const *cov_trajectory
+      {obs.cov_trajectory + indexer.cov_traject(cause)};
     return -std::inner_product
-    (obs.cov_trajectory, obs.cov_trajectory + indexer.n_cov_traject(),
-     par + indexer.traject(cause), 0.);
+      (cov_trajectory, cov_trajectory + indexer.n_cov_traject(),
+       par + indexer.traject(cause), 0.);
   }
 
   double comp_lp_traject(mmcif_data const &obs){
@@ -42,8 +44,10 @@ public:
   void backprop_lp_traject
   (double const d_lp, mmcif_data const &obs, unsigned const cause,
    double * __restrict__ gr){
+    double const * cov_trajectory
+      {obs.cov_trajectory + indexer.cov_traject(cause)};
     for(size_t i = 0; i < indexer.n_cov_traject(); ++i)
-      gr[indexer.traject(cause) + i] -= d_lp * obs.cov_trajectory[i];
+      gr[indexer.traject(cause) + i] -= d_lp * cov_trajectory[i];
   }
 
   void backprop_lp_traject
@@ -53,9 +57,11 @@ public:
 
   double comp_d_lp_traject
   (mmcif_data const &obs, unsigned const cause){
+    double const * d_cov_trajectory
+      {obs.d_cov_trajectory + indexer.cov_traject(cause)};
     return -std::inner_product
-    (obs.d_cov_trajectory, obs.d_cov_trajectory + indexer.n_cov_traject(),
-     par + indexer.traject(cause), 0.);
+      (d_cov_trajectory, d_cov_trajectory + indexer.n_cov_traject(),
+       par + indexer.traject(cause), 0.);
   }
 
   double comp_d_lp_traject(mmcif_data const &obs){
@@ -65,8 +71,10 @@ public:
   void backprop_d_lp_traject
   (double const d_d_lp, mmcif_data const &obs, unsigned const cause,
    double * __restrict__ gr){
+    double const *d_cov_trajectory
+      {obs.d_cov_trajectory + indexer.cov_traject(cause)};
     for(size_t i = 0; i < indexer.n_cov_traject(); ++i)
-      gr[indexer.traject(cause) + i] -= d_d_lp * obs.d_cov_trajectory[i];
+      gr[indexer.traject(cause) + i] -= d_d_lp * d_cov_trajectory[i];
   }
 
   void backprop_d_lp_traject
@@ -1048,6 +1056,14 @@ double mmcif_logLik
   (double const * par, param_indexer const &indexer,
    mmcif_data const &obs, simple_mem_stack<double> &mem,
    ghq_data const &dat){
+  if(obs.has_delayed_entry()){
+    double const delayed_term
+      {mmcif_logLik(par, indexer, obs.to_delayed(indexer), mem, dat)};
+
+    return mmcif_logLik(par, indexer, obs.without_delayed(), mem, dat) -
+      delayed_term;
+  }
+
   mmcif_comp_helper helper{indexer, par, mem};
 
   bool const is_cens{helper.is_censored(obs)};
@@ -1142,6 +1158,29 @@ double mmcif_logLik
   (double const * par, param_indexer const &indexer,
    mmcif_data const &obs1, mmcif_data const &obs2,
    simple_mem_stack<double> &mem, ghq_data const &dat){
+  if(obs1.has_delayed_entry() && obs2.has_delayed_entry()){
+    double const delayed_term
+      {mmcif_logLik
+        (par, indexer, obs1.to_delayed(indexer),
+         obs2.to_delayed(indexer), mem, dat)};
+
+    return mmcif_logLik
+      (par, indexer, obs1.without_delayed(), obs2.without_delayed(),
+       mem, dat) - delayed_term;
+
+  } else if(obs1.has_delayed_entry() || obs2.has_delayed_entry()){
+    mmcif_data const &obs_w_delayed = obs1.has_delayed_entry() ? obs1 : obs2,
+                     &obs_wo_delayed = obs1.has_delayed_entry() ? obs2 : obs1;
+
+    double const delayed_term
+      {mmcif_logLik(par, indexer, obs_w_delayed.to_delayed(indexer), mem, dat)};
+
+    return mmcif_logLik
+      (par, indexer, obs_w_delayed.without_delayed(), obs_wo_delayed,
+       mem, dat) - delayed_term;
+
+  }
+
   mmcif_comp_helper helper{indexer, par, mem};
   bool const is_cens1{helper.is_censored(obs1)},
              is_cens2{helper.is_censored(obs2)};
@@ -1159,6 +1198,24 @@ double mmcif_logLik_grad
   (double const * par, double * __restrict__ gr, param_indexer const &indexer,
    mmcif_data const &obs, ghqCpp::simple_mem_stack<double> &mem,
    ghqCpp::ghq_data const &dat){
+  if(obs.has_delayed_entry()){
+    double * const gr_delayed{mem.get(indexer.n_par<false>())};
+    auto gr_marker = mem.set_mark_raii();
+    std::fill(gr_delayed, gr_delayed + indexer.n_par<false>(), 0);
+
+    double const delayed_term
+      {mmcif_logLik_grad
+        (par, gr_delayed, indexer, obs.to_delayed(indexer), mem, dat)};
+
+    double const out
+      {mmcif_logLik_grad
+        (par, gr, indexer, obs.without_delayed(), mem, dat) - delayed_term};
+    for(size_t i = 0; i < indexer.n_par<false>(); ++i)
+      gr[i] -= gr_delayed[i];
+
+    return out;
+  }
+
   mmcif_comp_helper helper{indexer, par, mem};
 
   bool const is_cens{helper.is_censored(obs)};
@@ -1345,6 +1402,51 @@ double mmcif_logLik_grad
   (double const * par, double * __restrict__ gr, param_indexer const &indexer,
    mmcif_data const &obs1, mmcif_data const &obs2,
    ghqCpp::simple_mem_stack<double> &mem, ghqCpp::ghq_data const &dat){
+  if(obs1.has_delayed_entry() && obs2.has_delayed_entry()){
+    double * const gr_delayed{mem.get(indexer.n_par<false>())};
+    auto gr_marker = mem.set_mark_raii();
+    std::fill(gr_delayed, gr_delayed + indexer.n_par<false>(), 0);
+
+    double const delayed_term
+      {mmcif_logLik_grad
+        (par, gr_delayed, indexer, obs1.to_delayed(indexer),
+         obs2.to_delayed(indexer), mem, dat)};
+
+    double const out
+      {mmcif_logLik_grad
+        (par, gr, indexer, obs1.without_delayed(), obs2.without_delayed(),
+         mem, dat) - delayed_term};
+
+    for(size_t i = 0; i < indexer.n_par<false>(); ++i)
+      gr[i] -= gr_delayed[i];
+
+    return out;
+
+  } else if(obs1.has_delayed_entry() || obs2.has_delayed_entry()){
+    double * const gr_delayed{mem.get(indexer.n_par<false>())};
+    auto gr_marker = mem.set_mark_raii();
+    std::fill(gr_delayed, gr_delayed + indexer.n_par<false>(), 0);
+
+    mmcif_data const &obs_w_delayed = obs1.has_delayed_entry() ? obs1 : obs2,
+                     &obs_wo_delayed = obs1.has_delayed_entry() ? obs2 : obs1;
+
+    double const delayed_term
+      {mmcif_logLik_grad
+        (par, gr_delayed, indexer, obs_w_delayed.to_delayed(indexer), mem,
+         dat)};
+
+    double const out
+      {mmcif_logLik_grad
+        (par, gr, indexer, obs_w_delayed.without_delayed(), obs_wo_delayed,
+         mem, dat) - delayed_term};
+
+    for(size_t i = 0; i < indexer.n_par<false>(); ++i)
+      gr[i] -= gr_delayed[i];
+
+    return out;
+
+  }
+
   mmcif_comp_helper helper{indexer, par, mem};
   bool const is_cens1{helper.is_censored(obs1)},
              is_cens2{helper.is_censored(obs2)};
