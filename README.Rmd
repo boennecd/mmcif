@@ -203,10 +203,10 @@ length(comp_obj$singletons) # the number of clusters with one observation
 
 # we need to find the combination of the spline bases that yield a straight 
 # line. You can skip this
-comb_slope <- local({
-  boundary_knots <- comp_obj$spline$boundary_knots
+comb_slope <- sapply(comp_obj$spline, \(spline){
+  boundary_knots <- spline$boundary_knots
   pts <- seq(boundary_knots[1], boundary_knots[2], length.out = 1000)
-  lm.fit(cbind(1, comp_obj$spline$expansion(pts)), pts)$coef
+  lm.fit(cbind(1, spline$expansion(pts)), pts)$coef
 })
 
 # assign a function to compute the log composite likelihood
@@ -219,8 +219,8 @@ ll_func <- \(par, n_threads = 1L)
 
 # the log composite likelihood at the true parameters
 coef_traject_spline <- 
-  rbind(t(coef_traject[1, ] %o% comb_slope[-1]), 
-        coef_traject[2, ] + comb_slope[1] * coef_traject[1, ],
+  rbind(comb_slope[-1, ] * rep(coef_traject[1, ], each = NROW(comb_slope) - 1), 
+        coef_traject[2, ] + comb_slope[1, ] * coef_traject[1, ],
         coef_traject[-(1:2), ])
 true_values <- c(coef_risk, coef_traject_spline, Sigma)
 ll_func(true_values)
@@ -396,7 +396,7 @@ local({
         coef_traject[2, i])
     
     estimates <- probs_est[i] * pnorm(
-      -comp_obj$time_expansion(pts) %*% coef_traject_time_est[, i] - 
+      -comp_obj$time_expansion(pts, cause = i) %*% coef_traject_time_est[, i] - 
         coef_traject_intercept_est[i]) |> drop()
     
     matplot(pts, cbind(true_vals, estimates), xlim = c(1e-8, delta), 

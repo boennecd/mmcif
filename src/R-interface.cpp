@@ -131,7 +131,7 @@ struct mmcif_data_holder {
         return out;
       })()
     },
-    indexer{covs_risk.n_rows(), covs_trajectory.n_rows(), n_causes},
+    indexer{covs_risk.n_rows(), covs_trajectory.n_rows() / n_causes, n_causes},
     covs_trajectory_delayed
       {NumericMatrix_to_simple_mat(covs_trajectory_delayed_in)}
     {
