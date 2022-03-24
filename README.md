@@ -150,7 +150,7 @@ sim_dat <- \(n_clusters, max_cluster_size){
       cause[is_censored] <- n_causes + 1L
     }
     
-    data.frame(covs, cause = cause, time = obs_time, cluster_id)
+    data.frame(covs, cause, time = obs_time, cluster_id)
   }, simplify = FALSE) |> 
     do.call(what = rbind)
 }
@@ -271,10 +271,10 @@ bench::mark(
 #> # A tibble: 4 × 6
 #>   expression         min   median `itr/sec` mem_alloc `gc/sec`
 #>   <bch:expr>    <bch:tm> <bch:tm>     <dbl> <bch:byt>    <dbl>
-#> 1 one thread       598ms    607ms      1.64    6.77KB        0
-#> 2 two threads      306ms    310ms      3.22        0B        0
-#> 3 three threads    208ms    224ms      4.45        0B        0
-#> 4 four threads     171ms    176ms      5.63        0B        0
+#> 1 one thread       592ms    593ms      1.68    6.77KB        0
+#> 2 two threads      302ms    307ms      3.24        0B        0
+#> 3 three threads    207ms    211ms      4.75        0B        0
+#> 4 four threads     164ms    169ms      5.91        0B        0
 
 # next, we compute the gradient of the log composite likelihood at the true 
 # parameters. First we assign a few functions to verify the result. You can 
@@ -344,10 +344,10 @@ bench::mark(
 #> # A tibble: 4 × 6
 #>   expression         min   median `itr/sec` mem_alloc `gc/sec`
 #>   <bch:expr>    <bch:tm> <bch:tm>     <dbl> <bch:byt>    <dbl>
-#> 1 one thread       1.65s    1.65s     0.605    7.09KB        0
-#> 2 two threads   845.83ms 847.78ms     1.18       336B        0
-#> 3 three threads 572.96ms 574.95ms     1.73       336B        0
-#> 4 four threads  438.74ms 448.62ms     2.22       336B        0
+#> 1 one thread       1.66s    1.66s     0.604    7.09KB        0
+#> 2 two threads   868.25ms 877.53ms     1.14       336B        0
+#> 3 three threads 594.79ms 620.18ms     1.62       336B        0
+#> 4 four threads  502.21ms 506.38ms     1.97       336B        0
 ```
 
 Then we optimize the parameters (TODO: there will be a wrapper to work
@@ -357,7 +357,7 @@ with the log Cholesky decomposition and an estimation function).
 # find the starting values
 system.time(start <- mmcif_start_values(comp_obj, n_threads = 4L))
 #>    user  system elapsed 
-#>   0.443   0.000   0.124
+#>   0.479   0.000   0.133
 
 # the maximum likelihood without the random effects. Note that this is not 
 # comparable with the composite likelihood
@@ -446,7 +446,7 @@ system.time(
     method = "BFGS", ui = constraints, ci = rep(1e-8, NROW(constraints)),
     control = list(maxit = 10000L)))
 #>    user  system elapsed 
-#> 186.461   0.052  47.056
+#> 206.761   0.040  52.716
 
 # the log composite likelihood at different points
 ll_func_chol(truth, 4L)
@@ -545,13 +545,281 @@ log_chol_inv(tail(fit$par, n_vcov))
 #> [4,]  0.19230364 -0.28577178 -0.2789372  0.9090285
 ```
 
+### Delayed Entry
+
+We extend the previous example to the setting where there may be delayed
+entry (left truncation). Thus, we assign a new simulation function. The
+delayed entry is sampled by sampling a random variable from the uniform
+distribution on -1 to 1 and taking the entry time as being the maximum
+of this variable and the zero.
+
+``` r
+library(mvtnorm)
+
+# simulates a data set with a given number of clusters and maximum number of 
+# observations per cluster
+sim_dat <- \(n_clusters, max_cluster_size){
+  stopifnot(max_cluster_size > 0,
+            n_clusters > 0)
+  
+  cluster_id <- 0L
+  replicate(n_clusters, simplify = FALSE, {
+    n_obs <- sample.int(max_cluster_size, 1L)
+    cluster_id <<- cluster_id + 1L
+    
+    # draw the covariates and the left truncation time
+    covs <- cbind(a = rnorm(n_obs), b = runif(n_obs, -1))
+    Z <- cbind(1, covs)
+    
+    delayed_entry <- pmax(runif(n_obs, -1), 0)
+    cens <- rep(-Inf, n_obs)
+    while(all(cens <= delayed_entry))
+      cens <- runif(n_obs, max = 3 * delta)
+    
+    successful_sample <- FALSE
+    while(!successful_sample){
+      rng_effects <- rmvnorm(1, sigma = Sigma) |> drop()
+      U <- head(rng_effects, n_causes)
+      eta <- tail(rng_effects, n_causes)
+      
+      # draw the cause
+      cond_logits_exp <- exp(Z %*% coef_risk + rep(U, each = n_obs)) |> 
+        cbind(1)
+      cond_probs <- cond_logits_exp / rowSums(cond_logits_exp)
+      cause <- apply(cond_probs, 1, 
+                     \(prob) sample.int(n_causes + 1L, 1L, prob = prob))
+      
+      # compute the observed time if needed
+      obs_time <- mapply(\(cause, idx){
+        if(cause > n_causes)
+          return(delta)
+        
+        # can likely be done smarter but this is more general
+        coefs <- coef_traject[, cause]
+        offset <- sum(Z[idx, ] * coefs[-1]) + eta[cause]
+        rng <- runif(1)
+        eps <- .Machine$double.eps
+        root <- uniroot(
+          \(x) rng - pnorm(
+            -coefs[1] * atanh((x - delta / 2) / (delta / 2)) - offset), 
+          c(eps^2, delta * (1 - eps)), tol = 1e-12)$root
+      }, cause, 1:n_obs)
+      
+      keep <- which(pmin(obs_time, cens) > delayed_entry)
+      successful_sample <- length(keep) > 0
+      if(!successful_sample)
+        next
+      
+      has_finite_trajectory_prob <- cause <= n_causes
+      is_censored <- which(!has_finite_trajectory_prob | cens < obs_time)
+      
+      if(length(is_censored) > 0){
+        obs_time[is_censored] <- pmin(delta, cens[is_censored])
+        cause[is_censored] <- n_causes + 1L
+      }
+    }
+    
+    data.frame(covs, cause, time = obs_time, cluster_id, delayed_entry)[keep, ]
+  }) |> 
+    do.call(what = rbind)
+}
+```
+
+We sample a data set using the new simulation function.
+
+``` r
+# sample a data set
+set.seed(51312406)
+n_clusters <- 10000L
+max_cluster_size <- 5L
+dat <- sim_dat(n_clusters, max_cluster_size = max_cluster_size)
+
+# show some stats
+NROW(dat) # number of individuals
+#> [1] 25121
+table(dat$cause) # distribution of causes (3 is censored)
+#> 
+#>     1     2     3 
+#>  9816  4306 10999
+
+# distribution of observed times by cause
+tapply(dat$time, dat$cause, quantile, 
+       probs = seq(0, 1, length.out = 11), na.rm = TRUE)
+#> $`1`
+#>           0%          10%          20%          30%          40%          50% 
+#> 1.388927e-06 1.223061e-02 7.719733e-02 2.455732e-01 5.481534e-01 9.211529e-01 
+#>          60%          70%          80%          90%         100% 
+#> 1.312416e+00 1.652863e+00 1.878976e+00 1.977348e+00 1.999997e+00 
+#> 
+#> $`2`
+#>           0%          10%          20%          30%          40%          50% 
+#> 0.0001428473 0.1058806751 0.2798903525 0.4870446247 0.7319055048 0.9702053140 
+#>          60%          70%          80%          90%         100% 
+#> 1.2079142083 1.4596583348 1.6903101217 1.8745690179 1.9973885710 
+#> 
+#> $`3`
+#>           0%          10%          20%          30%          40%          50% 
+#> 0.0001862319 0.4616269832 0.8617181567 1.2255410970 1.6298530402 2.0000000000 
+#>          60%          70%          80%          90%         100% 
+#> 2.0000000000 2.0000000000 2.0000000000 2.0000000000 2.0000000000
+
+# distribution of the left truncation time
+quantile(dat$delayed_entry, probs = seq(0, 1, length.out = 11))
+#>         0%        10%        20%        30%        40%        50%        60% 
+#> 0.00000000 0.00000000 0.00000000 0.00000000 0.00000000 0.00000000 0.01379695 
+#>        70%        80%        90%       100% 
+#> 0.21533533 0.45129859 0.70860529 0.99993911
+```
+
+Next, we fit the model as before but this time we pass the delayed entry
+time.
+
+``` r
+library(mmcif)
+comp_obj <- mmcif_data(
+  ~ a + b, dat, cause = cause, time = time, cluster_id = cluster_id, 
+  max_time = delta, spline_df = 4L, left_trunc = delayed_entry)
+
+# find the starting values
+system.time(start <- mmcif_start_values(comp_obj, n_threads = 4L))
+#>    user  system elapsed 
+#>   0.558   0.000   0.152
+
+# we can verify that the gradient is correct again
+gr_package <- ll_func_chol_grad(truth)
+gr_num <- numDeriv::grad(ll_func_chol, truth, method = "simple")
+
+rbind(`Numerical gradient` = gr_num, `Gradient package` = gr_package)
+#>                         [,1]     [,2]     [,3]     [,4]      [,5]      [,6]
+#> Numerical gradient -436.8344 13.90976 47.27164 89.01522 -33.38745 -49.27665
+#> Gradient package   -436.2597 14.27615 47.40640 89.01165 -33.10933 -49.15252
+#>                         [,7]      [,8]      [,9]    [,10]     [,11]     [,12]
+#> Numerical gradient -1978.399 -353.8744 -947.0260 269.5006 -3956.806 -1219.103
+#> Gradient package   -1978.155 -353.6759 -946.9385 269.6243 -3956.379 -1218.467
+#>                      [,13]     [,14]     [,15]     [,16]    [,17]     [,18]
+#> Numerical gradient 65.4392 -733.7778 -88.79144 -357.7152 172.9770 -1561.613
+#> Gradient package   65.6707 -733.6657 -88.70189 -357.6778 173.0337 -1561.449
+#>                       [,19]     [,20]    [,21]     [,22]    [,23]     [,24]
+#> Numerical gradient 381.4653 -217.0008 180.0324 -279.1808 188.1265 -635.6314
+#> Gradient package   381.7160 -216.9197 179.9691 -278.4664 193.4523 -635.6039
+#>                       [,25]     [,26]    [,27]     [,28]     [,29]    [,30]
+#> Numerical gradient 394.7923 -33.17940 402.1838 -917.1957 -93.55808 234.0636
+#> Gradient package   393.9636 -32.78567 402.2720 -916.9815 -93.55532 234.1876
+
+# optimize the log composite likelihood
+constraints <- comp_obj$constraints$vcov_lower
+system.time(
+  fit <- constrOptim(
+    start$lower, \(par) -ll_func_chol(par, n_threads = 4L, ghq_data), 
+    grad = \(par) -ll_func_chol_grad(par, n_threads = 4L, ghq_data), 
+    method = "BFGS", ui = constraints, ci = rep(1e-8, NROW(constraints)),
+    control = list(maxit = 10000L)))
+#>    user  system elapsed 
+#> 424.886   0.012 106.933
+
+# the log composite likelihood at different points
+ll_func_chol(truth, 4L)
+#> [1] -49337.7
+ll_func_chol(start$lower, 4L)
+#> [1] -51539.21
+-fit$value
+#> [1] -48234.65
+```
+
+We show the estimated and true the conditional cumulative incidence
+functions (the dashed curves are the estimates) when the random effects
+are zero and the covariates are zero,
+![a\_{ij} = b\_{ij} = 0](https://render.githubusercontent.com/render/math?math=a_%7Bij%7D%20%3D%20b_%7Bij%7D%20%3D%200 "a_{ij} = b_{ij} = 0").
+
+``` r
+local({
+  # get the estimates
+  coef_risk_est <- fit$par[comp_obj$indices$coef_risk] |> 
+    matrix(ncol = n_causes)
+  coef_traject_time_est <- fit$par[comp_obj$indices$coef_trajectory_time] |> 
+    matrix(ncol = n_causes)
+  coef_traject_est <- fit$par[comp_obj$indices$coef_trajectory] |> 
+    matrix(ncol = n_causes)
+  coef_traject_intercept_est <- coef_traject_est[5, ]
+  
+  # compute the risk probabilities  
+  probs <- exp(coef_risk[1, ]) / (1 + sum(exp(coef_risk[1, ])))
+  probs_est <- exp(coef_risk_est[1, ]) / (1 + sum(exp(coef_risk_est[1, ])))
+  
+  # plot the estimated and true conditional cumulative incidence functions. The
+  # estimates are the dashed lines
+  par(mar = c(5, 5, 1, 1), mfcol = c(1, 2))
+  pts <- seq(1e-8, delta, length.out = 1000)
+  
+  for(i in 1:2){
+    true_vals <- probs[i] * pnorm(
+      -coef_traject[1, i] * atanh((pts - delta / 2) / (delta / 2)) - 
+        coef_traject[2, i])
+    
+    estimates <- probs_est[i] * pnorm(
+      -comp_obj$time_expansion(pts, cause = i) %*% coef_traject_time_est[, i] - 
+        coef_traject_intercept_est[i]) |> drop()
+    
+    matplot(pts, cbind(true_vals, estimates), xlim = c(1e-8, delta), 
+            ylim = c(0, 1), bty = "l",  xlab = "Time", lty = c(1, 2),
+            ylab = sprintf("Cumulative incidence; cause %d", i),
+            yaxs = "i", xaxs = "i", type = "l", col = "black")
+    grid()
+  }
+})
+```
+
+<img src="man/figures/README-delayed_compare_estimated_incidence_funcs-1.png" width="100%" />
+
+Further illustrations of the estimated model are given below.
+
+``` r
+# the number of call we made
+fit$counts
+#> function gradient 
+#>      202       39
+fit$outer.iterations
+#> [1] 2
+
+# compare the estimates with the true values
+rbind(`Estimate AGHQ` = head(fit$par, length(coef_risk)),
+      Truth = c(coef_risk))
+#>                    [,1]      [,2]       [,3]       [,4]     [,5]      [,6]
+#> Estimate AGHQ 0.6606051 0.9741868 0.09686947 -0.4057685 0.220732 0.2887617
+#> Truth         0.6700000 1.0000000 0.10000000 -0.4000000 0.250000 0.3000000
+rbind(`Estimate AGHQ` = fit$par[comp_obj$indices$coef_trajectory],
+      Truth = truth[comp_obj$indices$coef_trajectory])
+#>                    [,1]      [,2]      [,3]      [,4]     [,5]      [,6]
+#> Estimate AGHQ -3.024791 -3.593773 -6.689693 -4.949248 2.621058 0.8132976
+#> Truth         -2.844107 -3.597280 -6.552176 -5.037615 2.892138 0.8000000
+#>                    [,7]      [,8]      [,9]     [,10]     [,11]    [,12]
+#> Estimate AGHQ 0.4100058 -2.538074 -3.074504 -5.686850 -4.259960 2.715066
+#> Truth         0.4000000 -2.657133 -3.339703 -6.100591 -4.669595 3.223231
+#>                   [,13]      [,14]
+#> Estimate AGHQ 0.2316575 -0.2601561
+#> Truth         0.2500000 -0.2000000
+
+n_vcov <- (2L * n_causes * (2L * n_causes + 1L)) %/% 2L
+Sigma
+#>        [,1]   [,2]   [,3]   [,4]
+#> [1,]  0.306  0.008 -0.138  0.197
+#> [2,]  0.008  0.759  0.251 -0.250
+#> [3,] -0.138  0.251  0.756 -0.319
+#> [4,]  0.197 -0.250 -0.319  0.903
+log_chol_inv(tail(fit$par, n_vcov))
+#>             [,1]        [,2]       [,3]       [,4]
+#> [1,]  0.29933475 -0.01579832 -0.1494133  0.1655430
+#> [2,] -0.01579832  0.68845548  0.2302813 -0.2413250
+#> [3,] -0.14941331  0.23028135  0.6915985 -0.3345090
+#> [4,]  0.16554296 -0.24132501 -0.3345090  0.7132951
+```
+
 ## TODOs
 
 The package is still under development. Here are a few TODOs:
 
 -   Implement a function to compute the sandwich estimator.
 -   Implement a function to do the estimation.
--   Support delayed entry.
 
 ## References
 

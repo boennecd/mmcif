@@ -147,7 +147,7 @@ sim_dat <- \(n_clusters, max_cluster_size){
       cause[is_censored] <- n_causes + 1L
     }
     
-    data.frame(covs, cause = cause, time = obs_time, cluster_id)
+    data.frame(covs, cause, time = obs_time, cluster_id)
   }, simplify = FALSE) |> 
     do.call(what = rbind)
 }
@@ -426,12 +426,207 @@ Sigma
 log_chol_inv(tail(fit$par, n_vcov))
 ```
 
+### Delayed Entry
+
+We extend the previous example to the setting where there may be delayed entry
+(left truncation). 
+Thus, we assign a new simulation function. The delayed entry is sampled by 
+sampling a random variable from the uniform distribution on -1 to 1 and taking 
+the entry time as being the maximum of this variable and the zero.
+
+```{r delayed_assing_sim_dat}
+library(mvtnorm)
+
+# simulates a data set with a given number of clusters and maximum number of 
+# observations per cluster
+sim_dat <- \(n_clusters, max_cluster_size){
+  stopifnot(max_cluster_size > 0,
+            n_clusters > 0)
+  
+  cluster_id <- 0L
+  replicate(n_clusters, simplify = FALSE, {
+    n_obs <- sample.int(max_cluster_size, 1L)
+    cluster_id <<- cluster_id + 1L
+    
+    # draw the covariates and the left truncation time
+    covs <- cbind(a = rnorm(n_obs), b = runif(n_obs, -1))
+    Z <- cbind(1, covs)
+    
+    delayed_entry <- pmax(runif(n_obs, -1), 0)
+    cens <- rep(-Inf, n_obs)
+    while(all(cens <= delayed_entry))
+      cens <- runif(n_obs, max = 3 * delta)
+    
+    successful_sample <- FALSE
+    while(!successful_sample){
+      rng_effects <- rmvnorm(1, sigma = Sigma) |> drop()
+      U <- head(rng_effects, n_causes)
+      eta <- tail(rng_effects, n_causes)
+      
+      # draw the cause
+      cond_logits_exp <- exp(Z %*% coef_risk + rep(U, each = n_obs)) |> 
+        cbind(1)
+      cond_probs <- cond_logits_exp / rowSums(cond_logits_exp)
+      cause <- apply(cond_probs, 1, 
+                     \(prob) sample.int(n_causes + 1L, 1L, prob = prob))
+      
+      # compute the observed time if needed
+      obs_time <- mapply(\(cause, idx){
+        if(cause > n_causes)
+          return(delta)
+        
+        # can likely be done smarter but this is more general
+        coefs <- coef_traject[, cause]
+        offset <- sum(Z[idx, ] * coefs[-1]) + eta[cause]
+        rng <- runif(1)
+        eps <- .Machine$double.eps
+        root <- uniroot(
+          \(x) rng - pnorm(
+            -coefs[1] * atanh((x - delta / 2) / (delta / 2)) - offset), 
+          c(eps^2, delta * (1 - eps)), tol = 1e-12)$root
+      }, cause, 1:n_obs)
+      
+      keep <- which(pmin(obs_time, cens) > delayed_entry)
+      successful_sample <- length(keep) > 0
+      if(!successful_sample)
+        next
+      
+      has_finite_trajectory_prob <- cause <= n_causes
+      is_censored <- which(!has_finite_trajectory_prob | cens < obs_time)
+      
+      if(length(is_censored) > 0){
+        obs_time[is_censored] <- pmin(delta, cens[is_censored])
+        cause[is_censored] <- n_causes + 1L
+      }
+    }
+    
+    data.frame(covs, cause, time = obs_time, cluster_id, delayed_entry)[keep, ]
+  }) |> 
+    do.call(what = rbind)
+}
+```
+
+We sample a data set using the new simulation function.
+
+```{r delayed_sample_data, cache = 1}
+# sample a data set
+set.seed(51312406)
+n_clusters <- 10000L
+max_cluster_size <- 5L
+dat <- sim_dat(n_clusters, max_cluster_size = max_cluster_size)
+
+# show some stats
+NROW(dat) # number of individuals
+table(dat$cause) # distribution of causes (3 is censored)
+
+# distribution of observed times by cause
+tapply(dat$time, dat$cause, quantile, 
+       probs = seq(0, 1, length.out = 11), na.rm = TRUE)
+
+# distribution of the left truncation time
+quantile(dat$delayed_entry, probs = seq(0, 1, length.out = 11))
+```
+
+Next, we fit the model as before but this time we pass the delayed entry 
+time.
+
+```{r delayed_setup_data_n_fit, cache = 1}
+library(mmcif)
+comp_obj <- mmcif_data(
+  ~ a + b, dat, cause = cause, time = time, cluster_id = cluster_id, 
+  max_time = delta, spline_df = 4L, left_trunc = delayed_entry)
+
+# find the starting values
+system.time(start <- mmcif_start_values(comp_obj, n_threads = 4L))
+
+# we can verify that the gradient is correct again
+gr_package <- ll_func_chol_grad(truth)
+gr_num <- numDeriv::grad(ll_func_chol, truth, method = "simple")
+
+rbind(`Numerical gradient` = gr_num, `Gradient package` = gr_package)
+
+# optimize the log composite likelihood
+constraints <- comp_obj$constraints$vcov_lower
+system.time(
+  fit <- constrOptim(
+    start$lower, \(par) -ll_func_chol(par, n_threads = 4L, ghq_data), 
+    grad = \(par) -ll_func_chol_grad(par, n_threads = 4L, ghq_data), 
+    method = "BFGS", ui = constraints, ci = rep(1e-8, NROW(constraints)),
+    control = list(maxit = 10000L)))
+
+# the log composite likelihood at different points
+ll_func_chol(truth, 4L)
+ll_func_chol(start$lower, 4L)
+-fit$value
+```
+
+We show
+the estimated and true the conditional cumulative incidence 
+functions (the dashed curves are the estimates) 
+when the random effects are zero and the covariates are zero, 
+$a_{ij} = b_{ij} = 0$.
+
+```{r delayed_compare_estimated_incidence_funcs, fig.height=knitr::opts_chunk$get("fig.width") * .5}
+local({
+  # get the estimates
+  coef_risk_est <- fit$par[comp_obj$indices$coef_risk] |> 
+    matrix(ncol = n_causes)
+  coef_traject_time_est <- fit$par[comp_obj$indices$coef_trajectory_time] |> 
+    matrix(ncol = n_causes)
+  coef_traject_est <- fit$par[comp_obj$indices$coef_trajectory] |> 
+    matrix(ncol = n_causes)
+  coef_traject_intercept_est <- coef_traject_est[5, ]
+  
+  # compute the risk probabilities  
+  probs <- exp(coef_risk[1, ]) / (1 + sum(exp(coef_risk[1, ])))
+  probs_est <- exp(coef_risk_est[1, ]) / (1 + sum(exp(coef_risk_est[1, ])))
+  
+  # plot the estimated and true conditional cumulative incidence functions. The
+  # estimates are the dashed lines
+  par(mar = c(5, 5, 1, 1), mfcol = c(1, 2))
+  pts <- seq(1e-8, delta, length.out = 1000)
+  
+  for(i in 1:2){
+    true_vals <- probs[i] * pnorm(
+      -coef_traject[1, i] * atanh((pts - delta / 2) / (delta / 2)) - 
+        coef_traject[2, i])
+    
+    estimates <- probs_est[i] * pnorm(
+      -comp_obj$time_expansion(pts, cause = i) %*% coef_traject_time_est[, i] - 
+        coef_traject_intercept_est[i]) |> drop()
+    
+    matplot(pts, cbind(true_vals, estimates), xlim = c(1e-8, delta), 
+            ylim = c(0, 1), bty = "l",  xlab = "Time", lty = c(1, 2),
+            ylab = sprintf("Cumulative incidence; cause %d", i),
+            yaxs = "i", xaxs = "i", type = "l", col = "black")
+    grid()
+  }
+})
+```
+
+Further illustrations of the estimated model are given below.
+
+```{r delayed_show_res}
+# the number of call we made
+fit$counts
+fit$outer.iterations
+
+# compare the estimates with the true values
+rbind(`Estimate AGHQ` = head(fit$par, length(coef_risk)),
+      Truth = c(coef_risk))
+rbind(`Estimate AGHQ` = fit$par[comp_obj$indices$coef_trajectory],
+      Truth = truth[comp_obj$indices$coef_trajectory])
+
+n_vcov <- (2L * n_causes * (2L * n_causes + 1L)) %/% 2L
+Sigma
+log_chol_inv(tail(fit$par, n_vcov))
+```
+
 ## TODOs 
 
 The package is still under development. Here are a few TODOs:
 
  - Implement a function to compute the sandwich estimator.
  - Implement a function to do the estimation.
- - Support delayed entry.
 
 ## References

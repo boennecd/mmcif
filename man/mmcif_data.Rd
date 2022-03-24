@@ -4,7 +4,16 @@
 \alias{mmcif_data}
 \title{Setup Object to Compute the Log Composite Likelihood}
 \usage{
-mmcif_data(formula, data, cause, time, cluster_id, max_time, spline_df = 3L)
+mmcif_data(
+  formula,
+  data,
+  cause,
+  time,
+  cluster_id,
+  max_time,
+  spline_df = 3L,
+  left_trunc = NULL
+)
 }
 \arguments{
 \item{formula}{\code{formula} for covariates in the risk and trajectories.}
@@ -24,6 +33,9 @@ is denoted by \eqn{\delta} in the original article.}
 
 \item{spline_df}{degrees of freedom to use for each spline in the
 cumulative incidence functions.}
+
+\item{left_trunc}{numeric vector with left-truncation times. \code{NULL}
+implies that there is not any individuals with left-truncation.}
 }
 \description{
 Setup Object to Compute the Log Composite Likelihood

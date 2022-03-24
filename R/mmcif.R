@@ -11,13 +11,13 @@
 #' is denoted by \eqn{\delta} in the original article.
 #' @param spline_df degrees of freedom to use for each spline in the
 #' cumulative incidence functions.
-#' @param left_turnc numeric vector with left-truncation times. \code{NULL}
+#' @param left_trunc numeric vector with left-truncation times. \code{NULL}
 #' implies that there is not any individuals with left-truncation.
 #'
-#' @importFrom stats model.frame model.matrix terms
+#' @importFrom stats model.frame model.matrix terms ave
 #' @export
 mmcif_data <- function(formula, data, cause, time, cluster_id, max_time,
-                       spline_df = 3L, left_turnc = NULL){
+                       spline_df = 3L, left_trunc = NULL){
   stopifnot(inherits(formula, "formula"),
             is.data.frame(data),
             length(spline_df) == 1, is.finite(spline_df), spline_df > 0)
@@ -30,9 +30,9 @@ mmcif_data <- function(formula, data, cause, time, cluster_id, max_time,
   time_observed <- eval(substitute(time), data, parent.frame())
   cluster_id <- eval(substitute(cluster_id), data, parent.frame())
 
-  left_turnc <- if(is.null(left_turnc))
-    numeric(length(time_observed)) else
-      eval(substitute(left_turnc), data, parent.frame())
+  left_trunc <- eval(substitute(left_trunc), data, parent.frame())
+  if(is.null(left_trunc))
+    left_trunc <- numeric(length(time_observed))
 
   n_causes <- length(unique(cause)) - 1L
 
@@ -40,13 +40,15 @@ mmcif_data <- function(formula, data, cause, time, cluster_id, max_time,
     length(cause) > 0L,
     NROW(covs_risk) == length(cause),
     length(time_observed) == length(cause),
+    all(is.finite(time_observed) & time_observed > 0),
     length(cluster_id) == length(cluster_id),
     n_causes > 0L, all(1:(n_causes + 1L) %in% cause),
     is.numeric(max_time), length(max_time) == 1, is.finite(max_time),
     max_time > 0,
     max(time_observed[cause %in% 1:n_causes]) < max_time,
-    length(left_turnc) == length(cause),
-    all(is.finite(left_turnc) & left_turnc >= 0))
+    length(left_trunc) == length(cause),
+    all(is.finite(left_trunc) & left_trunc >= 0),
+    all(time_observed > left_trunc))
 
   # add the time transformations
   time_trans <- function(x) atanh((x - max_time / 2) / (max_time / 2))
@@ -92,11 +94,11 @@ mmcif_data <- function(formula, data, cause, time, cluster_id, max_time,
   # compute the covariates for the left truncation
   covs_trajectory_delayed <-
     matrix(NaN, NROW(covs_trajectory), NCOL(covs_trajectory))
-  has_delayed_entry <- which(left_turnc > 0)
+  has_delayed_entry <- which(left_trunc > 0)
 
   covs_trajectory_delayed[has_delayed_entry, ] <-
     eval_trajectory_covs(
-      time_observed[has_delayed_entry], time_expansion,
+      left_trunc[has_delayed_entry], time_expansion,
       covs_risk[has_delayed_entry, ])
 
   # find all permutation of indices in each cluster
