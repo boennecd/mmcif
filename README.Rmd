@@ -340,7 +340,7 @@ ll_func_chol_grad <- \(par, n_threads = 1L, ghq = ghq_data){
   c(head(gr, -4L * n_causes * n_causes), d_vcov[upper.tri(d_vcov, TRUE)])
 }
 
-# set true value
+# set true values
 truth <- c(coef_risk, coef_traject_spline, log_chol(Sigma))
 
 # we can verify that the gradient is correct
@@ -535,6 +535,22 @@ library(mmcif)
 comp_obj <- mmcif_data(
   ~ a + b, dat, cause = cause, time = time, cluster_id = cluster_id, 
   max_time = delta, spline_df = 4L, left_trunc = delayed_entry)
+
+# we need to find the combination of the spline bases that yield a straight 
+# line. You can skip this
+comb_slope <- sapply(comp_obj$spline, \(spline){
+  boundary_knots <- spline$boundary_knots
+  pts <- seq(boundary_knots[1], boundary_knots[2], length.out = 1000)
+  lm.fit(cbind(1, spline$expansion(pts)), pts)$coef
+})
+
+coef_traject_spline <- 
+  rbind(comb_slope[-1, ] * rep(coef_traject[1, ], each = NROW(comb_slope) - 1), 
+        coef_traject[2, ] + comb_slope[1, ] * coef_traject[1, ],
+        coef_traject[-(1:2), ])
+        
+# set true values
+truth <- c(coef_risk, coef_traject_spline, log_chol(Sigma))
 
 # find the starting values
 system.time(start <- mmcif_start_values(comp_obj, n_threads = 4L))

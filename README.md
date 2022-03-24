@@ -271,10 +271,10 @@ bench::mark(
 #> # A tibble: 4 × 6
 #>   expression         min   median `itr/sec` mem_alloc `gc/sec`
 #>   <bch:expr>    <bch:tm> <bch:tm>     <dbl> <bch:byt>    <dbl>
-#> 1 one thread       592ms    593ms      1.68    6.77KB        0
-#> 2 two threads      302ms    307ms      3.24        0B        0
-#> 3 three threads    207ms    211ms      4.75        0B        0
-#> 4 four threads     164ms    169ms      5.91        0B        0
+#> 1 one thread       594ms    619ms      1.61    6.77KB        0
+#> 2 two threads      309ms    323ms      3.04        0B        0
+#> 3 three threads    226ms    262ms      3.72        0B        0
+#> 4 four threads     162ms    198ms      5.17        0B        0
 
 # next, we compute the gradient of the log composite likelihood at the true 
 # parameters. First we assign a few functions to verify the result. You can 
@@ -344,10 +344,10 @@ bench::mark(
 #> # A tibble: 4 × 6
 #>   expression         min   median `itr/sec` mem_alloc `gc/sec`
 #>   <bch:expr>    <bch:tm> <bch:tm>     <dbl> <bch:byt>    <dbl>
-#> 1 one thread       1.66s    1.66s     0.604    7.09KB        0
-#> 2 two threads   868.25ms 877.53ms     1.14       336B        0
-#> 3 three threads 594.79ms 620.18ms     1.62       336B        0
-#> 4 four threads  502.21ms 506.38ms     1.97       336B        0
+#> 1 one thread       1.76s    1.78s     0.553    7.09KB        0
+#> 2 two threads   891.17ms 893.62ms     1.11       336B        0
+#> 3 three threads 634.92ms 666.72ms     1.52       336B        0
+#> 4 four threads  456.91ms 461.99ms     2.11       336B        0
 ```
 
 Then we optimize the parameters (TODO: there will be a wrapper to work
@@ -357,7 +357,7 @@ with the log Cholesky decomposition and an estimation function).
 # find the starting values
 system.time(start <- mmcif_start_values(comp_obj, n_threads = 4L))
 #>    user  system elapsed 
-#>   0.479   0.000   0.133
+#>   0.431   0.000   0.122
 
 # the maximum likelihood without the random effects. Note that this is not 
 # comparable with the composite likelihood
@@ -413,7 +413,7 @@ ll_func_chol_grad <- \(par, n_threads = 1L, ghq = ghq_data){
   c(head(gr, -4L * n_causes * n_causes), d_vcov[upper.tri(d_vcov, TRUE)])
 }
 
-# set true value
+# set true values
 truth <- c(coef_risk, coef_traject_spline, log_chol(Sigma))
 
 # we can verify that the gradient is correct
@@ -446,7 +446,7 @@ system.time(
     method = "BFGS", ui = constraints, ci = rep(1e-8, NROW(constraints)),
     control = list(maxit = 10000L)))
 #>    user  system elapsed 
-#> 206.761   0.040  52.716
+#> 188.584   0.056  47.669
 
 # the log composite likelihood at different points
 ll_func_chol(truth, 4L)
@@ -680,31 +680,47 @@ comp_obj <- mmcif_data(
   ~ a + b, dat, cause = cause, time = time, cluster_id = cluster_id, 
   max_time = delta, spline_df = 4L, left_trunc = delayed_entry)
 
+# we need to find the combination of the spline bases that yield a straight 
+# line. You can skip this
+comb_slope <- sapply(comp_obj$spline, \(spline){
+  boundary_knots <- spline$boundary_knots
+  pts <- seq(boundary_knots[1], boundary_knots[2], length.out = 1000)
+  lm.fit(cbind(1, spline$expansion(pts)), pts)$coef
+})
+
+coef_traject_spline <- 
+  rbind(comb_slope[-1, ] * rep(coef_traject[1, ], each = NROW(comb_slope) - 1), 
+        coef_traject[2, ] + comb_slope[1, ] * coef_traject[1, ],
+        coef_traject[-(1:2), ])
+        
+# set true values
+truth <- c(coef_risk, coef_traject_spline, log_chol(Sigma))
+
 # find the starting values
 system.time(start <- mmcif_start_values(comp_obj, n_threads = 4L))
 #>    user  system elapsed 
-#>   0.558   0.000   0.152
+#>   0.527   0.000   0.144
 
 # we can verify that the gradient is correct again
 gr_package <- ll_func_chol_grad(truth)
 gr_num <- numDeriv::grad(ll_func_chol, truth, method = "simple")
 
 rbind(`Numerical gradient` = gr_num, `Gradient package` = gr_package)
-#>                         [,1]     [,2]     [,3]     [,4]      [,5]      [,6]
-#> Numerical gradient -436.8344 13.90976 47.27164 89.01522 -33.38745 -49.27665
-#> Gradient package   -436.2597 14.27615 47.40640 89.01165 -33.10933 -49.15252
-#>                         [,7]      [,8]      [,9]    [,10]     [,11]     [,12]
-#> Numerical gradient -1978.399 -353.8744 -947.0260 269.5006 -3956.806 -1219.103
-#> Gradient package   -1978.155 -353.6759 -946.9385 269.6243 -3956.379 -1218.467
-#>                      [,13]     [,14]     [,15]     [,16]    [,17]     [,18]
-#> Numerical gradient 65.4392 -733.7778 -88.79144 -357.7152 172.9770 -1561.613
-#> Gradient package   65.6707 -733.6657 -88.70189 -357.6778 173.0337 -1561.449
-#>                       [,19]     [,20]    [,21]     [,22]    [,23]     [,24]
-#> Numerical gradient 381.4653 -217.0008 180.0324 -279.1808 188.1265 -635.6314
-#> Gradient package   381.7160 -216.9197 179.9691 -278.4664 193.4523 -635.6039
-#>                       [,25]     [,26]    [,27]     [,28]     [,29]    [,30]
-#> Numerical gradient 394.7923 -33.17940 402.1838 -917.1957 -93.55808 234.0636
-#> Gradient package   393.9636 -32.78567 402.2720 -916.9815 -93.55532 234.1876
+#>                         [,1]      [,2]     [,3]      [,4]      [,5]      [,6]
+#> Numerical gradient -21.23991 -59.45223 24.06115 -13.89803 -89.67587 -35.85932
+#> Gradient package   -20.66628 -59.08257 24.19322 -13.89300 -89.40310 -35.72787
+#>                         [,7]     [,8]     [,9]    [,10]     [,11]    [,12]
+#> Numerical gradient -199.1453 82.65915 20.25477 61.42922 -11.19786 301.4083
+#> Gradient package   -198.8933 82.86595 20.34117 61.55413 -10.75712 302.0375
+#>                       [,13]     [,14]    [,15]     [,16]    [,17]     [,18]
+#> Numerical gradient 72.77174 -4.747715 29.54528 0.2498925 11.90036 -30.20916
+#> Gradient package   73.00546 -4.628980 29.64269 0.2868973 11.96036 -30.04666
+#>                        [,19]     [,20]    [,21]    [,22]     [,23]     [,24]
+#> Numerical gradient -10.87577 -132.9462 12.39889 7.611447 -26.18224 -12.31158
+#> Gradient package   -10.62266 -132.8662 12.33025 8.349105 -20.44733 -12.29159
+#>                        [,25]     [,26]    [,27]     [,28]     [,29]    [,30]
+#> Numerical gradient -27.43538 -90.11324 16.15183 -32.11600 -39.93798 15.26639
+#> Gradient package   -28.21817 -89.73060 16.24323 -31.93594 -39.91993 15.38761
 
 # optimize the log composite likelihood
 constraints <- comp_obj$constraints$vcov_lower
@@ -715,11 +731,11 @@ system.time(
     method = "BFGS", ui = constraints, ci = rep(1e-8, NROW(constraints)),
     control = list(maxit = 10000L)))
 #>    user  system elapsed 
-#> 424.886   0.012 106.933
+#> 429.677   0.004 108.285
 
 # the log composite likelihood at different points
 ll_func_chol(truth, 4L)
-#> [1] -49337.7
+#> [1] -48260
 ll_func_chol(start$lower, 4L)
 #> [1] -51539.21
 -fit$value
@@ -791,10 +807,10 @@ rbind(`Estimate AGHQ` = fit$par[comp_obj$indices$coef_trajectory],
       Truth = truth[comp_obj$indices$coef_trajectory])
 #>                    [,1]      [,2]      [,3]      [,4]     [,5]      [,6]
 #> Estimate AGHQ -3.024791 -3.593773 -6.689693 -4.949248 2.621058 0.8132976
-#> Truth         -2.844107 -3.597280 -6.552176 -5.037615 2.892138 0.8000000
+#> Truth         -3.005264 -3.640202 -6.734407 -5.018943 2.627421 0.8000000
 #>                    [,7]      [,8]      [,9]     [,10]     [,11]    [,12]
 #> Estimate AGHQ 0.4100058 -2.538074 -3.074504 -5.686850 -4.259960 2.715066
-#> Truth         0.4000000 -2.657133 -3.339703 -6.100591 -4.669595 3.223231
+#> Truth         0.4000000 -2.706691 -3.274331 -6.059674 -4.509889 2.895838
 #>                   [,13]      [,14]
 #> Estimate AGHQ 0.2316575 -0.2601561
 #> Truth         0.2500000 -0.2000000
