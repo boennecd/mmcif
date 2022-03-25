@@ -202,7 +202,7 @@ double pbvn_grad(double const *mu, double const *Sigma, double *grad){
                out{pbvn_Drezner(h, k, rho)};
 
     // compute the derivatives with numerical differentiation
-    constexpr double eps{1e-4};
+    constexpr double eps{1e-2}, tol{1e-12};
     constexpr unsigned order{6};
 
     double wk_mem[n_wk_mem_extrapolation(1, order)];
@@ -213,14 +213,14 @@ double pbvn_grad(double const *mu, double const *Sigma, double *grad){
         *out = pbvn_Drezner(x, k, rho);
       };
       richardson_extrapolation<decltype(d_h_functor)>
-        (d_h_functor, order, wk_mem, eps, 2, 1e-10, 1)(h, &d_h);
+        (d_h_functor, order, wk_mem, eps, 2, tol, 1)(h, &d_h);
     }
     {
       auto d_k_functor = [&](double const x, double *out) {
         *out = pbvn_Drezner(h, x, rho);
       };
       richardson_extrapolation<decltype(d_k_functor)>
-        (d_k_functor, order, wk_mem, eps, 2, 1e-10, 1)(k, &d_k);
+        (d_k_functor, order, wk_mem, eps, 2, tol, 1)(k, &d_k);
     }
 
     grad[0] = d_h / Sig_h;
@@ -235,7 +235,7 @@ double pbvn_grad(double const *mu, double const *Sigma, double *grad){
           *out = pbvn_Drezner(h, k, rho_val);
         };
         richardson_extrapolation<decltype(d_rho_inv_functor)>
-          (d_rho_inv_functor, order, wk_mem, eps, 2, 1e-10, 1)
+          (d_rho_inv_functor, order, wk_mem, eps, 2, tol, 1)
           (rho_inv, &d_rho_inv);
       }
 
