@@ -9,7 +9,7 @@ mmcif_sandwich(
   par,
   ghq_data = object$ghq_data,
   n_threads = 1L,
-  eps = 1e-04,
+  eps = 0.01,
   scale = 2,
   tol = 1e-08,
   order = 6L
@@ -28,7 +28,7 @@ and \code{"weight"}. A default is provided if \code{NULL} is passed.}
 \item{n_threads}{the number of threads to use.}
 
 \item{eps}{determines the step size in the numerical differentiation using
-\code{max(eps, |par[i]| * eps)}.}
+\code{max(eps^2, |par[i]| * eps)}.}
 
 \item{scale}{scaling factor in the Richardson extrapolation.}
 

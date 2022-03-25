@@ -271,10 +271,10 @@ bench::mark(
 #> # A tibble: 4 × 6
 #>   expression         min   median `itr/sec` mem_alloc `gc/sec`
 #>   <bch:expr>    <bch:tm> <bch:tm>     <dbl> <bch:byt>    <dbl>
-#> 1 one thread       587ms    588ms      1.70    6.77KB        0
-#> 2 two threads      300ms    301ms      3.32        0B        0
-#> 3 three threads    203ms    203ms      4.90        0B        0
-#> 4 four threads     155ms    155ms      6.42        0B        0
+#> 1 one thread       588ms    590ms      1.69    6.77KB        0
+#> 2 two threads      307ms    309ms      3.24        0B        0
+#> 3 three threads    207ms    208ms      4.80        0B        0
+#> 4 four threads     157ms    158ms      6.34        0B        0
 
 # next, we compute the gradient of the log composite likelihood at the true 
 # parameters. First we assign a few functions to verify the result. You can 
@@ -344,10 +344,10 @@ bench::mark(
 #> # A tibble: 4 × 6
 #>   expression         min   median `itr/sec` mem_alloc `gc/sec`
 #>   <bch:expr>    <bch:tm> <bch:tm>     <dbl> <bch:byt>    <dbl>
-#> 1 one thread       1.66s    1.66s     0.602    7.09KB        0
-#> 2 two threads   856.21ms 858.22ms     1.17       336B        0
-#> 3 three threads 590.59ms  593.1ms     1.68       336B        0
-#> 4 four threads  487.54ms 499.88ms     1.96       336B        0
+#> 1 one thread       1.66s    1.66s     0.601    7.09KB        0
+#> 2 two threads   860.28ms 863.61ms     1.16       336B        0
+#> 3 three threads  590.3ms 595.34ms     1.68       336B        0
+#> 4 four threads   440.5ms 452.73ms     2.19       336B        0
 ```
 
 Then we optimize the parameters (TODO: there will be a wrapper to work
@@ -357,7 +357,7 @@ with the log Cholesky decomposition and an estimation function).
 # find the starting values
 system.time(start <- mmcif_start_values(comp_obj, n_threads = 4L))
 #>    user  system elapsed 
-#>   0.481   0.016   0.139
+#>   0.530   0.028   0.151
 
 # the maximum likelihood without the random effects. Note that this is not 
 # comparable with the composite likelihood
@@ -446,7 +446,7 @@ system.time(
     method = "BFGS", ui = constraints, ci = rep(1e-8, NROW(constraints)),
     control = list(maxit = 10000L)))
 #>    user  system elapsed 
-#> 189.887   0.032  47.831
+#> 183.675   0.040  46.380
 
 # the log composite likelihood at different points
 ll_func_chol(truth, 4L)
@@ -465,7 +465,7 @@ system.time(
   sandwich_est <- mmcif_sandwich(
     comp_obj, fit$par, n_threads = 4L, ghq_data = ghq_data))
 #>    user  system elapsed 
-#> 913.613   0.088 231.954
+#> 888.103   0.017 224.405
 ```
 
 We show the estimated and true the conditional cumulative incidence
@@ -530,28 +530,28 @@ SEs <- diag(sandwich_est) |> sqrt()
 rbind(`Estimate AGHQ` = fit$par[comp_obj$indices$coef_risk],
       `Standard errors` = SEs[comp_obj$indices$coef_risk],
       Truth = c(coef_risk))
-#>                       [,1]       [,2]       [,3]        [,4]       [,5]
-#> Estimate AGHQ   0.69027187 1.01330275 0.08464860 -0.40452809 0.23283283
-#> Standard errors 0.02235749 0.02216089 0.03116623  0.03306828 0.02485258
-#> Truth           0.67000000 1.00000000 0.10000000 -0.40000000 0.25000000
+#>                       [,1]      [,2]       [,3]        [,4]       [,5]
+#> Estimate AGHQ   0.69027187 1.0133028 0.08464860 -0.40452809 0.23283283
+#> Standard errors 0.02235697 0.0221605 0.03116624  0.03306776 0.02485246
+#> Truth           0.67000000 1.0000000 0.10000000 -0.40000000 0.25000000
 #>                       [,6]
 #> Estimate AGHQ   0.31988758
-#> Standard errors 0.03936655
+#> Standard errors 0.03936657
 #> Truth           0.30000000
 rbind(`Estimate AGHQ` = fit$par[comp_obj$indices$coef_trajectory],
       `Standard errors` = SEs[comp_obj$indices$coef_trajectory],
       Truth = truth[comp_obj$indices$coef_trajectory])
-#>                        [,1]        [,2]       [,3]        [,4]       [,5]
-#> Estimate AGHQ   -2.85719496 -3.62687306 -6.6658581 -5.05826813 2.92725793
-#> Standard errors  0.03669878  0.03906613  0.0750943  0.05212066 0.03593838
-#> Truth           -2.84410713 -3.59727996 -6.5521760 -5.03761513 2.89213752
-#>                       [,6]       [,7]        [,8]       [,9]      [,10]
-#> Estimate AGHQ   0.79975158 0.36481932 -2.65239484 -3.3304224 -6.0522562
-#> Standard errors 0.01476166 0.01991554  0.06751533  0.0760517  0.1426914
-#> Truth           0.80000000 0.40000000 -2.65713291 -3.3397030 -6.1005908
+#>                       [,1]        [,2]        [,3]        [,4]       [,5]
+#> Estimate AGHQ   -2.8571950 -3.62687306 -6.66585812 -5.05826813 2.92725793
+#> Standard errors  0.0366992  0.03906664  0.07509537  0.05212119 0.03593908
+#> Truth           -2.8441071 -3.59727996 -6.55217597 -5.03761513 2.89213752
+#>                       [,6]       [,7]        [,8]        [,9]      [,10]
+#> Estimate AGHQ   0.79975158 0.36481932 -2.65239484 -3.33042243 -6.0522562
+#> Standard errors 0.01476157 0.01991535  0.06751533  0.07605212  0.1426918
+#> Truth           0.80000000 0.40000000 -2.65713291 -3.33970302 -6.1005908
 #>                      [,11]      [,12]      [,13]       [,14]
 #> Estimate AGHQ   -4.5917441 3.17944917 0.21800397 -0.24454613
-#> Standard errors  0.1015315 0.08049823 0.02152558  0.03331473
+#> Standard errors  0.1015315 0.08049897 0.02152527  0.03331494
 #> Truth           -4.6695955 3.22323149 0.25000000 -0.20000000
 
 n_vcov <- (2L * n_causes * (2L * n_causes + 1L)) %/% 2L
@@ -572,14 +572,14 @@ log_chol_inv(tail(fit$par, n_vcov))
 rbind(`Estimate AGHQ` = fit$par[comp_obj$indices$vcov_upper],
       `Standard errors` = SEs[comp_obj$indices$vcov_upper],
       Truth = truth[comp_obj$indices$vcov_upper])
-#>                        [,1]       [,2]        [,3]       [,4]       [,5]
-#> Estimate AGHQ   -0.65040187 0.15024456 -0.09407701 -0.2550299 0.32936156
-#> Standard errors  0.08943807 0.08762316  0.04662299  0.0559407 0.04107789
-#> Truth           -0.59208509 0.01446203 -0.13801455 -0.2494700 0.29228783
-#>                        [,6]       [,7]        [,8]        [,9]       [,10]
-#> Estimate AGHQ   -0.30102727 0.36851353 -0.37479036 -0.08312015 -0.23432271
-#> Standard errors  0.03788173 0.08552501  0.06160635  0.05582726  0.06947971
-#> Truth           -0.24851681 0.35612750 -0.29291060 -0.18532138 -0.21077242
+#>                        [,1]       [,2]        [,3]        [,4]       [,5]
+#> Estimate AGHQ   -0.65040187 0.15024456 -0.09407701 -0.25502995 0.32936156
+#> Standard errors  0.08942089 0.08761957  0.04661760  0.05593706 0.04107664
+#> Truth           -0.59208509 0.01446203 -0.13801455 -0.24947003 0.29228783
+#>                        [,6]      [,7]       [,8]        [,9]      [,10]
+#> Estimate AGHQ   -0.30102727 0.3685135 -0.3747904 -0.08312015 -0.2343227
+#> Standard errors  0.03787968 0.0855034  0.0616192  0.05582505  0.0694815
+#> Truth           -0.24851681 0.3561275 -0.2929106 -0.18532138 -0.2107724
 ```
 
 ### Delayed Entry
@@ -736,7 +736,7 @@ truth <- c(coef_risk, coef_traject_spline, log_chol(Sigma))
 # find the starting values
 system.time(start <- mmcif_start_values(comp_obj, n_threads = 4L))
 #>    user  system elapsed 
-#>   0.566   0.000   0.151
+#>   0.646   0.004   0.173
 
 # we can verify that the gradient is correct again
 gr_package <- ll_func_chol_grad(truth)
@@ -768,7 +768,7 @@ system.time(
     method = "BFGS", ui = constraints, ci = rep(1e-8, NROW(constraints)),
     control = list(maxit = 10000L)))
 #>    user  system elapsed 
-#> 429.689   0.000 110.085
+#> 431.112   0.000 110.050
 
 # the log composite likelihood at different points
 ll_func_chol(truth, 4L)
@@ -787,7 +787,7 @@ system.time(
   sandwich_est <- mmcif_sandwich(
     comp_obj, fit$par, n_threads = 4L, ghq_data = ghq_data))
 #>     user   system  elapsed 
-#> 2415.664    0.036  624.061
+#> 2362.307    0.084  609.938
 ```
 
 We show the estimated and true the conditional cumulative incidence
@@ -852,28 +852,28 @@ SEs <- diag(sandwich_est) |> sqrt()
 rbind(`Estimate AGHQ` = fit$par[comp_obj$indices$coef_risk],
       `Standard errors` = SEs[comp_obj$indices$coef_risk],
       Truth = c(coef_risk))
-#>                       [,1]       [,2]       [,3]        [,4]       [,5]
-#> Estimate AGHQ   0.66060509 0.97418677 0.09686947 -0.40576852 0.22073195
-#> Standard errors 0.02505213 0.02602686 0.03490192  0.03588901 0.02623765
-#> Truth           0.67000000 1.00000000 0.10000000 -0.40000000 0.25000000
+#>                       [,1]       [,2]       [,3]       [,4]       [,5]
+#> Estimate AGHQ   0.66060509 0.97418677 0.09686947 -0.4057685 0.22073195
+#> Standard errors 0.02505394 0.02602227 0.03490187  0.0358794 0.02623794
+#> Truth           0.67000000 1.00000000 0.10000000 -0.4000000 0.25000000
 #>                       [,6]
 #> Estimate AGHQ   0.28876175
-#> Standard errors 0.04085035
+#> Standard errors 0.04085052
 #> Truth           0.30000000
 rbind(`Estimate AGHQ` = fit$par[comp_obj$indices$coef_trajectory],
       `Standard errors` = SEs[comp_obj$indices$coef_trajectory],
       Truth = truth[comp_obj$indices$coef_trajectory])
-#>                       [,1]        [,2]        [,3]        [,4]       [,5]
-#> Estimate AGHQ   -3.0247912 -3.59377255 -6.68969308 -4.94924755 2.62105812
-#> Standard errors  0.0488324  0.05013332  0.09844587  0.06416289 0.04500983
-#> Truth           -3.0052640 -3.64020176 -6.73440683 -5.01894331 2.62742123
-#>                       [,6]       [,7]        [,8]        [,9]      [,10]
-#> Estimate AGHQ   0.81329760 0.41000577 -2.53807400 -3.07450406 -5.6868502
-#> Standard errors 0.01811762 0.02494729  0.07533863  0.07811663  0.1553172
-#> Truth           0.80000000 0.40000000 -2.70669139 -3.27433071 -6.0596744
+#>                        [,1]        [,2]       [,3]        [,4]       [,5]
+#> Estimate AGHQ   -3.02479120 -3.59377255 -6.6896931 -4.94924755 2.62105812
+#> Standard errors  0.04883265  0.05013325  0.0984463  0.06416239 0.04500874
+#> Truth           -3.00526396 -3.64020176 -6.7344068 -5.01894331 2.62742123
+#>                       [,6]      [,7]        [,8]        [,9]     [,10]
+#> Estimate AGHQ   0.81329760 0.4100058 -2.53807400 -3.07450406 -5.686850
+#> Standard errors 0.01811959 0.0249473  0.07534318  0.07812181  0.155328
+#> Truth           0.80000000 0.4000000 -2.70669139 -3.27433071 -6.059674
 #>                      [,11]      [,12]      [,13]       [,14]
 #> Estimate AGHQ   -4.2599596 2.71506636 0.23165748 -0.26015610
-#> Standard errors  0.1027632 0.08488406 0.02476907  0.03778505
+#> Standard errors  0.1027705 0.08489166 0.02476911  0.03778567
 #> Truth           -4.5098894 2.89583774 0.25000000 -0.20000000
 
 n_vcov <- (2L * n_causes * (2L * n_causes + 1L)) %/% 2L
@@ -896,11 +896,11 @@ rbind(`Estimate AGHQ` = fit$par[comp_obj$indices$vcov_upper],
       Truth = truth[comp_obj$indices$vcov_upper])
 #>                        [,1]        [,2]        [,3]        [,4]       [,5]
 #> Estimate AGHQ   -0.60309639 -0.02887569 -0.18725824 -0.27309310 0.26819545
-#> Standard errors  0.09691042  0.09950444  0.07070987  0.06379655 0.05339682
+#> Standard errors  0.09671769  0.09959421  0.07076072  0.06383647 0.05338782
 #> Truth           -0.59208509  0.01446203 -0.13801455 -0.24947003 0.29228783
 #>                        [,6]       [,7]        [,8]        [,9]       [,10]
 #> Estimate AGHQ   -0.30340233 0.30257437 -0.28048682 -0.23926897 -0.36095716
-#> Standard errors  0.04146246 0.09100719  0.07977497  0.05529639  0.07792556
+#> Standard errors  0.04148093 0.09098374  0.07979381  0.05529979  0.07792962
 #> Truth           -0.24851681 0.35612750 -0.29291060 -0.18532138 -0.21077242
 ```
 

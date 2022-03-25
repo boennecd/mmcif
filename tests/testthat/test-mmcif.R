@@ -11,7 +11,7 @@ comb_slope <- sapply(cpp_obj$spline, \(spline){
 
 log_chol <- \(x){
   x <- chol(x)
-  diag(x) <- diag(x) |> log()
+  diag(x) <- log(diag(x))
   x[upper.tri(x, TRUE)]
 }
 
@@ -19,7 +19,7 @@ log_chol_inv <- \(x){
   dim <- (sqrt(8 * length(x) + 1) - 1) / 2
   out <- matrix(0, dim, dim)
   out[upper.tri(out, TRUE)] <- x
-  diag(out) <- diag(out) |> exp()
+  diag(out) <- exp(diag(out))
   crossprod(out)
 }
 
@@ -35,7 +35,7 @@ coef_traject_spline <-
 
 ll_func_chol <- \(par, n_threads = 1L, ghq = ghq_data){
   n_vcov <- (2L * n_causes * (2L * n_causes + 1L)) %/% 2L
-  par <- c(head(par, -n_vcov), tail(par, n_vcov) |> log_chol_inv())
+  par <- c(head(par, -n_vcov), log_chol_inv(tail(par, n_vcov)))
 
   mmcif:::mmcif_logLik(
     cpp_obj$comp_obj, par = par, ghq_data = ghq, n_threads = n_threads)
@@ -43,14 +43,14 @@ ll_func_chol <- \(par, n_threads = 1L, ghq = ghq_data){
 
 ll_func_chol_grad <- \(par, n_threads = 1L, ghq = ghq_data){
   n_vcov <- (2L * n_causes * (2L * n_causes + 1L)) %/% 2L
-  vcov <- tail(par, n_vcov) |> log_chol_inv()
+  vcov <- log_chol_inv(tail(par, n_vcov))
   par <- c(head(par, -n_vcov), vcov)
 
   gr <- mmcif:::mmcif_logLik_grad(
     cpp_obj$comp_obj, par = par, ghq_data = ghq, n_threads = n_threads)
 
   # back propagate the gradients w.r.t. the random effects
-  d_vcov <- tail(gr, 4L * n_causes * n_causes) |> matrix(2L * n_causes)
+  d_vcov <- matrix(tail(gr, 4L * n_causes * n_causes), 2L * n_causes)
   C <- chol(vcov)
   d_vcov <- 2 * C %*% d_vcov
   diag(d_vcov) <- diag(d_vcov) * diag(C)
@@ -255,5 +255,6 @@ test_that("the Hessian of log composite likelihood match the one from numerical 
 
   expect_equal(attr(sandwich_value, "hessian"), hess_log_compos,
                tolerance = 1e-3)
-  expect_snapshot_value(sandwich_value, style = "serialize")
+  expect_snapshot_value(
+    sandwich_value, style = "serialize", tolerance = 1e-6)
 })

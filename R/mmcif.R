@@ -340,7 +340,7 @@ mmcif_start_values <- function(object, n_threads = 1L, vcov_start = NULL){
 #' @param par numeric vector with the parameters to compute the sandwich
 #' estimator at.
 #' @param eps determines the step size in the numerical differentiation using
-#'  \code{max(eps, |par[i]| * eps)}.
+#'  \code{max(eps^2, |par[i]| * eps)}.
 #' @param scale scaling factor in the Richardson extrapolation.
 #' @param tol relative convergence criteria in the extrapolation given
 #' by \code{max(tol, |g[j]| * tol)} with \code{g} being the gradient.
@@ -351,7 +351,7 @@ mmcif_start_values <- function(object, n_threads = 1L, vcov_start = NULL){
 #'
 #' @export
 mmcif_sandwich <- function(
-  object, par, ghq_data = object$ghq_data, n_threads = 1L, eps = .0001,
+  object, par, ghq_data = object$ghq_data, n_threads = 1L, eps = .01,
   scale = 2., tol = .00000001, order = 6L){
   stopifnot(inherits(object, "mmcif"))
   .check_n_threads(n_threads)

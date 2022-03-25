@@ -3,17 +3,16 @@ n_causes <- 2L
 delta <- 2
 
 # set the betas
-coef_risk <- c(.67, 1, .1, -.4, .25, .3) |>
-  matrix(ncol = n_causes)
+coef_risk <- matrix(c(.67, 1, .1, -.4, .25, .3), ncol = n_causes)
 
 # set the gammas
-coef_traject <- c(-.8, -.45, .8, .4, -1.2, .15, .25, -.2) |>
-  matrix(ncol = n_causes)
+coef_traject <- matrix(c(-.8, -.45, .8, .4, -1.2, .15, .25, -.2), ncol = n_causes)
 
 # set the covariance matrix
-Sigma <- c(0.306, 0.008, -0.138, 0.197, 0.008, 0.759, 0.251,
-           -0.25, -0.138, 0.251, 0.756, -0.319, 0.197, -0.25, -0.319, 0.903) |>
-  matrix(2L * n_causes)
+Sigma <-
+  matrix(c(0.306, 0.008, -0.138, 0.197, 0.008, 0.759, 0.251,
+           -0.25, -0.138, 0.251, 0.756, -0.319, 0.197, -0.25, -0.319, 0.903),
+         2L * n_causes)
 
 test_data_file <- "mmcif-test-data.RDS"
 if(!file.exists(test_data_file)){
@@ -23,7 +22,7 @@ if(!file.exists(test_data_file)){
               n_clusters > 0)
 
     cluster_id <- 0L
-    replicate(n_clusters, simplify = FALSE, {
+    out <- replicate(n_clusters, simplify = FALSE, {
       n_obs <- sample.int(max_cluster_size, 1L)
       cluster_id <<- cluster_id + 1L
 
@@ -38,13 +37,13 @@ if(!file.exists(test_data_file)){
 
       successful_sample <- FALSE
       while(!successful_sample){
-        rng_effects <- rmvnorm(1, sigma = Sigma) |> drop()
+        rng_effects <- drop(rmvnorm(1, sigma = Sigma))
         U <- head(rng_effects, n_causes)
         eta <- tail(rng_effects, n_causes)
 
         # draw the cause
-        cond_logits_exp <- exp(Z %*% coef_risk + rep(U, each = n_obs)) |>
-          cbind(1)
+        cond_logits_exp <-
+          cbind(exp(Z %*% coef_risk + rep(U, each = n_obs)), 1)
         cond_probs <- cond_logits_exp / rowSums(cond_logits_exp)
         cause <- apply(cond_probs, 1,
                        \(prob) sample.int(n_causes + 1L, 1L, prob = prob))
@@ -80,8 +79,8 @@ if(!file.exists(test_data_file)){
       }
 
       data.frame(covs, cause, time = obs_time, cluster_id, delayed_entry)[keep, ]
-    }) |>
-      do.call(what = rbind)
+    })
+    do.call(rbind, out)
   }
 
   set.seed(1)
