@@ -161,38 +161,38 @@ We then sample a data set.
 ``` r
 # sample a data set
 set.seed(8401828)
-n_clusters <- 10000L
+n_clusters <- 1000L
 max_cluster_size <- 5L
 dat <- sim_dat(n_clusters, max_cluster_size = max_cluster_size)
 
 # show some stats
 NROW(dat) # number of individuals
-#> [1] 29968
+#> [1] 2962
 table(dat$cause) # distribution of causes (3 is censored)
 #> 
-#>     1     2     3 
-#> 13168  5238 11562
+#>    1    2    3 
+#> 1249  542 1171
 
 # distribution of observed times by cause
 tapply(dat$time, dat$cause, quantile, 
        probs = seq(0, 1, length.out = 11), na.rm = TRUE)
 #> $`1`
 #>           0%          10%          20%          30%          40%          50% 
-#> 5.257375e-07 5.174792e-03 2.564810e-02 7.863649e-02 1.967725e-01 4.413597e-01 
+#> 1.614943e-05 4.917920e-03 2.736760e-02 9.050192e-02 2.219183e-01 4.790993e-01 
 #>          60%          70%          80%          90%         100% 
-#> 8.252684e-01 1.310347e+00 1.734937e+00 1.949810e+00 1.999998e+00 
+#> 8.505799e-01 1.358068e+00 1.743518e+00 1.953161e+00 1.999980e+00 
 #> 
 #> $`2`
-#>           0%          10%          20%          30%          40%          50% 
-#> 0.0002289942 0.0577883402 0.1415916659 0.2631213266 0.4419615800 0.6554170608 
-#>          60%          70%          80%          90%         100% 
-#> 0.9220373015 1.2436285180 1.5466109693 1.8220248514 1.9997238579 
+#>          0%         10%         20%         30%         40%         50% 
+#> 0.001447541 0.050092145 0.157118679 0.276071737 0.431094056 0.669010350 
+#>         60%         70%         80%         90%        100% 
+#> 0.964643472 1.336520397 1.607221087 1.863062755 1.993280013 
 #> 
 #> $`3`
-#>           0%          10%          20%          30%          40%          50% 
-#> 0.0002596225 0.2815441000 0.6283755401 0.9823111117 1.3845409666 1.8905316826 
-#>          60%          70%          80%          90%         100% 
-#> 2.0000000000 2.0000000000 2.0000000000 2.0000000000 2.0000000000
+#>          0%         10%         20%         30%         40%         50% 
+#> 0.002122959 0.246899164 0.577581364 1.007698883 1.526068409 2.000000000 
+#>         60%         70%         80%         90%        100% 
+#> 2.000000000 2.000000000 2.000000000 2.000000000 2.000000000
 ```
 
 Then we setup the C++ object to do the computation.
@@ -215,10 +215,11 @@ where
 returns a natural cubic spline basis functions. The knots are based on
 quantiles of
 ![h(t)](https://render.githubusercontent.com/render/math?math=h%28t%29 "h(t)")
-evaluated on the event times. The degrees of freedom of the spline is
-controlled with the `spline_df` argument. There is a `constraints`
-element on the object returned by the `mmcif_data` function which
-contains matrices that ensures that the
+evaluated on the event times. The knots differ for each type of
+competing risk. The degrees of freedom of the splines is controlled with
+the `spline_df` argument. There is a `constraints` element on the object
+returned by the `mmcif_data` function which contains matrices that
+ensures that the
 ![\\vec x\_{ij}(t)^\\top\\vec\\gamma\_k](https://render.githubusercontent.com/render/math?math=%5Cvec%20x_%7Bij%7D%28t%29%5E%5Ctop%5Cvec%5Cgamma_k "\vec x_{ij}(t)^\top\vec\gamma_k")s
 are monotonically decreasing if
 ![C\\vec\\zeta &gt; \\vec 0](https://render.githubusercontent.com/render/math?math=C%5Cvec%5Czeta%20%3E%20%5Cvec%200 "C\vec\zeta > \vec 0")
@@ -231,9 +232,9 @@ The time to compute the log composite likelihood is illustrated below.
 
 ``` r
 NCOL(comp_obj$pair_indices) # the number of pairs in the composite likelihood
-#> [1] 39726
+#> [1] 3911
 length(comp_obj$singletons) # the number of clusters with one observation
-#> [1] 1977
+#> [1] 202
 
 # we need to find the combination of the spline bases that yield a straight 
 # line. You can skip this
@@ -259,7 +260,7 @@ coef_traject_spline <-
         coef_traject[-(1:2), ])
 true_values <- c(coef_risk, coef_traject_spline, Sigma)
 ll_func(true_values)
-#> [1] -69864.07
+#> [1] -7087.145
 
 # check the time to compute the log composite likelihood
 bench::mark(
@@ -271,10 +272,10 @@ bench::mark(
 #> # A tibble: 4 × 6
 #>   expression         min   median `itr/sec` mem_alloc `gc/sec`
 #>   <bch:expr>    <bch:tm> <bch:tm>     <dbl> <bch:byt>    <dbl>
-#> 1 one thread       588ms    590ms      1.69    6.77KB        0
-#> 2 two threads      307ms    309ms      3.24        0B        0
-#> 3 three threads    207ms    208ms      4.80        0B        0
-#> 4 four threads     157ms    158ms      6.34        0B        0
+#> 1 one thread      55.2ms   57.8ms      17.2    6.77KB        0
+#> 2 two threads     29.2ms   30.4ms      32.1        0B        0
+#> 3 three threads   19.4ms     20ms      48.6        0B        0
+#> 4 four threads    15.2ms   15.5ms      63.4        0B        0
 
 # next, we compute the gradient of the log composite likelihood at the true 
 # parameters. First we assign a few functions to verify the result. You can 
@@ -315,24 +316,24 @@ rbind(
   `Numerical gradient` = 
     c(head(gr_num, -10), d_upper_to_full(tail(gr_num, 10))), 
   `Gradient package` = gr_package)
-#>                        [,1]     [,2]      [,3]      [,4]      [,5]     [,6]
-#> Numerical gradient 147.6567 288.3878 -95.08727 -72.04778 -248.7893 88.15468
-#> Gradient package   148.4763 288.9433 -94.88396 -72.01159 -248.3900 88.32796
-#>                        [,7]      [,8]      [,9]    [,10]     [,11]     [,12]
-#> Numerical gradient 173.1186 -48.81955 -215.9737 -45.2189 -54.54801 -97.04477
-#> Gradient package   173.5344 -48.50881 -215.8126 -45.0204 -53.75476 -95.99369
-#>                        [,13]    [,14]     [,15]     [,16]    [,17]     [,18]
-#> Numerical gradient -290.3411 -172.381 -57.36765 -78.18419 115.0248 -355.0045
-#> Gradient package   -289.9341 -172.212 -57.24001 -78.11974 115.1100 -354.7138
-#>                        [,19]     [,20]     [,21]    [,22]     [,23]    [,24]
-#> Numerical gradient -124.8408 -157.9135 -113.1920 77.88573 -21.16438 73.71955
-#> Gradient package   -124.4184 -157.7805 -113.3144 78.13745 -21.01588 73.81219
-#>                       [,25]     [,26]    [,27]     [,28]     [,29]    [,30]
-#> Numerical gradient 77.88573 -56.21940 18.07612 -118.9175 -21.16438 18.07612
-#> Gradient package   78.13745 -51.76274 17.35737 -118.7620 -21.01588 17.35737
-#>                        [,31]    [,32]    [,33]     [,34]    [,35]    [,36]
-#> Numerical gradient -286.3636 36.95668 73.71955 -118.9175 36.95668 120.8843
-#> Gradient package   -285.9172 36.99053 73.81219 -118.7620 36.99053 121.0079
+#>                         [,1]      [,2]      [,3]     [,4]      [,5]     [,6]
+#> Numerical gradient -98.11703 -35.07656 -34.63039 48.14763 -5.095038 65.07167
+#> Gradient package   -98.03479 -35.01920 -34.61153 48.14879 -5.050224 65.09122
+#>                        [,7]      [,8]      [,9]     [,10]     [,11]     [,12]
+#> Numerical gradient 54.21873 -43.88601 -27.00679 -25.23115 -36.50268 -69.74052
+#> Gradient package   54.25802 -43.85578 -26.99131 -25.21205 -36.42770 -69.62866
+#>                        [,13]     [,14]    [,15]    [,16]     [,17]     [,18]
+#> Numerical gradient -60.25759 -66.81265 42.02254 14.85036 -7.649851 -2.324416
+#> Gradient package   -60.21927 -66.79572 42.03519 14.85769 -7.640918 -2.294211
+#>                        [,19]     [,20]    [,21]     [,22]    [,23]     [,24]
+#> Numerical gradient -5.068106 -43.14671 10.28011 -1.492192 4.406297 0.2704534
+#> Gradient package   -5.023948 -43.13251 10.26578 -1.464293 4.420291 0.2806485
+#>                        [,25]    [,26]      [,27]     [,28]    [,29]      [,30]
+#> Numerical gradient -1.492192 10.41117 -0.2873668 -4.417070 4.406297 -0.2873668
+#> Gradient package   -1.464293 10.86468 -0.3569913 -4.402148 4.420291 -0.3569913
+#>                        [,31]    [,32]     [,33]     [,34]    [,35]    [,36]
+#> Numerical gradient -36.46242 6.307481 0.2704534 -4.417070 6.307481 8.955149
+#> Gradient package   -36.42063 6.310710 0.2806485 -4.402148 6.310710 8.967326
 
 # check the time to compute the gradient of the log composite likelihood
 bench::mark(
@@ -344,10 +345,10 @@ bench::mark(
 #> # A tibble: 4 × 6
 #>   expression         min   median `itr/sec` mem_alloc `gc/sec`
 #>   <bch:expr>    <bch:tm> <bch:tm>     <dbl> <bch:byt>    <dbl>
-#> 1 one thread       1.66s    1.66s     0.601    7.09KB        0
-#> 2 two threads   860.28ms 863.61ms     1.16       336B        0
-#> 3 three threads  590.3ms 595.34ms     1.68       336B        0
-#> 4 four threads   440.5ms 452.73ms     2.19       336B        0
+#> 1 one thread     154.2ms  155.5ms      6.32    7.09KB        0
+#> 2 two threads     85.7ms   86.2ms     11.5       336B        0
+#> 3 three threads   55.8ms   56.8ms     17.6       336B        0
+#> 4 four threads    44.1ms   45.5ms     21.9       336B        0
 ```
 
 Then we optimize the parameters (TODO: there will be a wrapper to work
@@ -357,12 +358,12 @@ with the log Cholesky decomposition and an estimation function).
 # find the starting values
 system.time(start <- mmcif_start_values(comp_obj, n_threads = 4L))
 #>    user  system elapsed 
-#>   0.530   0.028   0.151
+#>   0.077   0.000   0.023
 
 # the maximum likelihood without the random effects. Note that this is not 
 # comparable with the composite likelihood
 attr(start, "logLik")
-#> [1] -26193.67
+#> [1] -2649.699
 
 # computes the log Cholesky decomposition
 log_chol <- \(x){
@@ -421,21 +422,21 @@ gr_package <- ll_func_chol_grad(truth)
 gr_num <- numDeriv::grad(ll_func_chol, truth, method = "simple")
 
 rbind(`Numerical gradient` = gr_num, `Gradient package` = gr_package)
-#>                        [,1]     [,2]      [,3]      [,4]      [,5]     [,6]
-#> Numerical gradient 147.6567 288.3878 -95.08727 -72.04778 -248.7893 88.15468
-#> Gradient package   148.4763 288.9433 -94.88396 -72.01159 -248.3900 88.32796
-#>                        [,7]      [,8]      [,9]    [,10]     [,11]     [,12]
-#> Numerical gradient 173.1186 -48.81955 -215.9737 -45.2189 -54.54801 -97.04477
-#> Gradient package   173.5344 -48.50881 -215.8126 -45.0204 -53.75476 -95.99369
-#>                        [,13]    [,14]     [,15]     [,16]    [,17]     [,18]
-#> Numerical gradient -290.3411 -172.381 -57.36765 -78.18419 115.0248 -355.0045
-#> Gradient package   -289.9341 -172.212 -57.24001 -78.11974 115.1100 -354.7138
-#>                        [,19]     [,20]     [,21]     [,22]      [,23]    [,24]
-#> Numerical gradient -124.8408 -157.9135 -33.15087 -9.137580 -15.491864 146.1701
-#> Gradient package   -124.4184 -157.7805 -33.21583 -8.299317  -9.111213 146.2535
-#>                        [,25]     [,26]    [,27]     [,28]    [,29]    [,30]
-#> Numerical gradient -157.5148 -359.2096 145.8276 -256.4320 12.82721 158.5793
-#> Gradient package   -158.5706 -358.5589 145.9591 -256.1691 12.85134 158.7702
+#>                         [,1]      [,2]      [,3]     [,4]      [,5]     [,6]
+#> Numerical gradient -98.11703 -35.07656 -34.63039 48.14763 -5.095038 65.07167
+#> Gradient package   -98.03479 -35.01920 -34.61153 48.14879 -5.050224 65.09122
+#>                        [,7]      [,8]      [,9]     [,10]     [,11]     [,12]
+#> Numerical gradient 54.21873 -43.88601 -27.00679 -25.23115 -36.50268 -69.74052
+#> Gradient package   54.25802 -43.85578 -26.99131 -25.21205 -36.42770 -69.62866
+#>                        [,13]     [,14]    [,15]    [,16]     [,17]     [,18]
+#> Numerical gradient -60.25759 -66.81265 42.02254 14.85036 -7.649851 -2.324416
+#> Gradient package   -60.21927 -66.79572 42.03519 14.85769 -7.640918 -2.294211
+#>                        [,19]     [,20]    [,21]     [,22]    [,23]    [,24]
+#> Numerical gradient -5.068106 -43.14671 5.158584 -4.345941 17.90292 27.53855
+#> Gradient package   -5.023948 -43.13251 5.149804 -4.263097 18.55267 27.54659
+#>                       [,25]     [,26]    [,27]     [,28]    [,29]    [,30]
+#> Numerical gradient -25.5072 -46.19810 3.407793 -9.258671 6.517770 11.74634
+#> Gradient package   -25.6095 -46.13604 3.421523 -9.233461 6.520487 11.76572
 
 # optimize the log composite likelihood
 constraints <- comp_obj$constraints$vcov_upper
@@ -446,15 +447,15 @@ system.time(
     method = "BFGS", ui = constraints, ci = rep(1e-8, NROW(constraints)),
     control = list(maxit = 10000L)))
 #>    user  system elapsed 
-#> 183.675   0.040  46.380
+#>  38.914   0.000   9.771
 
 # the log composite likelihood at different points
 ll_func_chol(truth, 4L)
-#> [1] -69864.07
+#> [1] -7087.145
 ll_func_chol(start$lower, 4L)
-#> [1] -75100.54
+#> [1] -7572.462
 -fit$value
-#> [1] -69809.26
+#> [1] -7050.352
 ```
 
 Then we compute the sandwich estimator. The Hessian is currently
@@ -465,7 +466,7 @@ system.time(
   sandwich_est <- mmcif_sandwich(
     comp_obj, fit$par, n_threads = 4L, ghq_data = ghq_data))
 #>    user  system elapsed 
-#> 888.103   0.017 224.405
+#>  89.719   0.004  22.855
 ```
 
 We show the estimated and true the conditional cumulative incidence
@@ -519,7 +520,7 @@ Further illustrations of the estimated model are given below.
 # the number of call we made
 fit$counts
 #> function gradient 
-#>      207       46
+#>      331      104
 fit$outer.iterations
 #> [1] 2
 
@@ -530,29 +531,29 @@ SEs <- diag(sandwich_est) |> sqrt()
 rbind(`Estimate AGHQ` = fit$par[comp_obj$indices$coef_risk],
       `Standard errors` = SEs[comp_obj$indices$coef_risk],
       Truth = c(coef_risk))
-#>                       [,1]      [,2]       [,3]        [,4]       [,5]
-#> Estimate AGHQ   0.69027187 1.0133028 0.08464860 -0.40452809 0.23283283
-#> Standard errors 0.02235697 0.0221605 0.03116624  0.03306776 0.02485246
-#> Truth           0.67000000 1.0000000 0.10000000 -0.40000000 0.25000000
-#>                       [,6]
-#> Estimate AGHQ   0.31988758
-#> Standard errors 0.03936657
-#> Truth           0.30000000
+#>                       [,1]       [,2]       [,3]        [,4]       [,5]
+#> Estimate AGHQ   0.58705108 0.94945213 0.08989551 -0.40845616 0.20878337
+#> Standard errors 0.07241782 0.06901785 0.10193347  0.09896119 0.07073352
+#> Truth           0.67000000 1.00000000 0.10000000 -0.40000000 0.25000000
+#>                      [,6]
+#> Estimate AGHQ   0.5050814
+#> Standard errors 0.1233504
+#> Truth           0.3000000
 rbind(`Estimate AGHQ` = fit$par[comp_obj$indices$coef_trajectory],
       `Standard errors` = SEs[comp_obj$indices$coef_trajectory],
       Truth = truth[comp_obj$indices$coef_trajectory])
-#>                       [,1]        [,2]        [,3]        [,4]       [,5]
-#> Estimate AGHQ   -2.8571950 -3.62687306 -6.66585812 -5.05826813 2.92725793
-#> Standard errors  0.0366992  0.03906664  0.07509537  0.05212119 0.03593908
-#> Truth           -2.8441071 -3.59727996 -6.55217597 -5.03761513 2.89213752
-#>                       [,6]       [,7]        [,8]        [,9]      [,10]
-#> Estimate AGHQ   0.79975158 0.36481932 -2.65239484 -3.33042243 -6.0522562
-#> Standard errors 0.01476157 0.01991535  0.06751533  0.07605212  0.1426918
-#> Truth           0.80000000 0.40000000 -2.65713291 -3.33970302 -6.1005908
-#>                      [,11]      [,12]      [,13]       [,14]
-#> Estimate AGHQ   -4.5917441 3.17944917 0.21800397 -0.24454613
-#> Standard errors  0.1015315 0.08049897 0.02152527  0.03331494
-#> Truth           -4.6695955 3.22323149 0.25000000 -0.20000000
+#>                       [,1]       [,2]       [,3]       [,4]      [,5]
+#> Estimate AGHQ   -2.7611781 -3.6360688 -6.5359349 -4.9824069 2.7888969
+#> Standard errors  0.1115259  0.1320081  0.2121492  0.1572492 0.1048145
+#> Truth           -2.8546006 -3.5847914 -6.5119295 -4.9573949 2.8655410
+#>                       [,6]       [,7]       [,8]       [,9]      [,10]
+#> Estimate AGHQ   0.78976175 0.32069148 -2.8899391 -3.3092791 -6.2133999
+#> Standard errors 0.05135336 0.06088449  0.2250873  0.2291218  0.4477495
+#> Truth           0.80000000 0.40000000 -2.5969205 -3.3415994 -6.0232223
+#>                      [,11]    [,12]      [,13]      [,14]
+#> Estimate AGHQ   -4.8802147 3.364224 0.24694691 -0.3477679
+#> Standard errors  0.3178766 0.257507 0.06955238  0.1059232
+#> Truth           -4.6611059 3.114460 0.25000000 -0.2000000
 
 n_vcov <- (2L * n_causes * (2L * n_causes + 1L)) %/% 2L
 Sigma
@@ -562,24 +563,24 @@ Sigma
 #> [3,] -0.138  0.251  0.756 -0.319
 #> [4,]  0.197 -0.250 -0.319  0.903
 log_chol_inv(tail(fit$par, n_vcov))
-#>             [,1]        [,2]       [,3]       [,4]
-#> [1,]  0.27231284  0.07840303 -0.1330838  0.1923036
-#> [2,]  0.07840303  0.85106053  0.2614722 -0.2857718
-#> [3,] -0.13308381  0.26147220  0.7212046 -0.2789372
-#> [4,]  0.19230364 -0.28577178 -0.2789372  0.9090285
+#>             [,1]        [,2]        [,3]       [,4]
+#> [1,]  0.38547001  0.05191343 -0.05642054  0.1599185
+#> [2,]  0.05191343  0.81938794  0.24243319 -0.4246350
+#> [3,] -0.05642054  0.24243319  0.68716772 -0.2424715
+#> [4,]  0.15991850 -0.42463497 -0.24247155  1.0622655
 
 # on the log Cholesky scale
 rbind(`Estimate AGHQ` = fit$par[comp_obj$indices$vcov_upper],
       `Standard errors` = SEs[comp_obj$indices$vcov_upper],
       Truth = truth[comp_obj$indices$vcov_upper])
-#>                        [,1]       [,2]        [,3]        [,4]       [,5]
-#> Estimate AGHQ   -0.65040187 0.15024456 -0.09407701 -0.25502995 0.32936156
-#> Standard errors  0.08942089 0.08761957  0.04661760  0.05593706 0.04107664
-#> Truth           -0.59208509 0.01446203 -0.13801455 -0.24947003 0.29228783
-#>                        [,6]      [,7]       [,8]        [,9]      [,10]
-#> Estimate AGHQ   -0.30102727 0.3685135 -0.3747904 -0.08312015 -0.2343227
-#> Standard errors  0.03787968 0.0855034  0.0616192  0.05582505  0.0694815
-#> Truth           -0.24851681 0.3561275 -0.2929106 -0.18532138 -0.2107724
+#>                       [,1]       [,2]       [,3]        [,4]      [,5]
+#> Estimate AGHQ   -0.4766459 0.08361505 -0.1038834 -0.09087448 0.2774029
+#> Standard errors  0.2077253 0.23540168  0.1576095  0.14487210 0.1152972
+#> Truth           -0.5920851 0.01446203 -0.1380145 -0.24947003 0.2922878
+#>                       [,6]      [,7]       [,8]       [,9]      [,10]
+#> Estimate AGHQ   -0.2537845 0.2575748 -0.4950150 -0.1053619 -0.1507015
+#> Standard errors  0.1064003 0.2398899  0.2008380  0.1502359  0.1871914
+#> Truth           -0.2485168 0.3561275 -0.2929106 -0.1853214 -0.2107724
 ```
 
 ### Delayed Entry
@@ -588,7 +589,7 @@ We extend the previous example to the setting where there may be delayed
 entry (left truncation). Thus, we assign a new simulation function. The
 delayed entry is sampled by sampling a random variable from the uniform
 distribution on -1 to 1 and taking the entry time as being the maximum
-of this variable and the zero.
+of this variable and zero.
 
 ``` r
 library(mvtnorm)
@@ -667,45 +668,45 @@ We sample a data set using the new simulation function.
 ``` r
 # sample a data set
 set.seed(51312406)
-n_clusters <- 10000L
+n_clusters <- 1000L
 max_cluster_size <- 5L
 dat <- sim_dat(n_clusters, max_cluster_size = max_cluster_size)
 
 # show some stats
 NROW(dat) # number of individuals
-#> [1] 25121
+#> [1] 2524
 table(dat$cause) # distribution of causes (3 is censored)
 #> 
-#>     1     2     3 
-#>  9816  4306 10999
+#>    1    2    3 
+#>  976  435 1113
 
 # distribution of observed times by cause
 tapply(dat$time, dat$cause, quantile, 
        probs = seq(0, 1, length.out = 11), na.rm = TRUE)
 #> $`1`
 #>           0%          10%          20%          30%          40%          50% 
-#> 1.388927e-06 1.223061e-02 7.719733e-02 2.455732e-01 5.481534e-01 9.211529e-01 
+#> 1.388927e-06 1.155209e-02 6.301834e-02 2.279148e-01 5.695660e-01 9.795840e-01 
 #>          60%          70%          80%          90%         100% 
-#> 1.312416e+00 1.652863e+00 1.878976e+00 1.977348e+00 1.999997e+00 
+#> 1.311657e+00 1.649644e+00 1.886742e+00 1.980891e+00 1.999995e+00 
 #> 
 #> $`2`
-#>           0%          10%          20%          30%          40%          50% 
-#> 0.0001428473 0.1058806751 0.2798903525 0.4870446247 0.7319055048 0.9702053140 
-#>          60%          70%          80%          90%         100% 
-#> 1.2079142083 1.4596583348 1.6903101217 1.8745690179 1.9973885710 
+#>          0%         10%         20%         30%         40%         50% 
+#> 0.002018665 0.090196750 0.280351482 0.429229049 0.658359909 0.906824403 
+#>         60%         70%         80%         90%        100% 
+#> 1.180596945 1.409365896 1.674830085 1.877513206 1.996200103 
 #> 
 #> $`3`
-#>           0%          10%          20%          30%          40%          50% 
-#> 0.0001862319 0.4616269832 0.8617181567 1.2255410970 1.6298530402 2.0000000000 
-#>          60%          70%          80%          90%         100% 
-#> 2.0000000000 2.0000000000 2.0000000000 2.0000000000 2.0000000000
+#>          0%         10%         20%         30%         40%         50% 
+#> 0.005215882 0.462200984 0.836500967 1.188546420 1.599797465 2.000000000 
+#>         60%         70%         80%         90%        100% 
+#> 2.000000000 2.000000000 2.000000000 2.000000000 2.000000000
 
 # distribution of the left truncation time
 quantile(dat$delayed_entry, probs = seq(0, 1, length.out = 11))
-#>         0%        10%        20%        30%        40%        50%        60% 
-#> 0.00000000 0.00000000 0.00000000 0.00000000 0.00000000 0.00000000 0.01379695 
-#>        70%        80%        90%       100% 
-#> 0.21533533 0.45129859 0.70860529 0.99993911
+#>           0%          10%          20%          30%          40%          50% 
+#> 0.000000e+00 0.000000e+00 0.000000e+00 0.000000e+00 0.000000e+00 0.000000e+00 
+#>          60%          70%          80%          90%         100% 
+#> 7.270984e-05 2.151228e-01 4.462644e-01 7.109908e-01 9.989804e-01
 ```
 
 Next, we fit the model as before but this time we pass the delayed entry
@@ -736,28 +737,28 @@ truth <- c(coef_risk, coef_traject_spline, log_chol(Sigma))
 # find the starting values
 system.time(start <- mmcif_start_values(comp_obj, n_threads = 4L))
 #>    user  system elapsed 
-#>   0.646   0.004   0.173
+#>   0.064   0.000   0.018
 
 # we can verify that the gradient is correct again
 gr_package <- ll_func_chol_grad(truth)
 gr_num <- numDeriv::grad(ll_func_chol, truth, method = "simple")
 
 rbind(`Numerical gradient` = gr_num, `Gradient package` = gr_package)
-#>                         [,1]      [,2]     [,3]      [,4]      [,5]      [,6]
-#> Numerical gradient -21.23991 -59.45223 24.06115 -13.89803 -89.67587 -35.85932
-#> Gradient package   -20.66628 -59.08257 24.19322 -13.89300 -89.40310 -35.72787
-#>                         [,7]     [,8]     [,9]    [,10]     [,11]    [,12]
-#> Numerical gradient -199.1453 82.65915 20.25477 61.42922 -11.19786 301.4083
-#> Gradient package   -198.8933 82.86595 20.34117 61.55413 -10.75712 302.0375
-#>                       [,13]     [,14]    [,15]     [,16]    [,17]     [,18]
-#> Numerical gradient 72.77174 -4.747715 29.54528 0.2498927 11.90036 -30.20916
-#> Gradient package   73.00546 -4.628980 29.64269 0.2868973 11.96036 -30.04666
-#>                        [,19]     [,20]    [,21]    [,22]     [,23]     [,24]
-#> Numerical gradient -10.87577 -132.9462 12.39889 7.611447 -26.18224 -12.31158
-#> Gradient package   -10.62266 -132.8662 12.33025 8.349105 -20.44733 -12.29159
-#>                        [,25]     [,26]    [,27]     [,28]     [,29]    [,30]
-#> Numerical gradient -27.43538 -90.11324 16.15183 -32.11600 -39.93798 15.26639
-#> Gradient package   -28.21817 -89.73060 16.24323 -31.93594 -39.91993 15.38761
+#>                         [,1]      [,2]     [,3]     [,4]     [,5]     [,6]
+#> Numerical gradient -47.70747 -8.790845 6.978009 7.569686 7.152368 6.220029
+#> Gradient package   -47.65039 -8.753452 6.990982 7.570827 7.179427 6.232856
+#>                        [,7]     [,8]      [,9]    [,10]     [,11]    [,12]
+#> Numerical gradient 5.933652 8.550291 -28.04840 18.37015 -47.03097 86.43754
+#> Gradient package   5.956640 8.573283 -28.04046 18.38455 -46.98865 86.49652
+#>                       [,13]     [,14]     [,15]    [,16]    [,17]     [,18]
+#> Numerical gradient 2.075114 -45.32322 -17.03091 13.92585 17.29465 -20.56575
+#> Gradient package   2.097569 -45.31066 -17.02144 13.92966 17.30091 -20.54930
+#>                       [,19]     [,20]    [,21]     [,22]     [,23]     [,24]
+#> Numerical gradient 20.15351 -1.486694 6.759593 -5.759377 -2.593290 -14.53035
+#> Gradient package   20.17827 -1.478664 6.752974 -5.687308 -2.036417 -14.52778
+#>                       [,25]     [,26]    [,27]    [,28]     [,29]    [,30]
+#> Numerical gradient 20.44250 -9.738749 5.922140 -10.9871 -14.59199 4.311828
+#> Gradient package   20.36639 -9.701316 5.931385 -10.9683 -14.59037 4.324320
 
 # optimize the log composite likelihood
 constraints <- comp_obj$constraints$vcov_upper
@@ -768,15 +769,15 @@ system.time(
     method = "BFGS", ui = constraints, ci = rep(1e-8, NROW(constraints)),
     control = list(maxit = 10000L)))
 #>    user  system elapsed 
-#> 431.112   0.000 110.050
+#>  50.862   0.000  13.138
 
 # the log composite likelihood at different points
 ll_func_chol(truth, 4L)
-#> [1] -48260
+#> [1] -4744.71
 ll_func_chol(start$lower, 4L)
-#> [1] -51539.21
+#> [1] -5077.429
 -fit$value
-#> [1] -48234.65
+#> [1] -4723.988
 ```
 
 Then we compute the sandwich estimator. The Hessian is currently
@@ -786,8 +787,8 @@ computed with numerical differentiation which is why it takes a while.
 system.time(
   sandwich_est <- mmcif_sandwich(
     comp_obj, fit$par, n_threads = 4L, ghq_data = ghq_data))
-#>     user   system  elapsed 
-#> 2362.307    0.084  609.938
+#>    user  system elapsed 
+#> 240.208   0.044  63.502
 ```
 
 We show the estimated and true the conditional cumulative incidence
@@ -833,7 +834,7 @@ local({
 })
 ```
 
-<img src="man/figures/README-compare_estimated_incidence_funcs-1.png" width="100%" />
+<img src="man/figures/README-delayed_compare_estimated_incidence_funcs-1.png" width="100%" />
 
 Further illustrations of the estimated model are given below.
 
@@ -841,7 +842,7 @@ Further illustrations of the estimated model are given below.
 # the number of call we made
 fit$counts
 #> function gradient 
-#>      209       39
+#>      157       52
 fit$outer.iterations
 #> [1] 2
 
@@ -852,29 +853,25 @@ SEs <- diag(sandwich_est) |> sqrt()
 rbind(`Estimate AGHQ` = fit$par[comp_obj$indices$coef_risk],
       `Standard errors` = SEs[comp_obj$indices$coef_risk],
       Truth = c(coef_risk))
-#>                       [,1]       [,2]       [,3]       [,4]       [,5]
-#> Estimate AGHQ   0.66060509 0.97418677 0.09686947 -0.4057685 0.22073195
-#> Standard errors 0.02505394 0.02602227 0.03490187  0.0358794 0.02623794
-#> Truth           0.67000000 1.00000000 0.10000000 -0.4000000 0.25000000
-#>                       [,6]
-#> Estimate AGHQ   0.28876175
-#> Standard errors 0.04085052
-#> Truth           0.30000000
+#>                       [,1]       [,2]      [,3]       [,4]       [,5]      [,6]
+#> Estimate AGHQ   0.57771878 0.98274470 0.1390372 -0.4127569 0.23022876 0.3438114
+#> Standard errors 0.07591669 0.08423577 0.1052980  0.1034133 0.07867418 0.1175204
+#> Truth           0.67000000 1.00000000 0.1000000 -0.4000000 0.25000000 0.3000000
 rbind(`Estimate AGHQ` = fit$par[comp_obj$indices$coef_trajectory],
       `Standard errors` = SEs[comp_obj$indices$coef_trajectory],
       Truth = truth[comp_obj$indices$coef_trajectory])
-#>                        [,1]        [,2]       [,3]        [,4]       [,5]
-#> Estimate AGHQ   -3.02479120 -3.59377255 -6.6896931 -4.94924755 2.62105812
-#> Standard errors  0.04883265  0.05013325  0.0984463  0.06416239 0.04500874
-#> Truth           -3.00526396 -3.64020176 -6.7344068 -5.01894331 2.62742123
-#>                       [,6]      [,7]        [,8]        [,9]     [,10]
-#> Estimate AGHQ   0.81329760 0.4100058 -2.53807400 -3.07450406 -5.686850
-#> Standard errors 0.01811959 0.0249473  0.07534318  0.07812181  0.155328
-#> Truth           0.80000000 0.4000000 -2.70669139 -3.27433071 -6.059674
-#>                      [,11]      [,12]      [,13]       [,14]
-#> Estimate AGHQ   -4.2599596 2.71506636 0.23165748 -0.26015610
-#> Standard errors  0.1027705 0.08489166 0.02476911  0.03778567
-#> Truth           -4.5098894 2.89583774 0.25000000 -0.20000000
+#>                      [,1]       [,2]       [,3]       [,4]      [,5]       [,6]
+#> Estimate AGHQ   -2.982989 -3.6259795 -6.6762600 -4.7860113 2.5966299 0.88394518
+#> Standard errors  0.164094  0.1649438  0.3373206  0.2230605 0.1503134 0.06574713
+#> Truth           -3.051344 -3.6657486 -6.6720198 -4.8559792 2.6777525 0.80000000
+#>                       [,7]      [,8]       [,9]      [,10]     [,11]     [,12]
+#> Estimate AGHQ   0.40170355 -2.679246 -3.1392296 -5.6456602 -4.152140 2.7000388
+#> Standard errors 0.07498468  0.210423  0.1883609  0.4000966  0.255380 0.2252085
+#> Truth           0.40000000 -2.777100 -3.3481062 -6.2334375 -4.644954 3.0259114
+#>                      [,13]      [,14]
+#> Estimate AGHQ   0.24516635 -0.1692536
+#> Standard errors 0.06476641  0.1199285
+#> Truth           0.25000000 -0.2000000
 
 n_vcov <- (2L * n_causes * (2L * n_causes + 1L)) %/% 2L
 Sigma
@@ -884,24 +881,24 @@ Sigma
 #> [3,] -0.138  0.251  0.756 -0.319
 #> [4,]  0.197 -0.250 -0.319  0.903
 log_chol_inv(tail(fit$par, n_vcov))
-#>             [,1]        [,2]       [,3]       [,4]
-#> [1,]  0.29933475 -0.01579832 -0.1494133  0.1655430
-#> [2,] -0.01579832  0.68845548  0.2302813 -0.2413250
-#> [3,] -0.14941331  0.23028135  0.6915985 -0.3345090
-#> [4,]  0.16554295 -0.24132501 -0.3345090  0.7132951
+#>             [,1]       [,2]        [,3]       [,4]
+#> [1,]  0.33704694 -0.1472955 -0.07178603  0.1340458
+#> [2,] -0.14729547  0.3656636  0.41934132 -0.1207781
+#> [3,] -0.07178603  0.4193413  0.72101456 -0.4180224
+#> [4,]  0.13404579 -0.1207781 -0.41802245  0.5935066
 
 # on the log Cholesky scale
 rbind(`Estimate AGHQ` = fit$par[comp_obj$indices$vcov_upper],
       `Standard errors` = SEs[comp_obj$indices$vcov_upper],
       Truth = truth[comp_obj$indices$vcov_upper])
-#>                        [,1]        [,2]        [,3]        [,4]       [,5]
-#> Estimate AGHQ   -0.60309639 -0.02887569 -0.18725824 -0.27309310 0.26819545
-#> Standard errors  0.09671769  0.09959421  0.07076072  0.06383647 0.05338782
-#> Truth           -0.59208509  0.01446203 -0.13801455 -0.24947003 0.29228783
-#>                        [,6]       [,7]        [,8]        [,9]       [,10]
-#> Estimate AGHQ   -0.30340233 0.30257437 -0.28048682 -0.23926897 -0.36095716
-#> Standard errors  0.04148093 0.09098374  0.07979381  0.05529979  0.07792962
-#> Truth           -0.24851681 0.35612750 -0.29291060 -0.18532138 -0.21077242
+#>                       [,1]        [,2]       [,3]       [,4]      [,5]
+#> Estimate AGHQ   -0.5437665 -0.25371386 -0.5998362 -0.1236502 0.7068108
+#> Standard errors  0.2758120  0.23394289  0.3605967  0.1949304 0.1901709
+#> Truth           -0.5920851  0.01446203 -0.1380145 -0.2494700 0.2922878
+#>                       [,6]      [,7]       [,8]       [,9]      [,10]
+#> Estimate AGHQ   -0.7895910 0.2308915 -0.1133131 -0.6814120 -1.3820441
+#> Standard errors  0.5917790 0.2204159  0.3098846  0.1525881  0.8795978
+#> Truth           -0.2485168 0.3561275 -0.2929106 -0.1853214 -0.2107724
 ```
 
 ## TODOs

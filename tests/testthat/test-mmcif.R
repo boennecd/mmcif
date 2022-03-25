@@ -3,19 +3,19 @@ cpp_obj <- mmcif_data(
   ~ a + b, dat, cause = cause, time = time, cluster_id = cluster_id,
   max_time = delta, spline_df = 2L, left_trunc = dat$delayed_entry)
 
-comb_slope <- sapply(cpp_obj$spline, \(spline){
+comb_slope <- sapply(cpp_obj$spline, function(spline){
   boundary_knots <- spline$boundary_knots
   pts <- seq(boundary_knots[1], boundary_knots[2], length.out = 1000)
   lm.fit(cbind(1, spline$expansion(pts)), pts)$coef
 })
 
-log_chol <- \(x){
+log_chol <- function(x){
   x <- chol(x)
   diag(x) <- log(diag(x))
   x[upper.tri(x, TRUE)]
 }
 
-log_chol_inv <- \(x){
+log_chol_inv <- function(x){
   dim <- (sqrt(8 * length(x) + 1) - 1) / 2
   out <- matrix(0, dim, dim)
   out[upper.tri(out, TRUE)] <- x
@@ -33,7 +33,7 @@ coef_traject_spline <-
         coef_traject[2, ] + comb_slope[1, ] * coef_traject[1, ],
         coef_traject[-(1:2), ])
 
-ll_func_chol <- \(par, n_threads = 1L, ghq = ghq_data){
+ll_func_chol <- function(par, n_threads = 1L, ghq = ghq_data){
   n_vcov <- (2L * n_causes * (2L * n_causes + 1L)) %/% 2L
   par <- c(head(par, -n_vcov), log_chol_inv(tail(par, n_vcov)))
 
@@ -41,7 +41,7 @@ ll_func_chol <- \(par, n_threads = 1L, ghq = ghq_data){
     cpp_obj$comp_obj, par = par, ghq_data = ghq, n_threads = n_threads)
 }
 
-ll_func_chol_grad <- \(par, n_threads = 1L, ghq = ghq_data){
+ll_func_chol_grad <- function(par, n_threads = 1L, ghq = ghq_data){
   n_vcov <- (2L * n_causes * (2L * n_causes + 1L)) %/% 2L
   vcov <- log_chol_inv(tail(par, n_vcov))
   par <- c(head(par, -n_vcov), vcov)
@@ -256,5 +256,5 @@ test_that("the Hessian of log composite likelihood match the one from numerical 
   expect_equal(attr(sandwich_value, "hessian"), hess_log_compos,
                tolerance = 1e-3)
   expect_snapshot_value(
-    sandwich_value, style = "serialize", tolerance = 1e-6)
+    sandwich_value, style = "serialize", tolerance = 1e-4)
 })

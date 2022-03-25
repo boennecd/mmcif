@@ -158,7 +158,7 @@ We then sample a data set.
 ```{r sample_data, cache = 1}
 # sample a data set
 set.seed(8401828)
-n_clusters <- 10000L
+n_clusters <- 1000L
 max_cluster_size <- 5L
 dat <- sim_dat(n_clusters, max_cluster_size = max_cluster_size)
 
@@ -186,9 +186,10 @@ $$h(t) = \text{arcthan}\left(\frac{t - \delta/2}{\delta/2}\right)$$
 
 but instead with $\vec g(h(t))$
 where $\vec g$ returns a natural cubic spline basis functions. The knots are 
-based on quantiles of $h(t)$ evaluated on the event times. 
+based on quantiles of $h(t)$ evaluated on the event times. The knots differ 
+for each type of competing risk.
 The degrees of freedom of the
-spline is controlled with the `spline_df` argument. There is a `constraints` 
+splines is controlled with the `spline_df` argument. There is a `constraints` 
 element on the object returned by the `mmcif_data` function which 
 contains matrices that ensures that 
 the $\vec x_{ij}(t)^\top\vec\gamma_k$s are monotonically decreasing if 
@@ -379,7 +380,7 @@ functions (the dashed curves are the estimates)
 when the random effects are zero and the covariates are zero, 
 $a_{ij} = b_{ij} = 0$.
 
-```{r compare_estimated_incidence_funcs, fig.height=knitr::opts_chunk$get("fig.width") * .5}
+```{r compare_estimated_incidence_funcs, fig.height=knitr::opts_chunk$get("fig.width") * .5, cache = 1}
 local({
   # get the estimates
   coef_risk_est <- fit$par[comp_obj$indices$coef_risk] |> 
@@ -451,7 +452,7 @@ We extend the previous example to the setting where there may be delayed entry
 (left truncation). 
 Thus, we assign a new simulation function. The delayed entry is sampled by 
 sampling a random variable from the uniform distribution on -1 to 1 and taking 
-the entry time as being the maximum of this variable and the zero.
+the entry time as being the maximum of this variable and zero.
 
 ```{r delayed_assing_sim_dat}
 library(mvtnorm)
@@ -530,7 +531,7 @@ We sample a data set using the new simulation function.
 ```{r delayed_sample_data, cache = 1}
 # sample a data set
 set.seed(51312406)
-n_clusters <- 10000L
+n_clusters <- 1000L
 max_cluster_size <- 5L
 dat <- sim_dat(n_clusters, max_cluster_size = max_cluster_size)
 
@@ -610,7 +611,7 @@ functions (the dashed curves are the estimates)
 when the random effects are zero and the covariates are zero, 
 $a_{ij} = b_{ij} = 0$.
 
-```{r compare_estimated_incidence_funcs}
+```{r delayed_compare_estimated_incidence_funcs, ref.label="compare_estimated_incidence_funcs", cache = 1}
 ```
 
 Further illustrations of the estimated model are given below.

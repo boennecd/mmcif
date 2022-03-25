@@ -46,10 +46,11 @@ if(!file.exists(test_data_file)){
           cbind(exp(Z %*% coef_risk + rep(U, each = n_obs)), 1)
         cond_probs <- cond_logits_exp / rowSums(cond_logits_exp)
         cause <- apply(cond_probs, 1,
-                       \(prob) sample.int(n_causes + 1L, 1L, prob = prob))
+                       function(prob)
+                         sample.int(n_causes + 1L, 1L, prob = prob))
 
         # compute the observed time if needed
-        obs_time <- mapply(\(cause, idx){
+        obs_time <- mapply(function(cause, idx){
           if(cause > n_causes)
             return(delta)
 
@@ -59,7 +60,7 @@ if(!file.exists(test_data_file)){
           rng <- runif(1)
           eps <- .Machine$double.eps
           root <- uniroot(
-            \(x) rng - pnorm(
+            function(x) rng - pnorm(
               -coefs[1] * atanh((x - delta / 2) / (delta / 2)) - offset),
             c(eps^2, delta * (1 - eps)), tol = 1e-12)$root
         }, cause, 1:n_obs)
