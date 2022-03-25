@@ -21,17 +21,21 @@ mmcif_sandwich(
 \item{par}{numeric vector with the parameters to compute the sandwich
 estimator at.}
 
+\item{ghq_data}{the Gauss-Hermite quadrature nodes and weights to
+use. It should be stored as a list with two elements called \code{"node"}
+and \code{"weight"}. A default is provided if \code{NULL} is passed.}
+
 \item{n_threads}{the number of threads to use.}
 
 \item{eps}{determines the step size in the numerical differentiation using
 \code{max(eps, |par[i]| * eps)}.}
 
-\item{order}{maximum number of iteration of the Richardson extrapolation.}
+\item{scale}{scaling factor in the Richardson extrapolation.}
 
-\item{scaling}{scaling factor in the Richardson extrapolation.}
-
-\item{relative}{convergence criteria in the extrapolation given
+\item{tol}{relative convergence criteria in the extrapolation given
 by \code{max(tol, |g[j]| * tol)} with \code{g} being the gradient.}
+
+\item{order}{maximum number of iteration of the Richardson extrapolation.}
 }
 \description{
 Computes the sandwich estimator of the covariance matrix. The parameter that

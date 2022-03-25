@@ -40,7 +40,7 @@ implies that there is not any individuals with left-truncation.}
 
 \item{ghq_data}{the default Gauss-Hermite quadrature nodes and weights to
 use. It should be stored as a list with two elements called \code{"node"}
-and \code{"weigth"}. A default is provided if \code{NULL} is passed.}
+and \code{"weight"}. A default is provided if \code{NULL} is passed.}
 }
 \description{
 Setup Object to Compute the Log Composite Likelihood

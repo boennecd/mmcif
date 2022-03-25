@@ -1,3 +1,11 @@
+.ghq_data_default_if_null <- function(ghq_data){
+  if(is.null(ghq_data))
+    ghq_data <- list(
+      node = c(-2.02018287045609, -0.958572464613819, 2.73349801485409e-17, 0.958572464613819, 2.02018287045609),
+      weight = c(0.0199532420590459,  0.393619323152241, 0.945308720482941, 0.393619323152241, 0.0199532420590459))
+  ghq_data
+}
+
 #' Setup Object to Compute the Log Composite Likelihood
 #'
 #' @param formula \code{formula} for covariates in the risk and trajectories.
@@ -15,7 +23,7 @@
 #' implies that there is not any individuals with left-truncation.
 #' @param ghq_data the default Gauss-Hermite quadrature nodes and weights to
 #' use. It should be stored as a list with two elements called \code{"node"}
-#' and \code{"weigth"}. A default is provided if \code{NULL} is passed.
+#' and \code{"weight"}. A default is provided if \code{NULL} is passed.
 #'
 #' @importFrom stats model.frame model.matrix terms ave
 #' @export
@@ -39,10 +47,7 @@ mmcif_data <- function(formula, data, cause, time, cluster_id, max_time,
 
   n_causes <- length(unique(cause)) - 1L
 
-  if(is.null(ghq_data))
-    ghq_data <- list(
-      node = c(-2.02018287045609, -0.958572464613819, 2.73349801485409e-17, 0.958572464613819, 2.02018287045609),
-      weight = c(0.0199532420590459,  0.393619323152241, 0.945308720482941, 0.393619323152241, 0.0199532420590459))
+  ghq_data <- .ghq_data_default_if_null(ghq_data)
 
   stopifnot(
     length(cause) > 0L,
@@ -336,10 +341,13 @@ mmcif_start_values <- function(object, n_threads = 1L, vcov_start = NULL){
 #' estimator at.
 #' @param eps determines the step size in the numerical differentiation using
 #'  \code{max(eps, |par[i]| * eps)}.
-#' @param scaling scaling factor in the Richardson extrapolation.
-#' @param relative convergence criteria in the extrapolation given
+#' @param scale scaling factor in the Richardson extrapolation.
+#' @param tol relative convergence criteria in the extrapolation given
 #' by \code{max(tol, |g[j]| * tol)} with \code{g} being the gradient.
 #' @param order maximum number of iteration of the Richardson extrapolation.
+#' @param ghq_data the Gauss-Hermite quadrature nodes and weights to
+#' use. It should be stored as a list with two elements called \code{"node"}
+#' and \code{"weight"}. A default is provided if \code{NULL} is passed.
 #'
 #' @export
 mmcif_sandwich <- function(
@@ -347,6 +355,7 @@ mmcif_sandwich <- function(
   scale = 2., tol = .00000001, order = 6L){
   stopifnot(inherits(object, "mmcif"))
   .check_n_threads(n_threads)
+  ghq_data <- .ghq_data_default_if_null(ghq_data)
 
   cpp_res <- mmcif_sandwich_cpp(
     data_ptr = object$comp_obj, par = par, ghq_data = ghq_data,
