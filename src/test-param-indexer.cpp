@@ -50,7 +50,7 @@ context("param_indexer") {
        "vcov[1,7]", "vcov[2,7]", "vcov[3,7]", "vcov[4,7]", "vcov[5,7]", "vcov[6,7]", "vcov[7,7]", "vcov[8,7]",
        "vcov[1,8]", "vcov[2,8]", "vcov[3,8]", "vcov[4,8]", "vcov[5,8]", "vcov[6,8]", "vcov[7,8]", "vcov[8,8]"};
 
-    std::vector<std::string> const names_lower
+    std::vector<std::string> const names_upper
       {"beta[1,1]","beta[2,1]","beta[3,1]",
        "beta[1,2]","beta[2,2]","beta[3,2]",
        "beta[1,3]","beta[2,3]","beta[3,3]",
@@ -70,8 +70,8 @@ context("param_indexer") {
     }
 
     auto res = index.param_names<true>();
-    expect_true(res.size() == names_lower.size());
-    for(size_t i = 0; i < names_lower.size(); ++i)
-      expect_true(res[i] == names_lower[i]);
+    expect_true(res.size() == names_upper.size());
+    for(size_t i = 0; i < names_upper.size(); ++i)
+      expect_true(res[i] == names_upper[i]);
   }
 }

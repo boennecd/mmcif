@@ -12,7 +12,8 @@ mmcif_data(
   cluster_id,
   max_time,
   spline_df = 3L,
-  left_trunc = NULL
+  left_trunc = NULL,
+  ghq_data = NULL
 )
 }
 \arguments{
@@ -36,6 +37,10 @@ cumulative incidence functions.}
 
 \item{left_trunc}{numeric vector with left-truncation times. \code{NULL}
 implies that there is not any individuals with left-truncation.}
+
+\item{ghq_data}{the default Gauss-Hermite quadrature nodes and weights to
+use. It should be stored as a list with two elements called \code{"node"}
+and \code{"weigth"}. A default is provided if \code{NULL} is passed.}
 }
 \description{
 Setup Object to Compute the Log Composite Likelihood

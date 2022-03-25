@@ -6,6 +6,9 @@
 #include "ghq.h"
 #include "wmem.h"
 #include "bases.h"
+#include <unordered_map>
+#include "richardson-extrapolation.h"
+#include "log-cholesky.h"
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -16,6 +19,10 @@ using Rcpp::NumericVector;
 using Rcpp::NumericMatrix;
 
 namespace {
+
+#ifdef _OPENMP
+constexpr int openMP_chunk_size{25};
+#endif
 
 template<class T>
 double nan_if_fail_and_parallel(T x){
@@ -65,6 +72,8 @@ struct mmcif_data_holder {
   param_indexer indexer;
   /// covariates for the trajectory with delayed entry
   simple_mat<double> covs_trajectory_delayed;
+  /// indices to pairs of each cluster
+  std::vector<std::vector<size_t> > clusters_to_pair;
 
   mmcif_data_holder
     (NumericMatrix const covs_trajectory_in,
@@ -72,7 +81,8 @@ struct mmcif_data_holder {
      IntegerVector const has_finite_trajectory_prob_in,
      IntegerVector const cause_in, size_t const n_causes,
      Rcpp::IntegerMatrix pair_indices_in, IntegerVector const singletons_in,
-     NumericMatrix const covs_trajectory_delayed_in):
+     NumericMatrix const covs_trajectory_delayed_in,
+     IntegerVector const pair_cluster_id):
     covs_trajectory{NumericMatrix_to_simple_mat(covs_trajectory_in)},
     d_covs_trajectory{NumericMatrix_to_simple_mat(d_covs_trajectory_in)},
     covs_risk{NumericMatrix_to_simple_mat(covs_risk_in)},
@@ -133,8 +143,23 @@ struct mmcif_data_holder {
     },
     indexer{covs_risk.n_rows(), covs_trajectory.n_rows() / n_causes, n_causes},
     covs_trajectory_delayed
-      {NumericMatrix_to_simple_mat(covs_trajectory_delayed_in)}
+      {NumericMatrix_to_simple_mat(covs_trajectory_delayed_in)},
+    clusters_to_pair{
+      ([&](){
+        std::unordered_map<int, std::vector<size_t> > res_map;
+        for(R_len_t i = 0; i < pair_cluster_id.size(); ++i)
+          res_map[pair_cluster_id[i]].emplace_back(i);
+
+        std::vector<std::vector<size_t> > out;
+        out.reserve(res_map.size());
+        for(auto &cluster : res_map)
+          out.emplace_back(cluster.second);
+        return out;
+      })()
+    }
     {
+      if(static_cast<size_t>(pair_cluster_id.length()) != pair_indices.n_cols())
+        throw std::invalid_argument("pair_cluster_id.length() != pair_indices.n_cols()");
       throw_if_invalidt();
     }
 
@@ -209,6 +234,15 @@ void throw_if_invalid_par
           std::to_string(data.indexer.n_par<false>()) + ')');
 }
 
+void throw_if_invalid_par_upper_tri
+  (mmcif_data_holder const &data, NumericVector const par){
+  if(static_cast<size_t>(par.size()) != data.indexer.n_par<true>())
+    throw std::invalid_argument(
+        "invalid length of parameter vector (" +
+          std::to_string(par.size()) + " vs " +
+          std::to_string(data.indexer.n_par<true>()) + ')');
+}
+
 void throw_if_invalid_par_wo_vcov
   (mmcif_data_holder const &data, NumericVector const par){
   if(static_cast<size_t>(par.size()) != data.indexer.n_par_wo_vcov())
@@ -240,19 +274,19 @@ SEXP mmcif_data_holder_to_R
    IntegerVector const has_finite_trajectory_prob,
    IntegerVector const cause, size_t const n_causes,
    Rcpp::IntegerMatrix pair_indices, IntegerVector const singletons,
-   NumericMatrix const covs_trajectory_delayed){
+   NumericMatrix const covs_trajectory_delayed,
+   IntegerVector const pair_cluster_id){
   return Rcpp::XPtr<mmcif_data_holder const>
     (new mmcif_data_holder
        (covs_trajectory, d_covs_trajectory, covs_risk,
         has_finite_trajectory_prob, cause, n_causes, pair_indices,
-        singletons, covs_trajectory_delayed));
+        singletons, covs_trajectory_delayed, pair_cluster_id));
 }
 
 // [[Rcpp::export("mmcif_logLik", rng = false)]]
 double mmcif_logLik_to_R
   (SEXP data_ptr, NumericVector const par, Rcpp::List ghq_data,
    unsigned n_threads){
-
   Rcpp::XPtr<mmcif_data_holder const> data(data_ptr);
   throw_if_invalid_par(*data, par);
   n_threads = std::max<unsigned>(1, n_threads);
@@ -269,7 +303,7 @@ double mmcif_logLik_to_R
 #endif
   {
 #ifdef _OPENMP
-#pragma omp for reduction(+:out)
+#pragma omp for reduction(+:out) schedule(static, openMP_chunk_size)
 #endif
     for(size_t i = 0; i < n_pairs; ++i)
       out += nan_if_fail_and_parallel([&]{
@@ -284,7 +318,7 @@ double mmcif_logLik_to_R
       });
 
 #ifdef _OPENMP
-#pragma omp for reduction(+:out)
+#pragma omp for reduction(+:out) schedule(static, openMP_chunk_size)
 #endif
     for(size_t i = 0; i < n_singletons; ++i)
       out += nan_if_fail_and_parallel([&]{
@@ -299,22 +333,17 @@ double mmcif_logLik_to_R
   return out;
 }
 
-// [[Rcpp::export("mmcif_logLik_grad", rng = false)]]
-Rcpp::NumericVector mmcif_logLik_grad_to_R
-  (SEXP data_ptr, NumericVector const par, Rcpp::List ghq_data,
-   unsigned n_threads){
-
-  Rcpp::XPtr<mmcif_data_holder const> data(data_ptr);
-  throw_if_invalid_par(*data, par);
+/// computes the log composite likelihood and the gradient
+double mmcif_logLik_grad
+  (mmcif_data_holder const &data, double * const res, double const * const par,
+   ghqCpp::ghq_data const &ghq_data_pass, unsigned n_threads){
   n_threads = std::max<unsigned>(1, n_threads);
   wmem::setup_working_memory(n_threads);
-  auto ghq_data_pass = ghq_data_from_list(ghq_data);
 
   double log_lik{};
-  size_t const n_pairs{data->pair_indices.n_cols()},
-          n_singletons{data->singletons.size()},
-                 n_par{data->indexer.n_par<false>()};
-  double const * const par_ptr{&par[0]};
+  size_t const n_pairs{data.pair_indices.n_cols()},
+          n_singletons{data.singletons.size()},
+                 n_par{data.indexer.n_par<false>()};
 
   std::vector<std::vector<double> > grs
     (n_threads, std::vector<double>(n_par, 0.));
@@ -326,43 +355,243 @@ Rcpp::NumericVector mmcif_logLik_grad_to_R
    std::vector<double> &gr = grs[wmem::thread_num()];
 
 #ifdef _OPENMP
-#pragma omp for reduction(+:log_lik)
+#pragma omp for reduction(+:log_lik) schedule(static, openMP_chunk_size)
 #endif
     for(size_t i = 0; i < n_pairs; ++i)
       log_lik += nan_if_fail_and_parallel([&]{
         auto mmcif_dat1 =
-          mmcif_data_from_idx(*data, data->pair_indices.col(i)[0]);
+          mmcif_data_from_idx(data, data.pair_indices.col(i)[0]);
         auto mmcif_dat2 =
-          mmcif_data_from_idx(*data, data->pair_indices.col(i)[1]);
+          mmcif_data_from_idx(data, data.pair_indices.col(i)[1]);
 
-        wmem::mem_stack().reset();
+        wmem::mem_stack().reset_to_mark();
         return mmcif_logLik_grad(
-          par_ptr, gr.data(), data->indexer, mmcif_dat1, mmcif_dat2,
+          par, gr.data(), data.indexer, mmcif_dat1, mmcif_dat2,
           wmem::mem_stack(), ghq_data_pass);
       });
 
 #ifdef _OPENMP
-#pragma omp for reduction(+:log_lik)
+#pragma omp for reduction(+:log_lik) schedule(static, openMP_chunk_size)
 #endif
     for(size_t i = 0; i < n_singletons; ++i)
       log_lik += nan_if_fail_and_parallel([&]{
-        auto mmcif_dat = mmcif_data_from_idx(*data, data->singletons[i]);
+        auto mmcif_dat = mmcif_data_from_idx(data, data.singletons[i]);
 
-        wmem::mem_stack().reset();
+        wmem::mem_stack().reset_to_mark();
         return mmcif_logLik_grad
-          (par_ptr, gr.data(), data->indexer, mmcif_dat, wmem::mem_stack(),
+          (par, gr.data(), data.indexer, mmcif_dat, wmem::mem_stack(),
            ghq_data_pass);
       });
   }
-
-  Rcpp::NumericVector res(n_par);
-  res.attr("logLik") = log_lik;
 
   for(size_t thread = 0; thread < n_threads; ++thread)
     for(size_t i = 0; i < n_par; ++i)
       res[i] += grs[thread][i];
 
+  return log_lik;
+}
+
+// [[Rcpp::export("mmcif_logLik_grad", rng = false)]]
+Rcpp::NumericVector mmcif_logLik_grad_to_R
+  (SEXP data_ptr, NumericVector const par, Rcpp::List ghq_data,
+   unsigned const n_threads){
+  Rcpp::XPtr<mmcif_data_holder const> data(data_ptr);
+  throw_if_invalid_par(*data, par);
+  auto ghq_data_pass = ghq_data_from_list(ghq_data);
+
+  size_t const n_par{data->indexer.n_par<false>()};
+  Rcpp::NumericVector res(n_par);
+
+  res.attr("logLik") = mmcif_logLik_grad
+    (*data, &res[0], &par[0], ghq_data_pass, n_threads);
+
   return res;
+}
+
+// [[Rcpp::export("mmcif_sandwich_cpp", rng = false)]]
+Rcpp::List mmcif_sandwich
+  (SEXP data_ptr, NumericVector const par, Rcpp::List ghq_data,
+   unsigned n_threads, double const eps = 0.0001, double const scale = 2,
+   double const tol = 0.00000001, unsigned const order = 6){
+  Rcpp::XPtr<mmcif_data_holder const> data(data_ptr);
+  throw_if_invalid_par_upper_tri(*data, par);
+  n_threads = std::max<unsigned>(1, n_threads);
+  wmem::setup_working_memory(n_threads);
+  auto ghq_data_pass = ghq_data_from_list(ghq_data);
+
+  auto map_tri_to_full = [&](double const *upper, double *full){
+    auto &indexer = data->indexer;
+    std::copy(upper, upper + indexer.vcov(), full);
+    log_chol::pd_mat::get
+      (upper + indexer.vcov(), 2 * indexer.n_causes(), full + indexer.vcov(),
+       wmem::mem_stack());
+  };
+
+  auto d_map_tri_to_full =
+    [&](double const *upper, double *d_upper, double const *d_full){
+    auto &indexer = data->indexer;
+    for(size_t i = 0; i < indexer.vcov(); ++i)
+      d_upper[i] += d_full[i];
+
+    log_chol::dpd_mat::get
+      (upper + indexer.vcov(), 2 * indexer.n_causes(),
+       d_upper + indexer.vcov(), d_full + indexer.vcov(), wmem::mem_stack());
+  };
+
+  // compute the hessian
+  size_t const n_pars{data->indexer.n_par<true>()},
+          n_pars_full{data->indexer.n_par<false>()};
+  std::vector<double> const par_cp(par.begin(), par.end());
+
+  size_t const n_cluster_pairs{data->clusters_to_pair.size()},
+               n_singletons{data->singletons.size()};
+
+  Rcpp::NumericMatrix hessian(n_pars, n_pars);
+  {
+    std::vector<double> my_par_cp = par_cp,
+                        my_par_full(n_pars_full);
+
+    struct {
+      decltype(map_tri_to_full) const &map_tri;
+      decltype(d_map_tri_to_full) const &d_map_tri;
+      ghqCpp::ghq_data const &ghq_data_pass;
+      mmcif_data_holder const &data;
+      size_t which_var;
+      std::vector<double> &par, &par_full;
+      size_t const n_pars, n_pars_full;
+      unsigned const n_threads;
+
+      void operator()(double const x, double *gr) const {
+        double const old_val{par[which_var]};
+        par[which_var] = x;
+
+        map_tri(par.data(), par_full.data());
+
+        double * const gr_inner{wmem::mem_stack().get(n_pars)},
+               * const gr_inner_full{wmem::mem_stack().get(n_pars_full)};
+        auto gr_inner_mark = wmem::mem_stack().set_mark_raii();
+
+        std::fill(gr_inner, gr_inner + n_pars, 0);
+        std::fill(gr_inner_full, gr_inner_full + n_pars_full, 0);
+
+        mmcif_logLik_grad
+          (data, gr_inner_full, par_full.data(), ghq_data_pass, n_threads);
+        d_map_tri(par.data(), gr_inner, gr_inner_full);
+
+        std::copy(gr_inner, gr_inner + which_var + 1, gr);
+        par[which_var] = old_val;
+      }
+    } functor{map_tri_to_full, d_map_tri_to_full, ghq_data_pass, *data, 0,
+              my_par_cp, my_par_full, n_pars, n_pars_full, n_threads};
+
+    for(size_t var = 0; var < n_pars; ++var){
+      functor.which_var = var;
+
+      using comp_obj = ghqCpp::richardson_extrapolation<decltype(functor)>;
+      double * const wk_mem
+        {wmem::mem_stack()
+          .get(ghqCpp::n_wk_mem_extrapolation(var + 1, order))};
+      auto wk_mem_mark = wmem::mem_stack().set_mark_raii();
+
+      comp_obj
+        (functor, order, wk_mem, eps, scale, tol, var + 1)
+        (my_par_cp[var], &hessian[hessian.nrow() * var]);
+    }
+  }
+
+  // compute the outer products of the scores
+  std::vector<simple_mat<double> > meats
+  {
+    ([&]{
+      simple_mat<double> blank_mat(n_pars, n_pars);
+      std::fill(blank_mat.begin(), blank_mat.end(), 0);
+      return std::vector<simple_mat<double> >(n_threads, blank_mat);
+    })()
+  };
+
+  std::vector<double> const par_cp_full
+  {
+    ([&]{
+      std::vector<double> out(n_pars_full);
+      map_tri_to_full(par_cp.data(), out.data());
+      return out;
+    })()
+  };
+
+#ifdef _OPENMP
+#pragma omp parallel num_threads(n_threads)
+#endif
+  {
+    simple_mat<double> &my_meat = meats[wmem::thread_num()];
+    std::vector<double> gr_inner(n_pars),
+                   gr_inner_full(n_pars_full);
+
+#ifdef _OPENMP
+#pragma omp for schedule(static, openMP_chunk_size)
+#endif
+    for(size_t cluster = 0; cluster < n_cluster_pairs; ++cluster){
+      auto &indices = data->clusters_to_pair[cluster];
+      std::fill(gr_inner.begin(), gr_inner.end(), 0);
+
+      for(size_t idx : indices){
+        std::fill(gr_inner_full.begin(), gr_inner_full.end(), 0);
+
+        nan_if_fail_and_parallel([&]{
+          auto mmcif_dat1 =
+            mmcif_data_from_idx(*data, data->pair_indices.col(idx)[0]);
+          auto mmcif_dat2 =
+            mmcif_data_from_idx(*data, data->pair_indices.col(idx)[1]);
+
+          return mmcif_logLik_grad(
+            par_cp_full.data(), gr_inner_full.data(), data->indexer, mmcif_dat1,
+            mmcif_dat2, wmem::mem_stack(), ghq_data_pass);
+        });
+
+        d_map_tri_to_full(par_cp.data(), gr_inner.data(), gr_inner_full.data());
+      }
+
+      for(size_t j = 0; j < n_pars; ++j){
+        for(size_t i = 0; i < j; ++i){
+          my_meat.col(j)[i] += gr_inner[i] * gr_inner[j];
+          my_meat.col(i)[j] += gr_inner[i] * gr_inner[j];
+        }
+        my_meat.col(j)[j] += gr_inner[j] * gr_inner[j];
+      }
+    }
+
+#ifdef _OPENMP
+#pragma omp for schedule(static, openMP_chunk_size)
+#endif
+    for(size_t single_idx = 0; single_idx < n_singletons; ++single_idx){
+      auto mmcif_dat = mmcif_data_from_idx(*data, data->singletons[single_idx]);
+      std::fill(gr_inner.begin(), gr_inner.end(), 0);
+      std::fill(gr_inner_full.begin(), gr_inner_full.end(), 0);
+
+      nan_if_fail_and_parallel([&]{
+        return mmcif_logLik_grad(
+          par_cp_full.data(), gr_inner_full.data(), data->indexer, mmcif_dat,
+          wmem::mem_stack(), ghq_data_pass);
+      });
+
+      d_map_tri_to_full(par_cp.data(), gr_inner.data(), gr_inner_full.data());
+
+      for(size_t j = 0; j < n_pars; ++j){
+        for(size_t i = 0; i < j; ++i){
+          my_meat.col(j)[i] += gr_inner[i] * gr_inner[j];
+          my_meat.col(i)[j] += gr_inner[i] * gr_inner[j];
+        }
+        my_meat.col(j)[j] += gr_inner[j] * gr_inner[j];
+      }
+    }
+  }
+
+  Rcpp::NumericMatrix meat(n_pars, n_pars);
+  for(unsigned k = 0; k < n_threads; ++k)
+    for(size_t j = 0; j < n_pars; ++j)
+      for(size_t i = 0; i < n_pars; ++i)
+        meat(i, j) += meats[k].col(j)[i];
+
+  return Rcpp::List::create(Rcpp::_("hessian") = hessian, Rcpp::_("meat") = meat);
 }
 
 // [[Rcpp::export("mcif_logLik", rng = false)]]
@@ -386,7 +615,7 @@ double mcif_logLik_to_R
     auto &mem = wmem::mem_stack();
 
 #ifdef _OPENMP
-#pragma omp for reduction(+:out)
+#pragma omp for reduction(+:out) schedule(static, openMP_chunk_size)
 #endif
     for(size_t i = 0; i < n_terms; ++i){
       out += nan_if_fail_and_parallel([&]{
@@ -431,7 +660,7 @@ Rcpp::NumericVector mcif_logLik_grad_to_R
     auto &my_grad = grads[wmem::thread_num()];
 
 #ifdef _OPENMP
-#pragma omp for reduction(+:log_likelihood)
+#pragma omp for reduction(+:log_likelihood) schedule(static, openMP_chunk_size)
 #endif
     for(size_t i = 0; i < n_terms; ++i){
       log_likelihood += nan_if_fail_and_parallel([&]{

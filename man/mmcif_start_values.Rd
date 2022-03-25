@@ -4,7 +4,7 @@
 \alias{mmcif_start_values}
 \title{Finds Staring Values}
 \usage{
-mmcif_start_values(object, n_threads = 4L, vcov_start = NULL)
+mmcif_start_values(object, n_threads = 1L, vcov_start = NULL)
 }
 \arguments{
 \item{object}{an object from \code{\link{mmcif_data}}.}

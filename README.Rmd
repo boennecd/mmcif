@@ -350,7 +350,7 @@ gr_num <- numDeriv::grad(ll_func_chol, truth, method = "simple")
 rbind(`Numerical gradient` = gr_num, `Gradient package` = gr_package)
 
 # optimize the log composite likelihood
-constraints <- comp_obj$constraints$vcov_lower
+constraints <- comp_obj$constraints$vcov_upper
 system.time(
   fit <- constrOptim(
     start$lower, \(par) -ll_func_chol(par, n_threads = 4L, ghq_data), 
@@ -362,6 +362,15 @@ system.time(
 ll_func_chol(truth, 4L)
 ll_func_chol(start$lower, 4L)
 -fit$value
+```
+
+Then we compute the sandwich estimator. The Hessian is currently computed with 
+numerical differentiation which is why it takes a while.
+
+```{r sandwich, cache = 1}
+system.time(
+  sandwich_est <- mmcif_sandwich(
+    comp_obj, fit$par, n_threads = 4L, ghq_data = ghq_data))
 ```
 
 We show
@@ -415,15 +424,25 @@ Further illustrations of the estimated model are given below.
 fit$counts
 fit$outer.iterations
 
+# compute the standard errors from the sandwich estimator
+SEs <- diag(sandwich_est) |> sqrt()
+
 # compare the estimates with the true values
-rbind(`Estimate AGHQ` = head(fit$par, length(coef_risk)),
+rbind(`Estimate AGHQ` = fit$par[comp_obj$indices$coef_risk],
+      `Standard errors` = SEs[comp_obj$indices$coef_risk],
       Truth = c(coef_risk))
 rbind(`Estimate AGHQ` = fit$par[comp_obj$indices$coef_trajectory],
+      `Standard errors` = SEs[comp_obj$indices$coef_trajectory],
       Truth = truth[comp_obj$indices$coef_trajectory])
 
 n_vcov <- (2L * n_causes * (2L * n_causes + 1L)) %/% 2L
 Sigma
 log_chol_inv(tail(fit$par, n_vcov))
+
+# on the log Cholesky scale
+rbind(`Estimate AGHQ` = fit$par[comp_obj$indices$vcov_upper],
+      `Standard errors` = SEs[comp_obj$indices$vcov_upper],
+      Truth = truth[comp_obj$indices$vcov_upper])
 ```
 
 ### Delayed Entry
@@ -562,7 +581,7 @@ gr_num <- numDeriv::grad(ll_func_chol, truth, method = "simple")
 rbind(`Numerical gradient` = gr_num, `Gradient package` = gr_package)
 
 # optimize the log composite likelihood
-constraints <- comp_obj$constraints$vcov_lower
+constraints <- comp_obj$constraints$vcov_upper
 system.time(
   fit <- constrOptim(
     start$lower, \(par) -ll_func_chol(par, n_threads = 4L, ghq_data), 
@@ -576,73 +595,33 @@ ll_func_chol(start$lower, 4L)
 -fit$value
 ```
 
+Then we compute the sandwich estimator. The Hessian is currently computed with 
+numerical differentiation which is why it takes a while.
+
+```{r delayed_sandwich, cache = 1}
+system.time(
+  sandwich_est <- mmcif_sandwich(
+    comp_obj, fit$par, n_threads = 4L, ghq_data = ghq_data))
+```
+
 We show
 the estimated and true the conditional cumulative incidence 
 functions (the dashed curves are the estimates) 
 when the random effects are zero and the covariates are zero, 
 $a_{ij} = b_{ij} = 0$.
 
-```{r delayed_compare_estimated_incidence_funcs, fig.height=knitr::opts_chunk$get("fig.width") * .5}
-local({
-  # get the estimates
-  coef_risk_est <- fit$par[comp_obj$indices$coef_risk] |> 
-    matrix(ncol = n_causes)
-  coef_traject_time_est <- fit$par[comp_obj$indices$coef_trajectory_time] |> 
-    matrix(ncol = n_causes)
-  coef_traject_est <- fit$par[comp_obj$indices$coef_trajectory] |> 
-    matrix(ncol = n_causes)
-  coef_traject_intercept_est <- coef_traject_est[5, ]
-  
-  # compute the risk probabilities  
-  probs <- exp(coef_risk[1, ]) / (1 + sum(exp(coef_risk[1, ])))
-  probs_est <- exp(coef_risk_est[1, ]) / (1 + sum(exp(coef_risk_est[1, ])))
-  
-  # plot the estimated and true conditional cumulative incidence functions. The
-  # estimates are the dashed lines
-  par(mar = c(5, 5, 1, 1), mfcol = c(1, 2))
-  pts <- seq(1e-8, delta, length.out = 1000)
-  
-  for(i in 1:2){
-    true_vals <- probs[i] * pnorm(
-      -coef_traject[1, i] * atanh((pts - delta / 2) / (delta / 2)) - 
-        coef_traject[2, i])
-    
-    estimates <- probs_est[i] * pnorm(
-      -comp_obj$time_expansion(pts, cause = i) %*% coef_traject_time_est[, i] - 
-        coef_traject_intercept_est[i]) |> drop()
-    
-    matplot(pts, cbind(true_vals, estimates), xlim = c(1e-8, delta), 
-            ylim = c(0, 1), bty = "l",  xlab = "Time", lty = c(1, 2),
-            ylab = sprintf("Cumulative incidence; cause %d", i),
-            yaxs = "i", xaxs = "i", type = "l", col = "black")
-    grid()
-  }
-})
+```{r compare_estimated_incidence_funcs}
 ```
 
 Further illustrations of the estimated model are given below.
 
-```{r delayed_show_res}
-# the number of call we made
-fit$counts
-fit$outer.iterations
-
-# compare the estimates with the true values
-rbind(`Estimate AGHQ` = head(fit$par, length(coef_risk)),
-      Truth = c(coef_risk))
-rbind(`Estimate AGHQ` = fit$par[comp_obj$indices$coef_trajectory],
-      Truth = truth[comp_obj$indices$coef_trajectory])
-
-n_vcov <- (2L * n_causes * (2L * n_causes + 1L)) %/% 2L
-Sigma
-log_chol_inv(tail(fit$par, n_vcov))
+```{r show_res}
 ```
 
 ## TODOs 
 
 The package is still under development. Here are a few TODOs:
 
- - Implement a function to compute the sandwich estimator.
  - Implement a function to do the estimation.
 
 ## References

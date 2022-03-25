@@ -13,11 +13,14 @@
 #' cumulative incidence functions.
 #' @param left_trunc numeric vector with left-truncation times. \code{NULL}
 #' implies that there is not any individuals with left-truncation.
+#' @param ghq_data the default Gauss-Hermite quadrature nodes and weights to
+#' use. It should be stored as a list with two elements called \code{"node"}
+#' and \code{"weigth"}. A default is provided if \code{NULL} is passed.
 #'
 #' @importFrom stats model.frame model.matrix terms ave
 #' @export
 mmcif_data <- function(formula, data, cause, time, cluster_id, max_time,
-                       spline_df = 3L, left_trunc = NULL){
+                       spline_df = 3L, left_trunc = NULL, ghq_data = NULL){
   stopifnot(inherits(formula, "formula"),
             is.data.frame(data),
             length(spline_df) == 1, is.finite(spline_df), spline_df > 0)
@@ -36,6 +39,11 @@ mmcif_data <- function(formula, data, cause, time, cluster_id, max_time,
 
   n_causes <- length(unique(cause)) - 1L
 
+  if(is.null(ghq_data))
+    ghq_data <- list(
+      node = c(-2.02018287045609, -0.958572464613819, 2.73349801485409e-17, 0.958572464613819, 2.02018287045609),
+      weight = c(0.0199532420590459,  0.393619323152241, 0.945308720482941, 0.393619323152241, 0.0199532420590459))
+
   stopifnot(
     length(cause) > 0L,
     NROW(covs_risk) == length(cause),
@@ -48,7 +56,11 @@ mmcif_data <- function(formula, data, cause, time, cluster_id, max_time,
     max(time_observed[cause %in% 1:n_causes]) < max_time,
     length(left_trunc) == length(cause),
     all(is.finite(left_trunc) & left_trunc >= 0),
-    all(time_observed > left_trunc))
+    all(time_observed > left_trunc),
+    is.list(ghq_data), all(c("node", "weight") %in% names(ghq_data)),
+    length(ghq_data$node) == length(ghq_data$weight),
+    length(ghq_data$node) > 0,
+    all(sapply(ghq_data, function(x) all(is.finite(x)))))
 
   # add the time transformations
   time_trans <- function(x) atanh((x - max_time / 2) / (max_time / 2))
@@ -105,19 +117,10 @@ mmcif_data <- function(formula, data, cause, time, cluster_id, max_time,
   cluster_length <- ave(cluster_id, cluster_id, FUN = length)
 
   row_id <- seq_len(length(cluster_id))
-  pair_indices <- tapply(
-    row_id[cluster_length > 1], cluster_id[cluster_length > 1],
-    function(ids){
-      # TODO: do this smarter
-      out <- expand.grid(first = ids, second = ids)
-      out <- as.matrix(out[out$first > out$second, ])
-      t(out)
-    },
-    simplify = FALSE)
-
-  pair_indices <- do.call(cbind, pair_indices)
-  if(is.null(pair_indices))
-    pair_indices <- matrix(0L, 2L, 0L)
+  pair_indices_res <- create_pair_indices(
+    cluster_id[cluster_length > 1], row_id[cluster_length > 1])
+  pair_indices <- pair_indices_res$pair_indices
+  pair_cluster_id <- pair_indices_res$pair_cluster_id
 
   singletons <- row_id[cluster_length < 2]
 
@@ -129,7 +132,8 @@ mmcif_data <- function(formula, data, cause, time, cluster_id, max_time,
     has_finite_trajectory_prob = has_finite_trajectory_prob,
     cause = cause - 1L, n_causes = n_causes, pair_indices = pair_indices - 1L,
     singletons = singletons - 1L,
-    covs_trajectory_delayed = t(covs_trajectory_delayed))
+    covs_trajectory_delayed = t(covs_trajectory_delayed),
+    pair_cluster_id = pair_cluster_id)
 
   # create an object to do index the parameters
   n_coef_risk <- NCOL(covs_risk) * n_causes
@@ -143,7 +147,7 @@ mmcif_data <- function(formula, data, cause, time, cluster_id, max_time,
 
   vcov_dim <- 2L * n_causes
   vcov_full <- max(idx_coef_trajectory) + seq_len(vcov_dim^2)
-  vcov_lower <- max(idx_coef_trajectory) +
+  vcov_upper <- max(idx_coef_trajectory) +
     seq_len((vcov_dim * (vcov_dim + 1L)) %/% 2L)
 
   indices <- list(
@@ -151,10 +155,10 @@ mmcif_data <- function(formula, data, cause, time, cluster_id, max_time,
     coef_trajectory = idx_coef_trajectory,
     coef_trajectory_time = c(coef_trajectory_time),
     vcov_full = vcov_full,
-    vcov_lower = vcov_lower,
+    vcov_upper = vcov_upper,
     n_causes = n_causes,
     n_par = max(vcov_full),
-    n_par_lower_tri = max(vcov_lower),
+    n_par_upper_tri = max(vcov_upper),
     n_par_wo_vcov = max(idx_coef_trajectory))
 
   # create the constrain matrices
@@ -171,7 +175,7 @@ mmcif_data <- function(formula, data, cause, time, cluster_id, max_time,
     wo_vcov = constraints,
     vcov_full =
       cbind(constraints, matrix(0., NROW(constraints), vcov_dim^2)),
-    vcov_lower =
+    vcov_upper =
       cbind(constraints, matrix(0., NROW(constraints),
                                 (vcov_dim * (vcov_dim + 1L)) %/% 2L)))
 
@@ -182,7 +186,7 @@ mmcif_data <- function(formula, data, cause, time, cluster_id, max_time,
       "covs_trajectory", "time_observed", "cause", "time_trans",
       "d_time_trans", "max_time", "indices", "splines", "d_covs_trajectory",
       "constraints", "covs_trajectory_delayed", "time_expansion",
-      "d_time_expansion")))
+      "d_time_expansion", "pair_cluster_id", "ghq_data")))
 
   structure(
     list(comp_obj = comp_obj, pair_indices = pair_indices,
@@ -192,7 +196,8 @@ mmcif_data <- function(formula, data, cause, time, cluster_id, max_time,
          time_expansion = time_expansion, d_time_expansion = d_time_expansion,
          max_time = max_time, indices = indices, splines = splines,
          d_covs_trajectory = d_covs_trajectory, constraints = constraints,
-         covs_trajectory_delayed = covs_trajectory_delayed),
+         covs_trajectory_delayed = covs_trajectory_delayed,
+         pair_cluster_id = pair_cluster_id, ghq_data = ghq_data),
     class = "mmcif")
 }
 
@@ -223,7 +228,7 @@ mmcif_data <- function(formula, data, cause, time, cluster_id, max_time,
 #'
 #' @importFrom stats lm.fit constrOptim na.omit sd
 #' @export
-mmcif_start_values <- function(object, n_threads = 4L, vcov_start = NULL){
+mmcif_start_values <- function(object, n_threads = 1L, vcov_start = NULL){
   stopifnot(inherits(object, "mmcif"))
   .check_n_threads(n_threads)
 
@@ -316,4 +321,41 @@ mmcif_start_values <- function(object, n_threads = 4L, vcov_start = NULL){
   structure(list(full = c(opt$par, c(vcov_start)),
                  lower = c(opt$par, .log_chol(vcov_start))),
             logLik = -opt$value)
+}
+
+
+#' Computes the Sandwich Estimator
+#'
+#' Computes the sandwich estimator of the covariance matrix. The parameter that
+#' is passed is using the log Cholesky decomposition. The Hessian is computed
+#' using numerical differentiation with Richardson extrapolation to refine the
+#' estimate.
+#'
+#' @inheritParams mmcif_start_values
+#' @param par numeric vector with the parameters to compute the sandwich
+#' estimator at.
+#' @param eps determines the step size in the numerical differentiation using
+#'  \code{max(eps, |par[i]| * eps)}.
+#' @param scaling scaling factor in the Richardson extrapolation.
+#' @param relative convergence criteria in the extrapolation given
+#' by \code{max(tol, |g[j]| * tol)} with \code{g} being the gradient.
+#' @param order maximum number of iteration of the Richardson extrapolation.
+#'
+#' @export
+mmcif_sandwich <- function(
+  object, par, ghq_data = object$ghq_data, n_threads = 1L, eps = .0001,
+  scale = 2., tol = .00000001, order = 6L){
+  stopifnot(inherits(object, "mmcif"))
+  .check_n_threads(n_threads)
+
+  cpp_res <- mmcif_sandwich_cpp(
+    data_ptr = object$comp_obj, par = par, ghq_data = ghq_data,
+    n_threads = n_threads, eps = eps, scale = scale, tol = tol, order = order)
+
+  hessian <- cpp_res$hessian
+  hessian[lower.tri(hessian)] <- t(hessian)[lower.tri(hessian)]
+  meat <- cpp_res$meat
+  res <- solve(hessian, t(solve(hessian, meat)))
+
+  structure(res, meat = meat, hessian = hessian)
 }

@@ -12,8 +12,8 @@ Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 #endif
 
 // mmcif_data_holder_to_R
-SEXP mmcif_data_holder_to_R(NumericMatrix const covs_trajectory, NumericMatrix const d_covs_trajectory, NumericMatrix const covs_risk, IntegerVector const has_finite_trajectory_prob, IntegerVector const cause, size_t const n_causes, Rcpp::IntegerMatrix pair_indices, IntegerVector const singletons, NumericMatrix const covs_trajectory_delayed);
-RcppExport SEXP _mmcif_mmcif_data_holder_to_R(SEXP covs_trajectorySEXP, SEXP d_covs_trajectorySEXP, SEXP covs_riskSEXP, SEXP has_finite_trajectory_probSEXP, SEXP causeSEXP, SEXP n_causesSEXP, SEXP pair_indicesSEXP, SEXP singletonsSEXP, SEXP covs_trajectory_delayedSEXP) {
+SEXP mmcif_data_holder_to_R(NumericMatrix const covs_trajectory, NumericMatrix const d_covs_trajectory, NumericMatrix const covs_risk, IntegerVector const has_finite_trajectory_prob, IntegerVector const cause, size_t const n_causes, Rcpp::IntegerMatrix pair_indices, IntegerVector const singletons, NumericMatrix const covs_trajectory_delayed, IntegerVector const pair_cluster_id);
+RcppExport SEXP _mmcif_mmcif_data_holder_to_R(SEXP covs_trajectorySEXP, SEXP d_covs_trajectorySEXP, SEXP covs_riskSEXP, SEXP has_finite_trajectory_probSEXP, SEXP causeSEXP, SEXP n_causesSEXP, SEXP pair_indicesSEXP, SEXP singletonsSEXP, SEXP covs_trajectory_delayedSEXP, SEXP pair_cluster_idSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::traits::input_parameter< NumericMatrix const >::type covs_trajectory(covs_trajectorySEXP);
@@ -25,7 +25,8 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< Rcpp::IntegerMatrix >::type pair_indices(pair_indicesSEXP);
     Rcpp::traits::input_parameter< IntegerVector const >::type singletons(singletonsSEXP);
     Rcpp::traits::input_parameter< NumericMatrix const >::type covs_trajectory_delayed(covs_trajectory_delayedSEXP);
-    rcpp_result_gen = Rcpp::wrap(mmcif_data_holder_to_R(covs_trajectory, d_covs_trajectory, covs_risk, has_finite_trajectory_prob, cause, n_causes, pair_indices, singletons, covs_trajectory_delayed));
+    Rcpp::traits::input_parameter< IntegerVector const >::type pair_cluster_id(pair_cluster_idSEXP);
+    rcpp_result_gen = Rcpp::wrap(mmcif_data_holder_to_R(covs_trajectory, d_covs_trajectory, covs_risk, has_finite_trajectory_prob, cause, n_causes, pair_indices, singletons, covs_trajectory_delayed, pair_cluster_id));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -43,15 +44,32 @@ BEGIN_RCPP
 END_RCPP
 }
 // mmcif_logLik_grad_to_R
-Rcpp::NumericVector mmcif_logLik_grad_to_R(SEXP data_ptr, NumericVector const par, Rcpp::List ghq_data, unsigned n_threads);
+Rcpp::NumericVector mmcif_logLik_grad_to_R(SEXP data_ptr, NumericVector const par, Rcpp::List ghq_data, unsigned const n_threads);
 RcppExport SEXP _mmcif_mmcif_logLik_grad_to_R(SEXP data_ptrSEXP, SEXP parSEXP, SEXP ghq_dataSEXP, SEXP n_threadsSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::traits::input_parameter< SEXP >::type data_ptr(data_ptrSEXP);
     Rcpp::traits::input_parameter< NumericVector const >::type par(parSEXP);
     Rcpp::traits::input_parameter< Rcpp::List >::type ghq_data(ghq_dataSEXP);
-    Rcpp::traits::input_parameter< unsigned >::type n_threads(n_threadsSEXP);
+    Rcpp::traits::input_parameter< unsigned const >::type n_threads(n_threadsSEXP);
     rcpp_result_gen = Rcpp::wrap(mmcif_logLik_grad_to_R(data_ptr, par, ghq_data, n_threads));
+    return rcpp_result_gen;
+END_RCPP
+}
+// mmcif_sandwich
+Rcpp::List mmcif_sandwich(SEXP data_ptr, NumericVector const par, Rcpp::List ghq_data, unsigned n_threads, double const eps, double const scale, double const tol, unsigned const order);
+RcppExport SEXP _mmcif_mmcif_sandwich(SEXP data_ptrSEXP, SEXP parSEXP, SEXP ghq_dataSEXP, SEXP n_threadsSEXP, SEXP epsSEXP, SEXP scaleSEXP, SEXP tolSEXP, SEXP orderSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::traits::input_parameter< SEXP >::type data_ptr(data_ptrSEXP);
+    Rcpp::traits::input_parameter< NumericVector const >::type par(parSEXP);
+    Rcpp::traits::input_parameter< Rcpp::List >::type ghq_data(ghq_dataSEXP);
+    Rcpp::traits::input_parameter< unsigned >::type n_threads(n_threadsSEXP);
+    Rcpp::traits::input_parameter< double const >::type eps(epsSEXP);
+    Rcpp::traits::input_parameter< double const >::type scale(scaleSEXP);
+    Rcpp::traits::input_parameter< double const >::type tol(tolSEXP);
+    Rcpp::traits::input_parameter< unsigned const >::type order(orderSEXP);
+    rcpp_result_gen = Rcpp::wrap(mmcif_sandwich(data_ptr, par, ghq_data, n_threads, eps, scale, tol, order));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -104,17 +122,30 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// create_pair_indices
+Rcpp::List create_pair_indices(Rcpp::IntegerVector const cluster_id, Rcpp::IntegerVector const obs_idx);
+RcppExport SEXP _mmcif_create_pair_indices(SEXP cluster_idSEXP, SEXP obs_idxSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::traits::input_parameter< Rcpp::IntegerVector const >::type cluster_id(cluster_idSEXP);
+    Rcpp::traits::input_parameter< Rcpp::IntegerVector const >::type obs_idx(obs_idxSEXP);
+    rcpp_result_gen = Rcpp::wrap(create_pair_indices(cluster_id, obs_idx));
+    return rcpp_result_gen;
+END_RCPP
+}
 
 RcppExport SEXP run_testthat_tests(SEXP);
 
 static const R_CallMethodDef CallEntries[] = {
-    {"_mmcif_mmcif_data_holder_to_R", (DL_FUNC) &_mmcif_mmcif_data_holder_to_R, 9},
+    {"_mmcif_mmcif_data_holder_to_R", (DL_FUNC) &_mmcif_mmcif_data_holder_to_R, 10},
     {"_mmcif_mmcif_logLik_to_R", (DL_FUNC) &_mmcif_mmcif_logLik_to_R, 4},
     {"_mmcif_mmcif_logLik_grad_to_R", (DL_FUNC) &_mmcif_mmcif_logLik_grad_to_R, 4},
+    {"_mmcif_mmcif_sandwich", (DL_FUNC) &_mmcif_mmcif_sandwich, 8},
     {"_mmcif_mcif_logLik_to_R", (DL_FUNC) &_mmcif_mcif_logLik_to_R, 4},
     {"_mmcif_mcif_logLik_grad_to_R", (DL_FUNC) &_mmcif_mcif_logLik_grad_to_R, 4},
     {"_mmcif_ns_ptr", (DL_FUNC) &_mmcif_ns_ptr, 2},
     {"_mmcif_ns_eval", (DL_FUNC) &_mmcif_ns_eval, 3},
+    {"_mmcif_create_pair_indices", (DL_FUNC) &_mmcif_create_pair_indices, 2},
     {"run_testthat_tests", (DL_FUNC) &run_testthat_tests, 1},
     {NULL, NULL, 0}
 };
