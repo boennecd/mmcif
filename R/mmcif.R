@@ -29,6 +29,10 @@
 #' use. It should be stored as a list with two elements called \code{"node"}
 #' and \code{"weight"}. A default is provided if \code{NULL} is passed.
 #'
+#' @seealso
+#' \code{\link{mmcif_fit}}, \code{\link{mmcif_start_values}} and
+#' \code{\link{mmcif_sandwich}}.
+#'
 #' @importFrom stats model.frame model.matrix terms ave
 #' @export
 mmcif_data <- function(formula, data, cause, time, cluster_id, max_time,
@@ -378,10 +382,39 @@ mmcif_start_values <- function(object, n_threads = 1L, vcov_start = NULL){
             all(is.finite(vcov_start)))
 
   structure(list(full = c(opt$par, c(vcov_start)),
-                 lower = c(opt$par, log_chol(vcov_start))),
+                 upper = c(opt$par, log_chol(vcov_start))),
             logLik = -opt$value)
 }
 
+
+#' Fits a Mixed Competing Risk Model
+#'
+#' @inheritParams mmcif_logLik
+#' @param par numeric vector with parameters. This is using a log
+#' Cholesky decomposition for the covariance matrix.
+#' @param control,method,... arguments passed to \code{\link{constrOptim}}.
+#'
+#' @seealso
+#' \code{\link{mmcif_data}}, \code{\link{mmcif_start_values}} and
+#' \code{\link{mmcif_sandwich}}.
+#'
+#' @importFrom stats constrOptim
+#' @export
+mmcif_fit <- function(
+  par, object, n_threads = 1L, control = list(maxit = 10000L), method = "BFGS",
+  ...){
+  stopifnot(inherits(object, "mmcif"))
+  constraints <- object$constraints$vcov_upper
+
+  constrOptim(
+    par, function(par) -mmcif_logLik(
+      object, par, n_threads = n_threads, is_log_chol = TRUE),
+    grad = function(par) -mmcif_logLik_grad(
+      object, par, n_threads = n_threads, is_log_chol = TRUE),
+    method = method, ui = constraints,
+    ci = rep(1e-8, NROW(constraints)),
+    control = control, ...)
+}
 
 #' Computes the Sandwich Estimator
 #'
@@ -399,6 +432,9 @@ mmcif_start_values <- function(object, n_threads = 1L, vcov_start = NULL){
 #' @param tol relative convergence criteria in the extrapolation given
 #' by \code{max(tol, |g[j]| * tol)} with \code{g} being the gradient.
 #' @param order maximum number of iteration of the Richardson extrapolation.
+#'
+#' @seealso
+#' \code{\link{mmcif_fit}} and \code{\link{mmcif_data}}.
 #'
 #' @export
 mmcif_sandwich <- function(

@@ -278,7 +278,7 @@ bench::mark(
   min_time = 4)
 ```
 
-Then we optimize the parameters (TODO: there will be an estimation function). 
+Then we optimize the parameters. 
 
 ```{r fit, cache = 1}
 # find the starting values
@@ -305,20 +305,11 @@ gr_num <- numDeriv::grad(
 rbind(`Numerical gradient` = gr_num, `Gradient package` = gr_package)
 
 # optimize the log composite likelihood
-constraints <- comp_obj$constraints$vcov_upper
-system.time(
-  fit <- constrOptim(
-    start$lower, 
-    \(par) -mmcif_logLik(
-      comp_obj, par, n_threads = 4L, is_log_chol = TRUE), 
-    grad = \(par) -mmcif_logLik_grad(
-      comp_obj, par, n_threads = 4L, is_log_chol = TRUE), 
-    method = "BFGS", ui = constraints, ci = rep(1e-8, NROW(constraints)),
-    control = list(maxit = 10000L)))
+system.time(fit <- mmcif_fit(start$upper, comp_obj, n_threads = 4L))
 
 # the log composite likelihood at different points
 mmcif_logLik(comp_obj, truth, n_threads = 4L, is_log_chol = TRUE)
-mmcif_logLik(comp_obj, start$lower, n_threads = 4L, is_log_chol = TRUE)
+mmcif_logLik(comp_obj, start$upper, n_threads = 4L, is_log_chol = TRUE)
 -fit$value
 ```
 
@@ -326,8 +317,7 @@ Then we compute the sandwich estimator. The Hessian is currently computed with
 numerical differentiation which is why it takes a while.
 
 ```{r sandwich, cache = 1}
-system.time(
-  sandwich_est <- mmcif_sandwich(comp_obj, fit$par, n_threads = 4L))
+system.time(sandwich_est <- mmcif_sandwich(comp_obj, fit$par, n_threads = 4L))
 ```
 
 We show
@@ -541,20 +531,11 @@ gr_num <- numDeriv::grad(
 rbind(`Numerical gradient` = gr_num, `Gradient package` = gr_package)
 
 # optimize the log composite likelihood
-constraints <- comp_obj$constraints$vcov_upper
-system.time(
-  fit <- constrOptim(
-    start$lower, 
-    \(par) -mmcif_logLik(
-      comp_obj, par, n_threads = 4L, is_log_chol = TRUE), 
-    grad = \(par) -mmcif_logLik_grad(
-      comp_obj, par, n_threads = 4L, is_log_chol = TRUE), 
-    method = "BFGS", ui = constraints, ci = rep(1e-8, NROW(constraints)),
-    control = list(maxit = 10000L)))
+system.time(fit <- mmcif_fit(start$upper, comp_obj, n_threads = 4L))
 
 # the log composite likelihood at different points
 mmcif_logLik(comp_obj, truth, n_threads = 4L, is_log_chol = TRUE)
-mmcif_logLik(comp_obj, start$lower, n_threads = 4L, is_log_chol = TRUE)
+mmcif_logLik(comp_obj, start$upper, n_threads = 4L, is_log_chol = TRUE)
 -fit$value
 ```
 
@@ -562,8 +543,7 @@ Then we compute the sandwich estimator. The Hessian is currently computed with
 numerical differentiation which is why it takes a while.
 
 ```{r delayed_sandwich, cache = 1}
-system.time(
-  sandwich_est <- mmcif_sandwich(comp_obj, fit$par, n_threads = 4L))
+system.time(sandwich_est <- mmcif_sandwich(comp_obj, fit$par, n_threads = 4L))
 ```
 
 We show
@@ -572,18 +552,12 @@ functions (the dashed curves are the estimates)
 when the random effects are zero and the covariates are zero, 
 $a_{ij} = b_{ij} = 0$.
 
-```{r delayed_compare_estimated_incidence_funcs, ref.label="compare_estimated_incidence_funcs", cache = 1}
+```{r delayed_compare_estimated_incidence_funcs, ref.label="compare_estimated_incidence_funcs", cache = 1, fig.height=knitr::opts_chunk$get("fig.width") * .5}
 ```
 
 Further illustrations of the estimated model are given below.
 
 ```{r show_res}
 ```
-
-## TODOs 
-
-The package is still under development. Here are a few TODOs:
-
- - Implement a function to do the estimation.
 
 ## References

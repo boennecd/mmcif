@@ -268,10 +268,10 @@ bench::mark(
 #> # A tibble: 4 × 6
 #>   expression         min   median `itr/sec` mem_alloc `gc/sec`
 #>   <bch:expr>    <bch:tm> <bch:tm>     <dbl> <bch:byt>    <dbl>
-#> 1 one thread        57ms   58.2ms      16.9    5.64KB        0
-#> 2 two threads     30.3ms   31.2ms      31.6        0B        0
-#> 3 three threads   20.3ms   21.2ms      47.4        0B        0
-#> 4 four threads    15.9ms   16.4ms      59.6        0B        0
+#> 1 one thread      57.8ms   58.3ms      17.1    5.64KB        0
+#> 2 two threads     30.4ms   31.2ms      31.7        0B        0
+#> 3 three threads   20.3ms     21ms      46.7        0B        0
+#> 4 four threads    16.2ms   16.5ms      58.7        0B        0
 
 # next, we compute the gradient of the log composite likelihood at the true 
 # parameters. First we assign a few functions to verify the result. You can 
@@ -339,20 +339,19 @@ bench::mark(
 #> # A tibble: 4 × 6
 #>   expression         min   median `itr/sec` mem_alloc `gc/sec`
 #>   <bch:expr>    <bch:tm> <bch:tm>     <dbl> <bch:byt>    <dbl>
-#> 1 one thread     163.5ms  164.5ms      6.08    5.94KB        0
-#> 2 two threads     89.1ms   89.5ms     11.2       336B        0
-#> 3 three threads   59.1ms   60.1ms     16.7       336B        0
-#> 4 four threads    46.5ms   47.2ms     21.1       336B        0
+#> 1 one thread     164.2ms  166.9ms      5.96    5.94KB        0
+#> 2 two threads       89ms   90.1ms     11.0       336B        0
+#> 3 three threads   60.4ms   63.6ms     15.5       336B        0
+#> 4 four threads    49.6ms   51.1ms     19.5       336B        0
 ```
 
-Then we optimize the parameters (TODO: there will be an estimation
-function).
+Then we optimize the parameters.
 
 ``` r
 # find the starting values
 system.time(start <- mmcif_start_values(comp_obj, n_threads = 4L))
 #>    user  system elapsed 
-#>   0.067   0.000   0.020
+#>   0.060   0.008   0.021
 
 # the maximum likelihood without the random effects. Note that this is not 
 # comparable with the composite likelihood
@@ -393,23 +392,14 @@ rbind(`Numerical gradient` = gr_num, `Gradient package` = gr_package)
 #> Gradient package   -25.6095 -46.13604 3.421523 -9.233461 6.520487 11.76572
 
 # optimize the log composite likelihood
-constraints <- comp_obj$constraints$vcov_upper
-system.time(
-  fit <- constrOptim(
-    start$lower, 
-    \(par) -mmcif_logLik(
-      comp_obj, par, n_threads = 4L, is_log_chol = TRUE), 
-    grad = \(par) -mmcif_logLik_grad(
-      comp_obj, par, n_threads = 4L, is_log_chol = TRUE), 
-    method = "BFGS", ui = constraints, ci = rep(1e-8, NROW(constraints)),
-    control = list(maxit = 10000L)))
+system.time(fit <- mmcif_fit(start$upper, comp_obj, n_threads = 4L))
 #>    user  system elapsed 
-#>  40.032   0.004  10.091
+#>  42.351   0.025  10.685
 
 # the log composite likelihood at different points
 mmcif_logLik(comp_obj, truth, n_threads = 4L, is_log_chol = TRUE)
 #> [1] -7087.145
-mmcif_logLik(comp_obj, start$lower, n_threads = 4L, is_log_chol = TRUE)
+mmcif_logLik(comp_obj, start$upper, n_threads = 4L, is_log_chol = TRUE)
 #> [1] -7572.462
 -fit$value
 #> [1] -7050.352
@@ -419,10 +409,9 @@ Then we compute the sandwich estimator. The Hessian is currently
 computed with numerical differentiation which is why it takes a while.
 
 ``` r
-system.time(
-  sandwich_est <- mmcif_sandwich(comp_obj, fit$par, n_threads = 4L))
+system.time(sandwich_est <- mmcif_sandwich(comp_obj, fit$par, n_threads = 4L))
 #>    user  system elapsed 
-#>  89.439   0.008  22.735
+#>  90.373   0.000  23.031
 ```
 
 We show the estimated and true the conditional cumulative incidence
@@ -693,7 +682,7 @@ truth <- c(coef_risk, coef_traject_spline, log_chol(Sigma))
 # find the starting values
 system.time(start <- mmcif_start_values(comp_obj, n_threads = 4L))
 #>    user  system elapsed 
-#>   0.068   0.000   0.019
+#>   0.058   0.000   0.019
 
 # we can verify that the gradient is correct again
 gr_package <- mmcif_logLik_grad(
@@ -720,23 +709,14 @@ rbind(`Numerical gradient` = gr_num, `Gradient package` = gr_package)
 #> Gradient package   20.36639 -9.701316 5.931385 -10.9683 -14.59037 4.324320
 
 # optimize the log composite likelihood
-constraints <- comp_obj$constraints$vcov_upper
-system.time(
-  fit <- constrOptim(
-    start$lower, 
-    \(par) -mmcif_logLik(
-      comp_obj, par, n_threads = 4L, is_log_chol = TRUE), 
-    grad = \(par) -mmcif_logLik_grad(
-      comp_obj, par, n_threads = 4L, is_log_chol = TRUE), 
-    method = "BFGS", ui = constraints, ci = rep(1e-8, NROW(constraints)),
-    control = list(maxit = 10000L)))
+system.time(fit <- mmcif_fit(start$upper, comp_obj, n_threads = 4L))
 #>    user  system elapsed 
-#>  51.778   0.000  13.425
+#>  51.702   0.000  13.390
 
 # the log composite likelihood at different points
 mmcif_logLik(comp_obj, truth, n_threads = 4L, is_log_chol = TRUE)
 #> [1] -4744.71
-mmcif_logLik(comp_obj, start$lower, n_threads = 4L, is_log_chol = TRUE)
+mmcif_logLik(comp_obj, start$upper, n_threads = 4L, is_log_chol = TRUE)
 #> [1] -5077.429
 -fit$value
 #> [1] -4723.988
@@ -746,10 +726,9 @@ Then we compute the sandwich estimator. The Hessian is currently
 computed with numerical differentiation which is why it takes a while.
 
 ``` r
-system.time(
-  sandwich_est <- mmcif_sandwich(comp_obj, fit$par, n_threads = 4L))
+system.time(sandwich_est <- mmcif_sandwich(comp_obj, fit$par, n_threads = 4L))
 #>    user  system elapsed 
-#> 231.045   0.032  61.263
+#> 225.877   0.004  59.780
 ```
 
 We show the estimated and true the conditional cumulative incidence
@@ -861,12 +840,6 @@ rbind(`Estimate AGHQ` = fit$par[comp_obj$indices$vcov_upper],
 #> Standard errors  0.5918004 0.2204120  0.3098811  0.1525855  0.8795667
 #> Truth           -0.2485168 0.3561275 -0.2929106 -0.1853214 -0.2107724
 ```
-
-## TODOs
-
-The package is still under development. Here are a few TODOs:
-
--   Implement a function to do the estimation.
 
 ## References
 

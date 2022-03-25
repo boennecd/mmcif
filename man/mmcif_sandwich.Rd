@@ -43,3 +43,6 @@ is passed is using the log Cholesky decomposition. The Hessian is computed
 using numerical differentiation with Richardson extrapolation to refine the
 estimate.
 }
+\seealso{
+\code{\link{mmcif_fit}} and \code{\link{mmcif_data}}.
+}

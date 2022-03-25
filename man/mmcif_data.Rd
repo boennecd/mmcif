@@ -45,3 +45,7 @@ and \code{"weight"}. A default is provided if \code{NULL} is passed.}
 \description{
 Setup Object to Compute the Log Composite Likelihood
 }
+\seealso{
+\code{\link{mmcif_fit}}, \code{\link{mmcif_start_values}} and
+\code{\link{mmcif_sandwich}}.
+}

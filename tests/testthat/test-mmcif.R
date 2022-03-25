@@ -221,3 +221,9 @@ test_that("the Hessian of log composite likelihood match the one from numerical 
   expect_snapshot_value(
     sandwich_value, style = "serialize", tolerance = 1e-5)
 })
+
+test_that("mmcif_fit gives the same as previously", {
+  fit <- mmcif_fit(truth, cpp_obj, n_threads = 2L, outer.eps = 1e-7)
+  expect_snapshot_value(
+    fit[c("par", "value")], style = "serialize", tolerance = 1e-5)
+})

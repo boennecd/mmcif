@@ -3,6 +3,7 @@
 export(log_chol)
 export(log_chol_inv)
 export(mmcif_data)
+export(mmcif_fit)
 export(mmcif_logLik)
 export(mmcif_logLik_grad)
 export(mmcif_sandwich)
