@@ -5,11 +5,11 @@ mmcif_data_holder <- function(covs_trajectory, d_covs_trajectory, covs_risk, has
     .Call(`_mmcif_mmcif_data_holder_to_R`, covs_trajectory, d_covs_trajectory, covs_risk, has_finite_trajectory_prob, cause, n_causes, pair_indices, singletons, covs_trajectory_delayed, pair_cluster_id)
 }
 
-mmcif_logLik <- function(data_ptr, par, ghq_data, n_threads) {
+mmcif_logLik_cpp <- function(data_ptr, par, ghq_data, n_threads) {
     .Call(`_mmcif_mmcif_logLik_to_R`, data_ptr, par, ghq_data, n_threads)
 }
 
-mmcif_logLik_grad <- function(data_ptr, par, ghq_data, n_threads) {
+mmcif_logLik_grad_cpp <- function(data_ptr, par, ghq_data, n_threads) {
     .Call(`_mmcif_mmcif_logLik_grad_to_R`, data_ptr, par, ghq_data, n_threads)
 }
 

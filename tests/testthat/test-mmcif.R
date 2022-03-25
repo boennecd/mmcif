@@ -9,20 +9,6 @@ comb_slope <- sapply(cpp_obj$spline, function(spline){
   lm.fit(cbind(1, spline$expansion(pts)), pts)$coef
 })
 
-log_chol <- function(x){
-  x <- chol(x)
-  diag(x) <- log(diag(x))
-  x[upper.tri(x, TRUE)]
-}
-
-log_chol_inv <- function(x){
-  dim <- (sqrt(8 * length(x) + 1) - 1) / 2
-  out <- matrix(0, dim, dim)
-  out[upper.tri(out, TRUE)] <- x
-  diag(out) <- exp(diag(out))
-  crossprod(out)
-}
-
 # with(gaussHermiteData(10L), list(node = x, weight = w)) |> dput()
 ghq_data <- list(
   node = c(-3.43615911883774, -2.53273167423279, -1.75668364929988, -1.03661082978951, -0.342901327223705, 0.342901327223705, 1.03661082978951, 1.75668364929988, 2.53273167423279, 3.43615911883774),
@@ -33,49 +19,26 @@ coef_traject_spline <-
         coef_traject[2, ] + comb_slope[1, ] * coef_traject[1, ],
         coef_traject[-(1:2), ])
 
-ll_func_chol <- function(par, n_threads = 1L, ghq = ghq_data){
-  n_vcov <- (2L * n_causes * (2L * n_causes + 1L)) %/% 2L
-  par <- c(head(par, -n_vcov), log_chol_inv(tail(par, n_vcov)))
-
-  mmcif:::mmcif_logLik(
-    cpp_obj$comp_obj, par = par, ghq_data = ghq, n_threads = n_threads)
-}
-
-ll_func_chol_grad <- function(par, n_threads = 1L, ghq = ghq_data){
-  n_vcov <- (2L * n_causes * (2L * n_causes + 1L)) %/% 2L
-  vcov <- log_chol_inv(tail(par, n_vcov))
-  par <- c(head(par, -n_vcov), vcov)
-
-  gr <- mmcif:::mmcif_logLik_grad(
-    cpp_obj$comp_obj, par = par, ghq_data = ghq, n_threads = n_threads)
-
-  # back propagate the gradients w.r.t. the random effects
-  d_vcov <- matrix(tail(gr, 4L * n_causes * n_causes), 2L * n_causes)
-  C <- chol(vcov)
-  d_vcov <- 2 * C %*% d_vcov
-  diag(d_vcov) <- diag(d_vcov) * diag(C)
-
-  c(head(gr, -4L * n_causes * n_causes), d_vcov[upper.tri(d_vcov, TRUE)])
-}
-
 truth <- c(coef_risk, coef_traject_spline, log_chol(Sigma))
 
 test_that("the log composite likelihood gives the same as previously", {
-  # ll_func_chol(truth, 1) |> dput()
+  # mmcif_logLik(cpp_obj, truth, ghq_data, 1, TRUE) |> dput()
   log_compos <- -439.949278998529
-  expect_equal(ll_func_chol(truth, 1), log_compos)
-  expect_equal(ll_func_chol(truth, 2), log_compos)
+  expect_equal(mmcif_logLik(cpp_obj, truth, ghq_data, 1, TRUE), log_compos)
+  expect_equal(mmcif_logLik(cpp_obj, truth, ghq_data, 2, TRUE), log_compos)
 })
 
 test_that("the gradient of log composite likelihood match the one from numerical differentation", {
-  # numDeriv::grad(\(x) ll_func_chol(x, 1), truth) |> dput()
+  # numDeriv::grad(\(x) mmcif_logLik(cpp_obj, x, ghq_data, 1, TRUE), truth) |> dput()
   grad_log_compos <- c(-2.10856790649602, 27.4239565755946, 2.30429599534527, 20.0963783392411, -17.8491973129057, 1.04607771693571, -8.74030143511687, 14.2383928150414, -8.40145900230978, 18.7570071562292, -21.2130993129746, 2.06867787244102, -8.5291673063807, 4.94853852069349, 7.58574858682438, 0.0930760225780529, -1.81161748374386, -3.10896359203321, 6.59004476369612, -6.85988430981942, 4.67223350169804, 2.06253506147011, -8.23184803800954, 7.60108260892427, 0.916561613714819, -11.3836942217331)
-  expect_equal(ll_func_chol_grad(truth, 1), grad_log_compos, tolerance = 1e-6)
-  expect_equal(ll_func_chol_grad(truth, 2), grad_log_compos, tolerance = 1e-6)
+  expect_equal(mmcif_logLik_grad(cpp_obj, truth, ghq_data, 1, TRUE),
+               grad_log_compos, tolerance = 1e-6)
+  expect_equal(mmcif_logLik_grad(cpp_obj, truth, ghq_data, 2, TRUE),
+               grad_log_compos, tolerance = 1e-6)
 })
 
 test_that("the Hessian of log composite likelihood match the one from numerical differentation", {
-  # numDeriv::jacobian(\(x) ll_func_chol_grad(x, 1), truth) |> dput()
+  # numDeriv::jacobian(\(x) mmcif_logLik_grad(cpp_obj, x, ghq_data, 1, TRUE), truth) |> dput()
   hess_log_compos <- structure(c(
       -68.8828018669068, -4.27369322977645, 0.549078772515422,
       26.154940212274, 5.49932440335191, 0.965712213665516, -5.22925545501717,

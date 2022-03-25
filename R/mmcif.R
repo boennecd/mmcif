@@ -6,6 +6,10 @@
   ghq_data
 }
 
+.check_is_log_chol <- function(is_log_chol)
+  stopifnot(is.logical(is_log_chol), length(is_log_chol) == 1,
+            is_log_chol %in% c(FALSE, TRUE))
+
 #' Setup Object to Compute the Log Composite Likelihood
 #'
 #' @param formula \code{formula} for covariates in the risk and trajectories.
@@ -210,24 +214,74 @@ mmcif_data <- function(formula, data, cause, time, cluster_id, max_time,
   stopifnot(length(n_threads) == 1, is.finite(n_threads), n_threads > 0)
 }
 
-.log_chol <- function(x){
-  x <- chol(x)
-  diag(x) <- log(diag(x))
-  x[upper.tri(x, TRUE)]
+#' Evaluates the Log Composite Likelihood and its Gradient
+#'
+#' @param object an object from \code{\link{mmcif_data}}.
+#' @param n_threads the number of threads to use.
+#' @param par numeric vector with parameters. This is either using a log
+#' Cholesky decomposition for the covariance matrix or the covariance matrix.
+#' @param ghq_data the Gauss-Hermite quadrature nodes and weights to
+#' use. It should be stored as a list with two elements called \code{"node"}
+#' and \code{"weight"}. A default is provided if \code{NULL} is passed.
+#' @param is_log_chol logical for whether a log Cholesky decomposition is used
+#' for the covariance matrix or the full covariance matrix.
+#'
+#'
+#' @importFrom utils tail
+#' @export
+mmcif_logLik <- function(
+  object, par, ghq_data = object$ghq_data, n_threads = 1L,
+  is_log_chol = FALSE){
+  stopifnot(inherits(object, "mmcif"))
+  .check_n_threads(n_threads)
+  .check_is_log_chol(is_log_chol)
+
+  if(is_log_chol){
+    n_causes <- object$indices$n_causes
+    n_vcov <- (2L * n_causes * (2L * n_causes + 1L)) %/% 2L
+    par <- c(head(par, -n_vcov), log_chol_inv(tail(par, n_vcov)))
+  }
+
+  mmcif_logLik_cpp(
+    object$comp_obj, par = par, ghq_data = ghq_data, n_threads = n_threads)
 }
 
-.log_chol_inv <- function(x){
-  dim <- (sqrt(8 * length(x) + 1) - 1) / 2
-  out <- matrix(0, dim, dim)
-  out[upper.tri(out, TRUE)] <- x
-  diag(out) <- exp(diag(out))
-  crossprod(out)
+#' @rdname mmcif_logLik
+#' @export
+mmcif_logLik_grad <- function(
+  object, par, ghq_data = object$ghq_data, n_threads = 1L,
+  is_log_chol = FALSE){
+  stopifnot(inherits(object, "mmcif"))
+  .check_n_threads(n_threads)
+  .check_is_log_chol(is_log_chol)
+
+
+  if(is_log_chol){
+    par_org <- par
+
+    n_causes <- object$indices$n_causes
+    n_vcov <- (2L * n_causes * (2L * n_causes + 1L)) %/% 2L
+    vcov <- log_chol_inv(tail(par, n_vcov))
+    par <- c(head(par, -n_vcov), vcov)
+  }
+
+  gr <- mmcif_logLik_grad_cpp(
+    object$comp_obj, par = par, ghq_data = ghq_data, n_threads = n_threads)
+  if(!is_log_chol)
+    return(gr)
+
+  # back propagate the gradients w.r.t. the random effects
+  d_vcov <- matrix(tail(gr, 4L * n_causes * n_causes), 2L * n_causes)
+  C <- chol(vcov)
+  d_vcov <- 2 * C %*% d_vcov
+  diag(d_vcov) <- diag(d_vcov) * diag(C)
+
+  c(head(gr, -4L * n_causes * n_causes), d_vcov[upper.tri(d_vcov, TRUE)])
 }
 
 #' Finds Staring Values
 #'
-#' @param object an object from \code{\link{mmcif_data}}.
-#' @param n_threads the number of threads to use.
+#' @inheritParams mmcif_logLik
 #' @param vcov_start starting value for the covariance matrix of the random
 #' effects. \code{NULL} yields the identity matrix.
 #'
@@ -324,7 +378,7 @@ mmcif_start_values <- function(object, n_threads = 1L, vcov_start = NULL){
             all(is.finite(vcov_start)))
 
   structure(list(full = c(opt$par, c(vcov_start)),
-                 lower = c(opt$par, .log_chol(vcov_start))),
+                 lower = c(opt$par, log_chol(vcov_start))),
             logLik = -opt$value)
 }
 
@@ -336,7 +390,7 @@ mmcif_start_values <- function(object, n_threads = 1L, vcov_start = NULL){
 #' using numerical differentiation with Richardson extrapolation to refine the
 #' estimate.
 #'
-#' @inheritParams mmcif_start_values
+#' @inheritParams mmcif_logLik
 #' @param par numeric vector with the parameters to compute the sandwich
 #' estimator at.
 #' @param eps determines the step size in the numerical differentiation using
@@ -345,9 +399,6 @@ mmcif_start_values <- function(object, n_threads = 1L, vcov_start = NULL){
 #' @param tol relative convergence criteria in the extrapolation given
 #' by \code{max(tol, |g[j]| * tol)} with \code{g} being the gradient.
 #' @param order maximum number of iteration of the Richardson extrapolation.
-#' @param ghq_data the Gauss-Hermite quadrature nodes and weights to
-#' use. It should be stored as a list with two elements called \code{"node"}
-#' and \code{"weight"}. A default is provided if \code{NULL} is passed.
 #'
 #' @export
 mmcif_sandwich <- function(

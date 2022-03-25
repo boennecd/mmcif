@@ -283,7 +283,7 @@ SEXP mmcif_data_holder_to_R
         singletons, covs_trajectory_delayed, pair_cluster_id));
 }
 
-// [[Rcpp::export("mmcif_logLik", rng = false)]]
+// [[Rcpp::export("mmcif_logLik_cpp", rng = false)]]
 double mmcif_logLik_to_R
   (SEXP data_ptr, NumericVector const par, Rcpp::List ghq_data,
    unsigned n_threads){
@@ -391,7 +391,7 @@ double mmcif_logLik_grad
   return log_lik;
 }
 
-// [[Rcpp::export("mmcif_logLik_grad", rng = false)]]
+// [[Rcpp::export("mmcif_logLik_grad_cpp", rng = false)]]
 Rcpp::NumericVector mmcif_logLik_grad_to_R
   (SEXP data_ptr, NumericVector const par, Rcpp::List ghq_data,
    unsigned const n_threads){
