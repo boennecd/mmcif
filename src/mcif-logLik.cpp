@@ -1,5 +1,6 @@
 #include "mmcif-logLik.h"
-#include <Rmath.h> // Rf_dnorm4
+#include "dnorm.h"
+#include "pnorm.h"
 #include "mmcif-misc.h"
 #include <algorithm>
 
@@ -137,7 +138,7 @@ double mcif_logLik
     double likelihood{1};
     for(size_t cause = 0; cause < n_causes; ++cause){
       double const lp_traject{helper.comp_lp_traject(obs, cause)};
-      likelihood -= Rf_pnorm5(lp_traject, 0, 1, 1, 0) *
+      likelihood -= ghqCpp::pnorm_std(lp_traject, 1, 0) *
         exp_logits[cause] / denom;
     }
 
@@ -147,7 +148,7 @@ double mcif_logLik
   double const lp_traject{helper.comp_lp_traject(obs)},
              d_lp_traject{helper.comp_d_lp_traject(obs)};
 
-  double out{std::log(d_lp_traject) + Rf_dnorm4(lp_traject, 0, 1, 1)};
+  double out{std::log(d_lp_traject) + ghqCpp::dnrm_log(lp_traject)};
 
   if constexpr(!with_risk)
     return out;
@@ -223,8 +224,8 @@ double mcif_logLik_grad
 
     for(size_t cause = 0; cause < n_causes; ++cause){
       double const lp_traject{helper.comp_lp_traject(obs, cause)};
-      double const qnrm{Rf_pnorm5(lp_traject, 0, 1, 1, 0)},
-                   term{qnrm * exp_logits[cause] / denom};
+      double const pnrm{ghqCpp::pnorm_std(lp_traject, 1, 0)},
+                   term{pnrm * exp_logits[cause] / denom};
 
       likelihood -= term;
 
@@ -238,7 +239,7 @@ double mcif_logLik_grad
       }
 
       grads_lp_traject[cause] =
-        -Rf_dnorm4(lp_traject, 0, 1, 0) * exp_logits[cause] / denom;
+        -std::exp(ghqCpp::dnrm_log(lp_traject)) * exp_logits[cause] / denom;
 
     }
 
@@ -256,7 +257,7 @@ double mcif_logLik_grad
   double const lp_traject{helper.comp_lp_traject(obs)},
              d_lp_traject{helper.comp_d_lp_traject(obs)};
 
-  double out{std::log(d_lp_traject) + Rf_dnorm4(lp_traject, 0, 1, 1)};
+  double out{std::log(d_lp_traject) + ghqCpp::dnrm_log(lp_traject)};
 
   helper.comp_d_lp_traject_backprop(1/d_lp_traject, obs, grad);
   helper.comp_lp_traject_backprop(-lp_traject, obs, grad);

@@ -5,7 +5,7 @@
 #include "integrand-cond-pbvn.h"
 #include <numeric>
 #include <array>
-#include <Rmath.h> // Rf_dnorm4
+#include "dnorm.h"
 #include "mmcif-misc.h"
 
 using namespace ghqCpp;
@@ -101,7 +101,7 @@ public:
     double const *vcov{par + indexer.vcov()};
     auto const idx = cause + n_causes;
     double var{1 + vcov[idx + idx * 2 * n_causes]};
-    return Rf_dnorm4(lp_traject, 0, std::sqrt(var), 1);
+    return ghqCpp::dnrm_log(lp_traject, std::sqrt(var));
   }
 
   /**
@@ -115,7 +115,7 @@ public:
     auto const idx = cause + n_causes;
     double var{1 + vcov[idx + idx * 2 * n_causes]};
     return {
-      Rf_dnorm4(lp_traject, 0, std::sqrt(var), 1),
+      ghqCpp::dnrm_log(lp_traject, std::sqrt(var)),
       - lp_traject / var,
       (lp_traject * lp_traject - var) / (2 * var * var) };
   }
