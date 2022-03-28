@@ -390,6 +390,21 @@ log_chol_inv(tail(fit$par, n_vcov))
 rbind(`Estimate AGHQ` = fit$par[comp_obj$indices$vcov_upper],
       `Standard errors` = SEs[comp_obj$indices$vcov_upper],
       Truth = truth[comp_obj$indices$vcov_upper])
+
+# on the original covariance matrix scale
+vcov_est <- log_chol_inv(tail(fit$par, n_vcov))
+vcov_est[lower.tri(vcov_est)] <- NA_real_
+vcov_SE <- matrix(NA_real_, NROW(vcov_est), NCOL(vcov_est))
+vcov_SE[upper.tri(vcov_SE, TRUE)] <- 
+  attr(sandwich_est, "res vcov") |> diag() |> sqrt() |> 
+  tail(n_vcov)
+
+vcov_show <- cbind(Estimates = vcov_est, NA, SEs = vcov_SE) 
+colnames(vcov_show) <- 
+  c(rep("Est.", NCOL(vcov_est)), "", rep("SE", NCOL(vcov_est)))
+print(vcov_show, na.print = "")
+
+Sigma # the true values
 ```
 
 ### Delayed Entry

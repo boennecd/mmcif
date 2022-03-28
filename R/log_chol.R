@@ -24,3 +24,21 @@ log_chol_inv <- function(x){
   diag(out) <- exp(diag(out))
   crossprod(out)
 }
+
+jac_log_chol_inv <- function(x){
+  z <- chol(log_chol_inv(x))
+  n <- NCOL(z)
+  res <- kronecker(t(z), diag(n)) %*% get_commutation(n, n) +
+    kronecker(diag(n), t(z))
+
+  mult <- rep(1., length(x))
+  j <- 0L
+  for(i in Reduce(`+`, 1:n, 0L, accumulate = TRUE)[-1]){
+    j <- j + 1L
+    mult[i] <- z[j, j]
+  }
+
+  res <- res[, upper.tri(z, TRUE)] * rep(mult, each = NROW(res))
+  res[upper.tri(z), ] <- 2 * res[upper.tri(z), ]
+  res[upper.tri(z, TRUE), ]
+}

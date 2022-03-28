@@ -453,5 +453,12 @@ mmcif_sandwich <- function(
   meat <- cpp_res$meat
   res <- solve(hessian, t(solve(hessian, meat)))
 
-  structure(res, meat = meat, hessian = hessian)
+  # construct the covariance matrix estimate on the original covariance matrix
+  # scale
+  jac <- diag(length(par))
+  jac[object$indices$vcov_upper, object$indices$vcov_upper] <-
+    jac_log_chol_inv(par[object$indices$vcov_upper])
+  res_org <- tcrossprod(jac %*% res, jac)
+
+  structure(res, meat = meat, hessian = hessian, `res vcov` = res_org)
 }

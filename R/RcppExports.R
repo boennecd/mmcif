@@ -37,3 +37,11 @@ create_pair_indices <- function(cluster_id, obs_idx) {
     .Call(`_mmcif_create_pair_indices`, cluster_id, obs_idx)
 }
 
+commutation_dot <- function(n, m, x, transpose) {
+    .Call(`_mmcif_commutation_dot`, n, m, x, transpose)
+}
+
+get_commutation <- function(n, m) {
+    .Call(`_mmcif_get_commutation`, n, m)
+}
+

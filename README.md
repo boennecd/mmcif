@@ -268,10 +268,10 @@ bench::mark(
 #> # A tibble: 4 × 6
 #>   expression         min   median `itr/sec` mem_alloc `gc/sec`
 #>   <bch:expr>    <bch:tm> <bch:tm>     <dbl> <bch:byt>    <dbl>
-#> 1 one thread      55.9ms   56.9ms      17.0    5.64KB        0
-#> 2 two threads     29.6ms   30.2ms      32.9        0B        0
-#> 3 three threads   20.2ms     22ms      40.0        0B        0
-#> 4 four threads    16.3ms   17.5ms      55.6        0B        0
+#> 1 one thread      56.1ms   56.4ms      17.7    5.64KB        0
+#> 2 two threads     29.7ms   30.6ms      32.3        0B        0
+#> 3 three threads   20.1ms   20.5ms      48.6        0B        0
+#> 4 four threads    15.8ms   16.2ms      61.4        0B        0
 
 # next, we compute the gradient of the log composite likelihood at the true 
 # parameters. First we assign a few functions to verify the result. You can 
@@ -339,10 +339,10 @@ bench::mark(
 #> # A tibble: 4 × 6
 #>   expression         min   median `itr/sec` mem_alloc `gc/sec`
 #>   <bch:expr>    <bch:tm> <bch:tm>     <dbl> <bch:byt>    <dbl>
-#> 1 one thread     159.6ms    162ms      6.16    5.94KB        0
-#> 2 two threads     86.9ms   87.2ms     11.4       336B        0
-#> 3 three threads     58ms   58.7ms     17.0       336B        0
-#> 4 four threads    46.8ms   49.5ms     20.2       336B        0
+#> 1 one thread     159.5ms  160.1ms      6.24    5.94KB        0
+#> 2 two threads     86.9ms   87.7ms     11.4       336B        0
+#> 3 three threads   57.7ms   58.8ms     16.9       336B        0
+#> 4 four threads    45.7ms   46.6ms     21.5       336B        0
 ```
 
 Then we optimize the parameters.
@@ -351,7 +351,7 @@ Then we optimize the parameters.
 # find the starting values
 system.time(start <- mmcif_start_values(comp_obj, n_threads = 4L))
 #>    user  system elapsed 
-#>   0.063   0.000   0.020
+#>   0.058   0.004   0.021
 
 # the maximum likelihood without the random effects. Note that this is not 
 # comparable with the composite likelihood
@@ -394,7 +394,7 @@ rbind(`Numerical gradient` = gr_num, `Gradient package` = gr_package)
 # optimize the log composite likelihood
 system.time(fit <- mmcif_fit(start$upper, comp_obj, n_threads = 4L))
 #>    user  system elapsed 
-#>  40.472   0.008  10.192
+#>  39.773   0.000  10.012
 
 # the log composite likelihood at different points
 mmcif_logLik(comp_obj, truth, n_threads = 4L, is_log_chol = TRUE)
@@ -411,7 +411,7 @@ computed with numerical differentiation which is why it takes a while.
 ``` r
 system.time(sandwich_est <- mmcif_sandwich(comp_obj, fit$par, n_threads = 4L))
 #>    user  system elapsed 
-#>  91.433   0.016  23.283
+#>  89.617   0.000  22.806
 ```
 
 We show the estimated and true the conditional cumulative incidence
@@ -526,6 +526,36 @@ rbind(`Estimate AGHQ` = fit$par[comp_obj$indices$vcov_upper],
 #> Estimate AGHQ   -0.2537332 0.2577386 -0.4945974 -0.1056186 -0.1506922
 #> Standard errors  0.1064636 0.2403597  0.2011015  0.1503139  0.1873742
 #> Truth           -0.2485168 0.3561275 -0.2929106 -0.1853214 -0.2107724
+
+# on the original covariance matrix scale
+vcov_est <- log_chol_inv(tail(fit$par, n_vcov))
+vcov_est[lower.tri(vcov_est)] <- NA_real_
+vcov_SE <- matrix(NA_real_, NROW(vcov_est), NCOL(vcov_est))
+vcov_SE[upper.tri(vcov_SE, TRUE)] <- 
+  attr(sandwich_est, "res vcov") |> diag() |> sqrt() |> 
+  tail(n_vcov)
+
+vcov_show <- cbind(Estimates = vcov_est, NA, SEs = vcov_SE) 
+colnames(vcov_show) <- 
+  c(rep("Est.", NCOL(vcov_est)), "", rep("SE", NCOL(vcov_est)))
+print(vcov_show, na.print = "")
+#>           Est.       Est.        Est.       Est.         SE        SE        SE
+#> [1,] 0.3854311 0.05166155 -0.05648918  0.1600121  0.1602137 0.3012599 0.1787952
+#> [2,]           0.81947676  0.24228289 -0.4243911            0.2724139 0.2208577
+#> [3,]                       0.68712660 -0.2424933                      0.1158075
+#> [4,]                                   1.0620045                               
+#>             SE
+#> [1,] 0.3015231
+#> [2,] 0.3633107
+#> [3,] 0.2065627
+#> [4,] 0.2820618
+
+Sigma # the true values
+#>        [,1]   [,2]   [,3]   [,4]
+#> [1,]  0.306  0.008 -0.138  0.197
+#> [2,]  0.008  0.759  0.251 -0.250
+#> [3,] -0.138  0.251  0.756 -0.319
+#> [4,]  0.197 -0.250 -0.319  0.903
 ```
 
 ### Delayed Entry
@@ -682,7 +712,7 @@ truth <- c(coef_risk, coef_traject_spline, log_chol(Sigma))
 # find the starting values
 system.time(start <- mmcif_start_values(comp_obj, n_threads = 4L))
 #>    user  system elapsed 
-#>   0.059   0.000   0.019
+#>   0.049   0.000   0.016
 
 # we can verify that the gradient is correct again
 gr_package <- mmcif_logLik_grad(
@@ -711,7 +741,7 @@ rbind(`Numerical gradient` = gr_num, `Gradient package` = gr_package)
 # optimize the log composite likelihood
 system.time(fit <- mmcif_fit(start$upper, comp_obj, n_threads = 4L))
 #>    user  system elapsed 
-#>  47.641   0.000  12.294
+#>  50.688   0.004  13.112
 
 # the log composite likelihood at different points
 mmcif_logLik(comp_obj, truth, n_threads = 4L, is_log_chol = TRUE)
@@ -728,7 +758,7 @@ computed with numerical differentiation which is why it takes a while.
 ``` r
 system.time(sandwich_est <- mmcif_sandwich(comp_obj, fit$par, n_threads = 4L))
 #>    user  system elapsed 
-#> 228.331   0.064  60.444
+#> 227.433   0.016  60.186
 ```
 
 We show the estimated and true the conditional cumulative incidence
@@ -839,6 +869,36 @@ rbind(`Estimate AGHQ` = fit$par[comp_obj$indices$vcov_upper],
 #> Estimate AGHQ   -0.7895923 0.2308912 -0.1133134 -0.6814123 -1.3820464
 #> Standard errors  0.5918002 0.2204120  0.3098811  0.1525855  0.8795667
 #> Truth           -0.2485168 0.3561275 -0.2929106 -0.1853214 -0.2107724
+
+# on the original covariance matrix scale
+vcov_est <- log_chol_inv(tail(fit$par, n_vcov))
+vcov_est[lower.tri(vcov_est)] <- NA_real_
+vcov_SE <- matrix(NA_real_, NROW(vcov_est), NCOL(vcov_est))
+vcov_SE[upper.tri(vcov_SE, TRUE)] <- 
+  attr(sandwich_est, "res vcov") |> diag() |> sqrt() |> 
+  tail(n_vcov)
+
+vcov_show <- cbind(Estimates = vcov_est, NA, SEs = vcov_SE) 
+colnames(vcov_show) <- 
+  c(rep("Est.", NCOL(vcov_est)), "", rep("SE", NCOL(vcov_est)))
+print(vcov_show, na.print = "")
+#>           Est.       Est.        Est.       Est.         SE        SE        SE
+#> [1,] 0.3370469 -0.1472955 -0.07178608  0.1340456  0.1859214 0.2396936 0.2268023
+#> [2,]            0.3656635  0.41934137 -0.1207782            0.1702492 0.2281030
+#> [3,]                       0.72101446 -0.4180224                      0.1472856
+#> [4,]                                   0.5935066                               
+#>             SE
+#> [1,] 0.2721851
+#> [2,] 0.2972779
+#> [3,] 0.2563843
+#> [4,] 0.1838320
+
+Sigma # the true values
+#>        [,1]   [,2]   [,3]   [,4]
+#> [1,]  0.306  0.008 -0.138  0.197
+#> [2,]  0.008  0.759  0.251 -0.250
+#> [3,] -0.138  0.251  0.756 -0.319
+#> [4,]  0.197 -0.250 -0.319  0.903
 ```
 
 ## References

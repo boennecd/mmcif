@@ -133,6 +133,30 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// commutation_dot
+Rcpp::NumericVector commutation_dot(unsigned const n, unsigned const m, Rcpp::NumericVector x, bool const transpose);
+RcppExport SEXP _mmcif_commutation_dot(SEXP nSEXP, SEXP mSEXP, SEXP xSEXP, SEXP transposeSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::traits::input_parameter< unsigned const >::type n(nSEXP);
+    Rcpp::traits::input_parameter< unsigned const >::type m(mSEXP);
+    Rcpp::traits::input_parameter< Rcpp::NumericVector >::type x(xSEXP);
+    Rcpp::traits::input_parameter< bool const >::type transpose(transposeSEXP);
+    rcpp_result_gen = Rcpp::wrap(commutation_dot(n, m, x, transpose));
+    return rcpp_result_gen;
+END_RCPP
+}
+// get_commutation
+Rcpp::NumericMatrix get_commutation(unsigned const n, unsigned const m);
+RcppExport SEXP _mmcif_get_commutation(SEXP nSEXP, SEXP mSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::traits::input_parameter< unsigned const >::type n(nSEXP);
+    Rcpp::traits::input_parameter< unsigned const >::type m(mSEXP);
+    rcpp_result_gen = Rcpp::wrap(get_commutation(n, m));
+    return rcpp_result_gen;
+END_RCPP
+}
 
 RcppExport SEXP run_testthat_tests(SEXP);
 
@@ -146,6 +170,8 @@ static const R_CallMethodDef CallEntries[] = {
     {"_mmcif_ns_ptr", (DL_FUNC) &_mmcif_ns_ptr, 2},
     {"_mmcif_ns_eval", (DL_FUNC) &_mmcif_ns_eval, 3},
     {"_mmcif_create_pair_indices", (DL_FUNC) &_mmcif_create_pair_indices, 2},
+    {"_mmcif_commutation_dot", (DL_FUNC) &_mmcif_commutation_dot, 4},
+    {"_mmcif_get_commutation", (DL_FUNC) &_mmcif_get_commutation, 2},
     {"run_testthat_tests", (DL_FUNC) &run_testthat_tests, 1},
     {NULL, NULL, 0}
 };
