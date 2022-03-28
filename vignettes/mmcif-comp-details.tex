@@ -1,0 +1,560 @@
+\documentclass{article}
+
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{bm}
+\usepackage[margin=1in]{geometry}
+\usepackage{hyperref}
+\usepackage{acronym}
+\usepackage{natbib}
+
+% math commands
+\newcommand\mat[1]{\mathbf{#1}}
+\renewcommand\vec{\bm}
+\newcommand\der{\operatorname{d\!}{}}
+\newcommand\bigO[1]{\mathcal{O}\left(#1\right)}
+\DeclareMathOperator\tr{tr}
+\DeclareMathOperator\Prob{P}
+\DeclareMathOperator\Excp{E}
+\DeclareMathOperator\Var{Var}
+\DeclareMathOperator\vecOP{vec}
+\DeclareMathOperator\diag{diag}
+\DeclareMathOperator\trace{tr}
+
+\DeclareMathOperator*{\argmax}{arg\,max}
+\DeclareMathOperator*{\argmin}{arg\,min}
+
+\begin{document}
+
+\section{Details for the Composite Likelihood Implementation}
+
+This vignette covers computational details about the implementation. 
+It is provided for interested users. The vignette largely follows 
+\cite{Cederkvist18} but we point out a few additional ways to speed up 
+the computation and how to make an implementation.
+
+We have $n$ clusters with each having $m_i$ members. Let 
+$T_{ij}^*$, $\epsilon_{ij}^*$, and $C_{ij}$ be the 
+failure time, the cause of failure, and the censoring time 
+of individual $j$ in cluster $i$, respectively. 
+There are $K$ competing risks and, thus, 
+$\epsilon_{ij}^*\in \{1,\dots,K\}$. Let $T_{ij} = \min(T_{ij}^*, C_{ij})$ 
+be the observed time, 
+$\Lambda_{ij} = I(T_{ij}^*\leq C_{ij})$ be an 
+event indicator and $\epsilon_{ij} = \Lambda_{ij}\epsilon_{ij}^*\in \{0,1,\dots,K\}$ be the
+observed failure cause. 
+
+Each cluster has a cluster specific random effect given by %
+%
+$$
+\begin{pmatrix}\vec U_i \\ \vec\eta_i\end{pmatrix}
+  \sim N^{(2K)}(\vec 0, \mat\Sigma)
+$$%
+%
+where $\vec U_i,\vec\eta_i\in\mathbb R^K$ and $\sim N^{(V)}(\vec 0, \mat\Psi)$ 
+indicates that a random follows a $V$ dimensional multivariate normal
+distribution with mean $\vec 0$ and covariance matrix $\mat\Psi$. 
+The conditional density of 
+observing event $k$ at the observed time $t$ for individual $j$ in cluster 
+$i$ is %
+%
+$$
+F_{kij}(t\mid \vec u_i, \vec\eta_i) = 
+  \pi_k(\vec z_{ij},\vec u_i)\Phi(-\vec x_{ij}(t)^\top\vec\gamma_k - \eta_{ik})
+$$%
+%
+where %
+%
+$$
+\pi_k(\vec z_{ij},\vec u_i) = 
+  \frac{\exp(\vec z_{ij}^\top\vec\beta_k + u_{ik})}
+       {1 + \sum_{l = 1}^K \exp(\vec z_{ij}^\top\vec\beta_l + u_{il})}
+$$%
+%
+and $\vec x_{ij}(t)^\top\vec\gamma_k$ is monotonically decreasing. 
+Thus, the conditional 
+survival probability is%
+%
+$$
+1 - \sum_{k = 1}^K F_{kij}(t\mid \vec u_i, \vec\eta_i).
+$$
+
+We allow for $-\vec x_{ij}(t)^\top\vec\gamma_k = \infty$ such that 
+$F_{kij}(t\mid \vec u_i, \vec\eta_i) = \pi_k(\vec z_{ij},\vec u_i)$. 
+In the case where this is true for all $k\in\{1,\dots,K\}$, 
+the conditional survival probability simplifies to %
+%
+$$
+\pi_0(\vec z_{ij},\vec u_i) = 
+  \frac
+    1{1 + \sum_{l = 1}^K \exp(\vec z_{ij}^\top\vec\beta_l + u_{il})}.
+$$%
+% 
+This can be used to greatly simplify the computations.
+
+\subsection*{Composite Likelihood}
+
+The model is estimated with pairwise composite likelihood. This leads to 
+three types of the log composite likelihood terms. The first type is when both 
+$j'$ and $j$ are observed with failure cause $k'$ and $k$
+at time $t'$ and $t$. The term is given by%
+%
+\begin{multline*}
+\log(-\vec x'_{ij}(t)^\top\vec\gamma_k) + \log(-\vec x'_{ij'}(t')^\top\vec\gamma_{k'})
+  +\log\int\int 
+    \pi_k(\vec z_{ij},\vec u_i)\phi(-\vec x_{ij}(t)^\top\vec\gamma_k - \eta_{ik})  \\ 
+  \cdot
+    \pi_{k'}(\vec z_{ij'},\vec u_i)\phi(-\vec x_{ij'}(t')^\top\vec\gamma_{k'} - \eta_{i{k'}})
+    \phi^{(2K)}\left(
+      \begin{pmatrix}
+        \vec u_i \\ \vec\eta_i
+      \end{pmatrix}, \vec 0,\mat \Sigma\right)
+    \der \vec u_i\der \vec\eta_i
+\end{multline*}%
+%
+where the derivatives are w.r.t.\ time and 
+$\phi^{(2K)}(\vec x;\vec\mu,\mat\Sigma)$ is the $2K$ dimensional 
+multivariate normal distribution's density with mean $\vec\mu$ and covariance 
+matrix $\mat\Sigma$. We can use that %
+%
+\begin{multline*}
+\phi^{(2)}\left(
+  \begin{pmatrix}
+    -\vec x_{ij}(t)^\top\vec\gamma_k \\
+    -\vec x_{ij'}(t')^\top\vec\gamma_{k'} 
+  \end{pmatrix}; \mat V \begin{pmatrix}\vec u_i \\ \vec\eta_i \end{pmatrix},
+  \mat I_2
+  \right)
+  \phi^{(2K)}\left(
+    \begin{pmatrix}\vec u_i \\ \vec\eta_i \end{pmatrix}; \vec 0,\mat\Sigma
+    \right) \\
+  = \phi^{(2)}\left(
+  \begin{pmatrix}
+    -\vec x_{ij}(t)^\top\vec\gamma_k \\
+    -\vec x_{ij'}(t')^\top\vec\gamma_{k'} 
+  \end{pmatrix}; \vec 0 ,
+  \mat I_2 + \mat V\mat\Sigma\mat V^\top
+  \right)
+  \phi^{(2K)}\left(
+    \begin{pmatrix}\vec u_i \\ \vec\eta_i \end{pmatrix}; 
+    \mat M\mat V^\top\begin{pmatrix}
+      -\vec x_{ij}(t)^\top\vec\gamma_k \\
+      -\vec x_{ij'}(t')^\top\vec\gamma_{k'} 
+    \end{pmatrix},
+    \mat M
+    \right)
+\end{multline*}%
+%
+where $\mat I_l$ is the $l$ dimensional identity matrix,
+$\mat V$ is a matrix containing zeros except for a one in 
+the $K + k$th entry in the 
+first row and the $K + k'$th entry in the second row and 
+$\mat M = (\mat V^\top\mat V + \mat\Sigma^{-1})^{-1}$. Thus, we can re-write the 
+log composite likelihood term as%
+%
+%set.seed(11)
+%K <- 3L
+%Sigma <- rWishart(1, 2L * K, diag(2L * K)) |> drop()
+%ks <- sample(K, 2, replace = TRUE)
+%V <- matrix(0, 2L, 2L * K)
+%for(i in 1:2)
+%  V[i, K + ks[i]] <- 1
+%library(mvtnorm)
+%ue <- rmvnorm(1, sigma = Sigma) |> drop()
+%dum <- runif(2, -1)
+%v1 <- dmvnorm(dum, V %*% ue) * dmvnorm(ue, sigma = Sigma)
+%M <- solve(crossprod(V) + solve(Sigma))
+%v2 <- dmvnorm(dum, sigma = diag(2) + V %*% Sigma %*% t(V)) * 
+%  dmvnorm(ue, M %*% crossprod(V, dum), M)
+%all.equal(v1, v2)
+%
+\begin{multline*}
+\log(-\vec x'_{ij}(t)^\top\vec\gamma_k) + \log(-\vec x'_{ij'}(t')^\top\vec\gamma_{k'})
+  +\log\phi^{(2)}\left(
+  \begin{pmatrix}
+    -\vec x_{ij}(t)^\top\vec\gamma_k \\
+    -\vec x_{ij'}(t')^\top\vec\gamma_{k'} 
+  \end{pmatrix}; \vec 0 ,
+  \mat I_2 + \mat V\mat\Sigma\mat V^\top
+  \right) \\ 
++ \log\int\int 
+    \pi_k(\vec z_{ij},\vec u_i)\
+    \pi_{k'}(\vec z_{ij'},\vec u_i)
+    \phi^{(2K)}\left(
+    \begin{pmatrix}\vec u_i \\ \vec\eta_i \end{pmatrix}; 
+    \mat M\mat V^\top\begin{pmatrix}
+      -\vec x_{ij}(t)^\top\vec\gamma_k \\
+      -\vec x_{ij'}(t')^\top\vec\gamma_{k'} 
+    \end{pmatrix},
+    \mat M
+    \right)
+    \der \vec u_i\der \vec\eta_i
+\end{multline*}%
+%
+which further simplifies to %
+%
+\begin{multline*}
+\log(-\vec x'_{ij}(t)^\top\vec\gamma_k) + \log(-\vec x'_{ij'}(t')^\top\vec\gamma_{k'})
+  +\log\phi^{(2)}\left(
+  \begin{pmatrix}
+    -\vec x_{ij}(t)^\top\vec\gamma_k \\
+    -\vec x_{ij'}(t')^\top\vec\gamma_{k'} 
+  \end{pmatrix}; \vec 0 ,
+  \mat I_2 + \mat V\mat\Sigma\mat V^\top
+  \right) \\ 
++ \log\int
+    \pi_k(\vec z_{ij},\vec u_i)\
+    \pi_{k'}(\vec z_{ij'},\vec u_i)
+    \phi^{(K)}\left(
+    \vec u_i; 
+    \mat M_{1:K,\cdot}\mat V^\top\begin{pmatrix}
+      -\vec x_{ij}(t)^\top\vec\gamma_k \\
+      -\vec x_{ij'}(t')^\top\vec\gamma_{k'} 
+    \end{pmatrix},
+    \mat M_{1:K,1:K}
+    \right)
+    \der \vec u_i
+\end{multline*}
+%
+where $\mat M_{1:l,1:l'}$ is the first $l\times l'$ block of 
+$\mat M$ and a '$\cdot$' denotes all rows or columns. 
+The problem can be standardized to working with 
+fixed values $\vec a_{ijl} = -\vec x_{ij}(t)^\top\vec\gamma_l$'s and 
+$\vec b_{ijl} = \vec z_{ij}^\top\vec\beta_l$'s
+and matrix $\mat M$ and computing the derivatives w.r.t.\ these quantities,
+$\vec a_{ijl}$'s, $\vec b_{ijl}$'s and $\mat M$. 
+The chain rule can then be applied to get the derivatives w.r.t.\ 
+the $\vec\gamma_l$'s, $\vec\beta_l$'s, and $\mat\Sigma$. This is  
+computationally very fast. The sparsity of $\mat V$ can also be used to 
+simplify the expression above.
+
+With one censored individual $j'$ and observed outcome for $j$ with 
+failure cause $k$, the log 
+composite likelihood term is %
+%
+\begin{multline*}
+\log(-\vec x'_{ij}(t)^\top\vec\gamma_k) + \log \int\int 
+  \pi_k(\vec z_{ij},\vec u_i)\phi(-\vec x_{ij}(t)^\top\vec\gamma_k - \eta_{ik})
+  \left(1 - \sum_{k' = 1}^K F_{k'ij'}(t'\mid \vec u_i, \vec\eta_i)\right) \\
+\cdot\phi^{(2K)}\left(
+      \begin{pmatrix}
+        \vec u_i \\ \vec\eta_i
+      \end{pmatrix}, \vec 0,\mat \Sigma\right)
+  \der \vec u_i\der \vec\eta_i.
+\end{multline*}%
+%
+Again, we can turn around the conditioning to get %
+%
+\begin{multline*}
+\log(-\vec x'_{ij}(t)^\top\vec\gamma_k)  
+  + \log \phi\left(
+    -\vec x_{ij}(t)^\top\vec\gamma_k, 0, 1 + \vec v^\top\mat\Sigma\vec v\right) \\
++ \log \int\int 
+  \pi_k(\vec z_{ij},\vec u_i)
+  \left(1 - \sum_{k' = 1}^K F_{k'ij'}(t'\mid \vec u_i, \vec\eta_i)\right)
+  \phi^{(2K)}\left(
+    \begin{pmatrix}\vec u_i \\ \vec\eta_i \end{pmatrix}; 
+    \mat M\vec v(-\vec x_{ij}(t)^\top\vec\gamma_k),
+    \mat M
+    \right)
+  \der \vec u_i\der \vec\eta_i
+\end{multline*}%
+%
+where $\mat M = (\vec v\vec v^\top + \mat\Sigma^{-1})^{-1}$ and $\vec v$ is 
+a $2K$ vector with zeros except at the $K + k$th entry which is one. 
+The result is $K + 1$ intractable integrals of dimension $K$. The first 
+integral is %
+%
+$$
+\int \pi_k(\vec z_{ij},\vec u_i)\phi^{(K)}\left(
+    \vec u_i; 
+    \mat M_{1:K,\cdot}\vec v(-\vec x_{ij}(t)^\top\vec\gamma_k),
+    \mat M_{1:K,1:K}
+    \right)\der\vec u_i.
+$$%
+%
+The remaining $K$ integrals are of the form %
+%
+\begin{multline*}
+\int\int \pi_k(\vec z_{ij},\vec u_i)
+  \pi_{k'}(\vec z_{ij'},\vec u_i)\Phi(-\vec x_{ij'}(t')^\top\vec\gamma_{k'} - \eta_{ik'}) \\
+\cdot 
+  \phi^{(K + 1)}\left(
+    \begin{pmatrix}\vec u_i \\ \eta_{ik'} \end{pmatrix}; 
+    \begin{pmatrix}\vec\mu_{1:K} \\ \mu_{K + k'} \end{pmatrix},
+    \begin{pmatrix}
+      \mat M_{1:K, 1:K}, \mat M_{1:K, K + k'} \\
+      \mat M_{K + k', 1:K}, \mat M_{K + k', K + k'}
+    \end{pmatrix}
+    \right)\der\eta_{ik'}\der\vec u_i \\
+ = \int \pi_k(\vec z_{ij},\vec u_i)
+  \pi_{k'}(\vec z_{ij'},\vec u_i)
+  \Phi\left(
+    \frac{-\vec x_{ij'}(t')^\top\vec\gamma_{k'} - g(\vec u_i)}
+         {s}
+    \right)\phi^{(K)}\left(
+    \vec u_i; 
+    \vec\mu_{1:K},
+    \mat M_{1:K, 1:K}
+    \right)\der\vec u_i
+\end{multline*}%
+%
+where $\vec\mu = \mat M\vec v(-\vec x_{ij}(t)^\top\vec\gamma_k)$,
+$g(\vec u_i) = \mu_{K + k'} + 
+    \mat M_{K + k', 1:K}\mat M_{1:K, 1:K}^{-1}(\vec u_i - \vec\mu_{1:K})$ and%
+    %
+$$
+s^2 = 1 + \mat M_{K + k', K + k'} 
+  - \mat M_{K + k',1:K}\allowbreak\mat M_{1:K, 1:K}^{-1}\allowbreak\mat M_{1:K,K + k'}.
+$$%
+%
+Note that if $-\vec x_{ij'}(t')^\top\gamma_k = \infty$ for all $k\in\{1,\dots,K\}$, 
+then log composite likelihood term is %
+%
+\begin{multline*}
+\log(-\vec x'_{ij}(t)^\top\vec\gamma_k)  
+  + \log \phi\left(
+    -\vec x_{ij}(t)^\top\vec\gamma_k, 0, 1 + \vec v^\top\mat\Sigma\vec v\right) \\
++ \log \int 
+  \pi_k(\vec z_{ij},\vec u_i)
+  \pi_0(\vec z_{ij'},\vec u_i)
+  \phi^{(K)}\left(
+    \vec u_i; 
+    \mat M_{1:K\cdot}\vec v(-\vec x_{ij}(t)^\top\vec\gamma_k),
+    \mat M_{1:K,1:K}
+    \right)
+  \der \vec u_i.
+\end{multline*}%
+%
+This is computationally easier to evaluate. 
+
+Finally, we get the following log composite likelihood term if both individuals 
+are censored %
+%
+\begin{multline*}
+\log\left(\int\int\left(1 - \sum_{k = 1}^K F_{kij}(t\mid \vec u_i, \vec\eta_i)\right)
+  \left(1 - \sum_{k = 1}^K F_{kij'}(t'\mid \vec u_i, \vec\eta_i)\right)
+   \phi^{(2K)}\left(
+      \begin{pmatrix}
+        \vec u_i \\ \vec\eta_i
+      \end{pmatrix}, \vec 0,\mat \Sigma\right)
+  \der \vec u_i\der \vec\eta_i\right) \\
+  =\log\left(\int\int\left(\cdots + \sum_{k = 1}^K\sum_{k' = 1}^K
+    F_{kij}(t\mid \vec u_i, \vec\eta_i)F_{k'ij'}(t'\mid \vec u_i, \vec\eta_i)\right)
+    \phi^{(2K)}\left(
+      \begin{pmatrix}
+        \vec u_i \\ \vec\eta_i
+      \end{pmatrix}, \vec 0,\mat \Sigma\right)    
+    \der \vec u_i\der \vec\eta_i\right)
+\end{multline*}%
+%
+where we cover how to compute the first $2K$ 
+integrals that 
+are not shown in Section \ref{subsec:singleton}. 
+The final $K^2$ integrals are of the form: %
+%
+$$
+ \int\int \pi_k(\vec z_{ij},\vec u_i)
+   \pi_{k'}(\vec z_{ij'},\vec u_i)\Phi^{(2)}
+   \left(\begin{pmatrix}
+     -\vec x_{ij}(t)^\top\vec\gamma_k\\
+     -\vec x_{ij'}(t')^\top\vec\gamma_{k'}
+   \end{pmatrix} - \mat V\vec\eta_i
+   \right)
+   \phi^{(2K)}\left(
+      \begin{pmatrix}
+        \vec u_i \\ \vec\eta_i
+      \end{pmatrix}, \vec 0,\mat \Sigma\right)
+  \der \vec u_i\der \vec\eta_i
+$$%
+%
+where $\Phi^{(2)}$ is the bivariate standard normal CDF integrated 
+over the rectangle
+from minus infinity to the passed upper bounds and $\mat V$ is 
+matrix with zeros except for a one in the $k$th entry in the 
+first row and $k'$th entry in the second row. We can re-write this 
+as %
+%
+$$
+\int \pi_k(\vec z_{ij},\vec u_i)
+   \pi_{k'}(\vec z_{ij'},\vec u_i)\Phi^{(2)}
+   \left(\begin{pmatrix}
+     -\vec x_{ij}(t)^\top\vec\gamma_k\\
+     -\vec x_{ij'}(t')^\top\vec\gamma_{k'}
+   \end{pmatrix} - \mat V\vec g(\vec u_i);
+   \vec 0, \mat I_2 + \mat V\mat M\mat V^\top
+   \right)
+   \phi^{(K)}\left(
+    \vec u_i; 
+    \vec 0 ,
+    \mat \Sigma_{1:K, 1:K}
+    \right)\der\vec u_i
+$$%
+%
+where $\vec g(\vec u_i) = \mat\Sigma_{(K + 1):2K,1:K}\mat\Sigma_{1:K,1:K}^{-1}\vec u_i$,
+$\mat M = \mat\Sigma_{(1 + K):2K,(1 + K):2K} - \mat\Sigma_{(1 + K):2K,1:K}\mat\Sigma_{1:K,1:K}^{-1}\mat\Sigma_{1:K,(1 + K):2K}$ and 
+$\Phi^{(2)}$ is the CDF of a bivariate normal distribution with the specified mean 
+and covariance matrix. The CDF can be solved efficiently 
+using one dimensional quadrature using the 
+method mentioned in \cite{Genz04}. 
+Nevertheless, this additional application of quadrature 
+makes these integrals computationally more demanding than the other integrals we 
+have shown till now. 
+
+If one individual $j'$ has  $-\vec x_{ij'}(t')^\top\gamma_k = \infty$ for all 
+$k\in\{1,\dots,K\}$, then the log composite likelihood term is %
+%
+$$
+\log\left(\int\int\left(1 - \sum_{k = 1}^K F_{kij}(t\mid \vec u_i, \vec\eta_i)\right)
+  \pi_0(\vec z_{ij'}, \vec u_i)
+   \phi^{(2K)}\left(
+      \begin{pmatrix}
+        \vec u_i \\ \vec\eta_i
+      \end{pmatrix}, \vec 0,\mat \Sigma\right)
+  \der \vec u_i\der \vec\eta_i\right) 
+$$%
+%
+This lead to integrals of the form %
+%
+$$
+\int \pi_0(\vec z_{ij'}, \vec u_i)\phi^{(K)}\left(
+      \vec u_i, \vec 0,\mat \Sigma_{1:K,1:K}\right)
+  \der \vec u_i 
+$$ %
+%
+and%
+%
+$$
+\int \pi_0(\vec z_{ij'}, \vec u_i)
+     \pi_k(\vec z_{ij'}, \vec u_i)
+	 \Phi\left(
+       \frac{-\vec x_{ij}(t)^\top\vec\gamma_{k} - g(\vec u_i)}s
+     \right)     
+     \phi^{(K)}\left(
+      \vec u_i, \vec 0,\mat \Sigma_{1:K,1:K}\right)
+  \der \vec u_i 
+$$%
+% 
+where $g(\vec u_i) = 
+    \mat\Sigma_{K + k, 1:K}\mat\Sigma_{1:K, 1:K}^{-1}\vec u_i$ and%
+%
+$$
+s^2 = 1 + \mat\Sigma_{K + k, K + k} 
+  - \mat \Sigma_{K + k,1:K}\mat\Sigma_{1:K, 1:K}^{-1}\mat\Sigma_{1:K,K + k}.
+$$%
+%
+If also  $-\vec x_{ij}(t)^\top\gamma_k = \infty$ for all $k\in\{1,\dots,K\}$, then 
+the log composite likelihood term is%
+%
+$$
+\log\left(\int
+  \pi_0(\vec z_{ij}, \vec u_i)\pi_0(\vec z_{ij'}, \vec u_i)
+   \phi^{(K)}\left(
+      \vec u_i, \vec 0,\mat \Sigma_{1:K,1:K}\right)
+  \der \vec u_i\right). 
+$$
+
+To summarize, we have to, at-worst, compute %
+%
+\begin{enumerate}
+  \item One $K$ dimensional integral when both individuals are observed. 
+  \item $K$ integrals of dimension $K$ when one individual is censored. 
+  \item $2K$ integrals of dimension $K$ and $K^2$ integrals of dimension $K + 1$ when both individuals are censored. 
+\end{enumerate}%
+%
+Preliminary experiments using 
+\url{https://github.com/boennecd/ghq-cpp/tree/main/ghqCpp} shows that we 
+can compute each of the $K$ dimensional integrals in about ten 
+microseconds or less when $K = 2$ with adaptive Gauss-Hermite quadrature. 
+It takes a bit longer when one also has to use the method mentioned 
+in \cite{Genz04}. 
+The cost of all other computations are negligible.
+
+\subsection{Singleton Observations}\label{subsec:singleton}
+
+We may have clusters with only one observation. In this case, the log composite 
+likelihood if the individual is observed is %
+%
+$$
+\log(-\vec x'_{ij}(t)^\top\vec\gamma_k) 
+  +\log\int\int 
+    \pi_k(\vec z_{ij},\vec u_i)\phi(-\vec x_{ij}(t)^\top\vec\gamma_k - \eta_{ik})  \\ 
+    \phi^{(2K)}\left(
+      \begin{pmatrix}
+        \vec u_i \\ \vec\eta_i
+      \end{pmatrix}, \vec 0,\mat \Sigma\right)
+    \der \vec u_i\der \vec\eta_i.
+$$%
+%
+Turning the conditioning around, we have %
+%
+$$
+\log(-\vec x'_{ij}(t)^\top\vec\gamma_k)  
+  + \log \phi\left(
+    -\vec x_{ij}(t)^\top\vec\gamma_k, 0, 1 + \vec v^\top\mat\Sigma\vec v\right)
+  + \log\int \pi_k(\vec z_{ij},\vec u_i)
+  \phi^{(K)}\left(
+    \vec u_i; 
+    \vec\mu_{1:K},
+    \mat M_{1:K, 1:K}
+    \right)\der\vec u_i
+$$%
+%
+where $\vec v$ is a vector with zero expect in the $K + k$'th entry, 
+$\mat M = (\vec v\vec v^\top + \mat\Sigma^{-1})^{-1}$ and
+$\vec\mu = \mat M\vec v(-\vec x_{ij}(t)^\top\vec\gamma_k)$.
+
+
+The log composite likelihood term if the individual is censored is%
+%
+$$
+\log \int\int 
+  \left(1 - \sum_{k = 1}^K F_{kij}(t\mid \vec u_i, \vec\eta_i)\right)
+  \phi^{(2K)}\left(
+      \begin{pmatrix}
+        \vec u_i \\ \vec\eta_i
+      \end{pmatrix}, \vec 0,\mat \Sigma\right)
+  \der \vec u_i\der \vec\eta_i.
+$$% 
+% 
+Leading to $K$ terms of the form %
+%
+$$
+  \int \pi_k(\vec z_{ij},\vec u_i)
+  \Phi\left(
+    \frac{-\vec x_{ij}(t)^\top\vec\gamma_k - g(\vec u_i)}
+         {s}
+    \right)\phi^{(K)}\left(
+    \vec u_i; 
+    \vec 0,
+    \mat\Sigma_{1:K, 1:K}
+    \right)\der\vec u_i
+$$%
+%
+where $g(\vec u_i) = 
+    \mat\Sigma_{K + k', 1:K}\mat \Sigma_{1:K, 1:K}^{-1}\vec u_i$ and%
+    %
+$$
+s^2 = 1 + \mat\Sigma_{K + k', K + k'} 
+  - \mat\Sigma_{K + k',1:K}\mat\Sigma_{1:K, 1:K}^{-1}\mat\Sigma_{1:K,K + k'}.
+$$%
+% 
+If  $-\vec x_{ij}(t)^\top\gamma_k = \infty$ for all 
+$k\in\{1,\dots,K\}$, then we can instead compute %
+%
+$$
+  \int \pi_0(\vec z_{ij},\vec u_i)
+  \phi^{(K)}\left(
+    \vec u_i; 
+    \vec 0,
+    \mat\Sigma_{1:K, 1:K}
+    \right)\der\vec u_i. 
+$$%
+% 
+Again, this is computationally easier to work with.
+
+\bibliographystyle{apalike} % apa or apalike?
+\bibliography{mmcif-comp-details}
+
+
+\end{document}

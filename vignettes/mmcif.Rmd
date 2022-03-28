@@ -1,8 +1,5 @@
 ---
-output:
-  github_document:
-    pandoc_args: --webtex=https://render.githubusercontent.com/render/math?math=
-bibliography: README.bib
+bibliography: mmcif-comp-details.bib
 ---
 
 ```{r setup, include = FALSE}
@@ -20,7 +17,8 @@ knitr::opts_chunk$set(
 
 This package provides an implementation of the model introduced by 
 @Cederkvist18 to model within-cluster dependence of both risk and timing in 
-competing risk. 
+competing risk. For interested readers, a vignette on computational details can 
+be found by calling `vignette("mmcif-comp-details", "mmcif")`.
 
 ## Installation 
 
@@ -28,7 +26,7 @@ The package can be installed from Github by calling
 
 ```{r how_to_install, eval = FALSE}
 library(remotes)
-install_github("boennecd/mmcif")
+install_github("boennecd/mmcif", build_vignettes = TRUE)
 ```
 
 The code benefits from being build with automatic vectorization so having e.g. 
