@@ -27,6 +27,7 @@ The package can be installed from Github by calling
 ```{r how_to_install, eval = FALSE}
 library(remotes)
 install_github("boennecd/mmcif", build_vignettes = TRUE)
+options(digits = 4)
 ```
 
 The code benefits from being build with automatic vectorization so having e.g. 
@@ -40,7 +41,13 @@ individual $j$ in cluster $i$ is
 $$\begin{align*} F_{kij}(t\mid \vec u_i, \vec\eta_i) &= \pi_k(\vec z_{ij}, \vec u_i) \Phi(-\vec x_{ij}(t)^\top\vec\gamma_k - \eta_{ik}) \\ \pi_k(\vec z_{ij}, \vec u_i) &= \frac{\exp(\vec z_{ij}^\top\vec\beta_k + u_{ik})}{1 + \sum_{l = 1}^K\exp(\vec z_{ij}^\top\vec\beta_l + u_{il})} \\ \begin{pmatrix} \vec U_i \\ \vec\eta_i \end{pmatrix} &\sim N^{(2K)}(\vec 0;\Sigma).\end{align*}$$
 
 where there are $K$ competing risks. The $\vec x_{ij}(t)^\top\vec\gamma_k$'s for
-the trajectory must be constrained to be monotonically decreasing in $t$.
+the trajectory must be constrained to be monotonically decreasing in $t$. The 
+covariates for the trajectory in this package are defined as 
+
+$$\vec x_{ij}(t) = (\vec h(t)^\top, \vec z_{ij}^\top)^\top$$
+
+for a spline basis $\vec h$ and known covariates $\vec z_{ij}$ which are also 
+used in the risk part of the model.
 
 ## Example
 
@@ -76,7 +83,7 @@ local({
     plot(\(x) probs[i] * pnorm(
       -coef_traject[1, i] * atanh((x - delta / 2) / (delta / 2)) - 
         coef_traject[2, i]),
-         xlim = c(1e-8, delta), ylim = c(0, 1), bty = "l",  xlab = "Time", 
+         xlim = c(0, delta), ylim = c(0, 1), bty = "l",  xlab = "Time", 
          ylab = sprintf("Cumulative incidence; cause %d", i),
        yaxs = "i", xaxs = "i")
     grid()
@@ -174,7 +181,7 @@ Then we setup the C++ object to do the computation.
 ```{r setup_data}
 library(mmcif)
 comp_obj <- mmcif_data(
-  ~ a + b, dat, cause = cause, time = time, cluster_id = cluster_id, 
+  ~ a + b, dat, cause = cause, time = time, cluster_id = cluster_id,
   max_time = delta, spline_df = 4L)
 ```
 
@@ -201,7 +208,7 @@ NCOL(comp_obj$pair_indices) # the number of pairs in the composite likelihood
 length(comp_obj$singletons) # the number of clusters with one observation
 
 # we need to find the combination of the spline bases that yield a straight 
-# line. You can skip this
+# line to construct the true values using the splines. You can skip this
 comb_slope <- sapply(comp_obj$spline, \(spline){
   boundary_knots <- spline$boundary_knots
   pts <- seq(boundary_knots[1], boundary_knots[2], length.out = 1000)
@@ -316,6 +323,11 @@ numerical differentiation which is why it takes a while.
 
 ```{r sandwich, cache = 1}
 system.time(sandwich_est <- mmcif_sandwich(comp_obj, fit$par, n_threads = 4L))
+
+# setting order equal to zero yield no Richardson extrapolation and just
+# standard symmetric difference quotient. This is less precise but faster 
+system.time(sandwich_est_simple <- 
+              mmcif_sandwich(comp_obj, fit$par, n_threads = 4L, order = 0L))
 ```
 
 We show
@@ -342,7 +354,7 @@ local({
   # plot the estimated and true conditional cumulative incidence functions. The
   # estimates are the dashed lines
   par(mar = c(5, 5, 1, 1), mfcol = c(1, 2))
-  pts <- seq(1e-8, delta, length.out = 1000)
+  pts <- seq(1e-8, delta * (1 - 1e-8), length.out = 1000)
   
   for(i in 1:2){
     true_vals <- probs[i] * pnorm(
@@ -353,7 +365,7 @@ local({
       -comp_obj$time_expansion(pts, cause = i) %*% coef_traject_time_est[, i] - 
         coef_traject_intercept_est[i]) |> drop()
     
-    matplot(pts, cbind(true_vals, estimates), xlim = c(1e-8, delta), 
+    matplot(pts, cbind(true_vals, estimates), xlim = c(0, delta), 
             ylim = c(0, 1), bty = "l",  xlab = "Time", lty = c(1, 2),
             ylab = sprintf("Cumulative incidence; cause %d", i),
             yaxs = "i", xaxs = "i", type = "l", col = "black")
@@ -371,13 +383,16 @@ fit$outer.iterations
 
 # compute the standard errors from the sandwich estimator
 SEs <- diag(sandwich_est) |> sqrt()
+SEs_simple <- diag(sandwich_est_simple) |> sqrt()
 
 # compare the estimates with the true values
 rbind(`Estimate AGHQ` = fit$par[comp_obj$indices$coef_risk],
       `Standard errors` = SEs[comp_obj$indices$coef_risk],
-      Truth = c(coef_risk))
+      `Standard errors simple` = SEs_simple[comp_obj$indices$coef_risk],
+      Truth = truth[comp_obj$indices$coef_risk])
 rbind(`Estimate AGHQ` = fit$par[comp_obj$indices$coef_trajectory],
       `Standard errors` = SEs[comp_obj$indices$coef_trajectory],
+      `Standard errors simple` = SEs_simple[comp_obj$indices$coef_trajectory],
       Truth = truth[comp_obj$indices$coef_trajectory])
 
 n_vcov <- (2L * n_causes * (2L * n_causes + 1L)) %/% 2L
@@ -387,6 +402,7 @@ log_chol_inv(tail(fit$par, n_vcov))
 # on the log Cholesky scale
 rbind(`Estimate AGHQ` = fit$par[comp_obj$indices$vcov_upper],
       `Standard errors` = SEs[comp_obj$indices$vcov_upper],
+      `Standard errors simple` = SEs_simple[comp_obj$indices$vcov_upper],
       Truth = truth[comp_obj$indices$vcov_upper])
 
 # on the original covariance matrix scale
@@ -516,7 +532,7 @@ comp_obj <- mmcif_data(
   max_time = delta, spline_df = 4L, left_trunc = delayed_entry)
 
 # we need to find the combination of the spline bases that yield a straight 
-# line. You can skip this
+# line to construct the true values using the splines. You can skip this
 comb_slope <- sapply(comp_obj$spline, \(spline){
   boundary_knots <- spline$boundary_knots
   pts <- seq(boundary_knots[1], boundary_knots[2], length.out = 1000)
@@ -555,8 +571,7 @@ mmcif_logLik(comp_obj, start$upper, n_threads = 4L, is_log_chol = TRUE)
 Then we compute the sandwich estimator. The Hessian is currently computed with 
 numerical differentiation which is why it takes a while.
 
-```{r delayed_sandwich, cache = 1}
-system.time(sandwich_est <- mmcif_sandwich(comp_obj, fit$par, n_threads = 4L))
+```{r delayed_sandwich, ref.label = "sandwich", cache = 1}
 ```
 
 We show
@@ -566,6 +581,311 @@ when the random effects are zero and the covariates are zero,
 $a_{ij} = b_{ij} = 0$.
 
 ```{r delayed_compare_estimated_incidence_funcs, ref.label="compare_estimated_incidence_funcs", cache = 1, fig.height=knitr::opts_chunk$get("fig.width") * .5}
+```
+
+Further illustrations of the estimated model are given below.
+
+```{r show_res}
+```
+
+### Delayed Entry with Different Strata 
+
+We may allow for different transformations for groups of individuals. 
+Specifically, we can replace the covariates for the trajectory
+
+$$\vec x_{ij}(t) = (\vec h(t)^\top, \vec z_{ij}^\top)^\top$$
+
+with 
+
+$$\vec x_{ij}(t) = (\vec h_{l_{ij}}(t)^\top, \vec z_{ij}^\top)^\top$$
+
+where there are $L$ strata each having their own spline basis 
+$h_{l}(t)$ and $l_{ij}$ is the strata that observation $j$ in cluster $i$ is 
+in. This is supported in the package using the `strata` argument of 
+`mmcif_data`. We illustrate this by extending the previous example.
+First, we assign new model parameters and plot the cumulative incidence 
+functions as before but for each strata. 
+
+```{r strata_assign_model_parameters, fig.height=knitr::opts_chunk$get("fig.width") * .5}
+# assign model parameters
+n_causes <- 2L
+delta <- 2
+
+# set the betas
+coef_risk <- c(.9, 1, .1, -.2, .5, 0, 0, 0, .5,
+               -.4, .25, .3, 0, .5, .25, 1.5, -.25, 0) |> 
+  matrix(ncol = n_causes)
+
+# set the gammas
+coef_traject <- c(-.8, -.45, -1, -.1, -.5, -.4, 
+                  .8, .4, 0, .4, 0, .4, 
+                  -1.2, .15, -.4, -.15, -.5, -.25, 
+                  .25, -.2, 0, -.2, .25, 0) |> 
+  matrix(ncol = n_causes)
+
+# plot the conditional cumulative incidences when random effects and covariates
+# are all zero
+local({
+  for(strata in 1:3 - 1L){
+    probs <- exp(coef_risk[1 + strata * 3, ]) / 
+      (1 + sum(exp(coef_risk[1 + strata * 3, ])))
+    par(mar = c(5, 5, 1, 1), mfcol = c(1, 2))
+    
+    for(i in 1:2){
+      plot(\(x) probs[i] * pnorm(
+            -coef_traject[1 + strata * 2, i] * 
+              atanh((x - delta / 2) / (delta / 2)) - 
+              coef_traject[2 + strata * 2, i]),
+           xlim = c(0, delta), ylim = c(0, 1), bty = "l",  
+           xlab = sprintf("Time; strata %d", strata + 1L), 
+           ylab = sprintf("Cumulative incidence; cause %d", i),
+         yaxs = "i", xaxs = "i")
+      grid()
+    }
+  }
+})
+# the probabilities of each strata
+strata_prob <- c(.2, .5, .3)
+
+# set the covariance matrix
+Sigma <- c(0.306, 0.008, -0.138, 0.197, 0.008, 0.759, 0.251, 
+-0.25, -0.138, 0.251, 0.756, -0.319, 0.197, -0.25, -0.319, 0.903) |> 
+  matrix(2L * n_causes)
+```
+
+Then we define a simulation function.
+
+```{r strata_delayed_assing_sim_dat}
+library(mvtnorm)
+
+# simulates a data set with a given number of clusters and maximum number of 
+# observations per cluster
+sim_dat <- \(n_clusters, max_cluster_size){
+  stopifnot(max_cluster_size > 0,
+            n_clusters > 0)
+  
+  cluster_id <- 0L
+  replicate(n_clusters, simplify = FALSE, {
+    n_obs <- sample.int(max_cluster_size, 1L)
+    cluster_id <<- cluster_id + 1L
+    strata <- sample.int(length(strata_prob), 1L, prob = strata_prob)
+    
+    # keep only the relevant parameters
+    coef_risk <- coef_risk[1:3 + (strata - 1L) * 3, ]
+    coef_traject <- coef_traject[
+        c(1:2 + (strata - 1L) * 2L, 1:2 + 6L + (strata - 1L) * 2L), ]
+    
+    # draw the covariates and the left truncation time
+    covs <- cbind(a = rnorm(n_obs), b = runif(n_obs, -1))
+    Z <- cbind(1, covs)
+    
+    delayed_entry <- pmax(runif(n_obs, -1), 0)
+    cens <- rep(-Inf, n_obs)
+    while(all(cens <= delayed_entry))
+      cens <- runif(n_obs, max = 3 * delta)
+    
+    successful_sample <- FALSE
+    while(!successful_sample){
+      rng_effects <- rmvnorm(1, sigma = Sigma) |> drop()
+      U <- head(rng_effects, n_causes)
+      eta <- tail(rng_effects, n_causes)
+      
+      # draw the cause
+      cond_logits_exp <- exp(Z %*% coef_risk + rep(U, each = n_obs)) |> 
+        cbind(1)
+      cond_probs <- cond_logits_exp / rowSums(cond_logits_exp)
+      cause <- apply(cond_probs, 1, 
+                     \(prob) sample.int(n_causes + 1L, 1L, prob = prob))
+      
+      # compute the observed time if needed
+      obs_time <- mapply(\(cause, idx){
+        if(cause > n_causes)
+          return(delta)
+        
+        # can likely be done smarter but this is more general
+        coefs <- coef_traject[, cause]
+        offset <- sum(Z[idx, ] * coefs[-1]) + eta[cause]
+        rng <- runif(1)
+        eps <- .Machine$double.eps
+        root <- uniroot(
+          \(x) rng - pnorm(
+            -coefs[1] * atanh((x - delta / 2) / (delta / 2)) - offset), 
+          c(eps^2, delta * (1 - eps)), tol = 1e-12)$root
+      }, cause, 1:n_obs)
+      
+      keep <- which(pmin(obs_time, cens) > delayed_entry)
+      successful_sample <- length(keep) > 0
+      if(!successful_sample)
+        next
+      
+      has_finite_trajectory_prob <- cause <= n_causes
+      is_censored <- which(!has_finite_trajectory_prob | cens < obs_time)
+      
+      if(length(is_censored) > 0){
+        obs_time[is_censored] <- pmin(delta, cens[is_censored])
+        cause[is_censored] <- n_causes + 1L
+      }
+    }
+    
+    data.frame(covs, cause, time = obs_time, cluster_id, delayed_entry, 
+               strata)[keep, ]
+  }) |> 
+    do.call(what = rbind) |>
+    transform(strata = factor(sprintf("s%d", strata)))
+}
+```
+
+We sample a data set using the new simulation function.
+
+```{r strata_delayed_sample_data, cache = 1}
+# sample a data set
+set.seed(14712915)
+n_clusters <- 1000L
+max_cluster_size <- 5L
+dat <- sim_dat(n_clusters, max_cluster_size = max_cluster_size)
+
+# show some stats
+NROW(dat) # number of individuals
+table(dat$cause) # distribution of causes (3 is censored)
+
+# distribution of observed times by cause
+tapply(dat$time, dat$cause, quantile, 
+       probs = seq(0, 1, length.out = 11), na.rm = TRUE)
+
+# within strata
+tapply(dat$time, interaction(dat$cause, dat$strata), quantile, 
+       probs = seq(0, 1, length.out = 11), na.rm = TRUE)
+
+# distribution of strata
+table(dat$strata)
+
+# distribution of the left truncation time
+quantile(dat$delayed_entry, probs = seq(0, 1, length.out = 11))
+```
+
+Next, we fit the model as before but this time we with strata specific 
+fixed effects and transformations.
+
+```{r strate_delayed_setup}
+library(mmcif)
+comp_obj <- mmcif_data(
+  ~ strata + (a + b) : strata - 1, dat, cause = cause, time = time, 
+  cluster_id = cluster_id, max_time = delta, spline_df = 4L, 
+  left_trunc = delayed_entry, strata = strata)
+```
+
+```{r strata_delayed_fit, cache = 1}
+# we need to find the combination of the spline bases that yield a straight 
+# line to construct the true values using the splines. You can skip this
+comb_slope <- sapply(comp_obj$spline, \(spline){
+  boundary_knots <- spline$boundary_knots
+  pts <- seq(boundary_knots[1], boundary_knots[2], length.out = 1000)
+  lm.fit(cbind(1, spline$expansion(pts)), pts)$coef
+})
+
+coef_traject_spline <- lapply(1:length(unique(dat$strata)), function(strata){
+  slopes <- coef_traject[1 + (strata - 1) * 2, ]
+  comb_slope[-1, ] * rep(slopes, each = NROW(comb_slope) - 1)
+}) |> 
+  do.call(what = rbind)
+
+coef_traject_spline_fixef <- lapply(1:length(unique(dat$strata)), function(strata){
+  slopes <- coef_traject[1 + (strata - 1) * 2, ]
+  intercepts <- coef_traject[2 + (strata - 1) * 2, ]
+  
+  fixefs <- coef_traject[7:8 + (strata - 1) * 2, ]
+  
+  rbind(intercepts + comb_slope[1, ] * slopes,
+        fixefs)
+}) |> 
+  do.call(what = rbind)
+
+coef_traject_spline <- rbind(coef_traject_spline, coef_traject_spline_fixef)
+
+# handle that model.matrix in mmcif_data gives a different permutation of 
+# the parameters
+permu <- c(seq(1, 7, by = 3), seq(2, 8, by = 3), seq(3, 9, by = 3))
+
+# set true values
+truth <- c(coef_risk[permu, ], 
+           coef_traject_spline[c(1:12, permu + 12L), ], 
+           log_chol(Sigma))
+
+# find the starting values
+system.time(start <- mmcif_start_values(comp_obj, n_threads = 4L))
+
+# we can verify that the gradient is correct again
+gr_package <- mmcif_logLik_grad(
+  comp_obj, truth, n_threads = 4L, is_log_chol = TRUE)
+gr_num <- numDeriv::grad(
+  mmcif_logLik, truth, object = comp_obj, n_threads = 4L, is_log_chol = TRUE, 
+  method = "simple")
+
+rbind(`Numerical gradient` = gr_num, `Gradient package` = gr_package)
+
+# optimize the log composite likelihood
+system.time(fit <- mmcif_fit(start$upper, comp_obj, n_threads = 4L))
+
+# the log composite likelihood at different points
+mmcif_logLik(comp_obj, truth, n_threads = 4L, is_log_chol = TRUE)
+mmcif_logLik(comp_obj, start$upper, n_threads = 4L, is_log_chol = TRUE)
+-fit$value
+```
+
+Then we compute the sandwich estimator. The Hessian is currently computed with 
+numerical differentiation which is why it takes a while.
+
+```{r strata_sandwich, ref.label = "sandwich", cache = 1}
+```
+
+We show
+the estimated and true the conditional cumulative incidence 
+functions (the dashed curves are the estimates) 
+when the random effects are zero and the covariates are zero, 
+$a_{ij} = b_{ij} = 0$.
+
+```{r strata_compare_estimated_incidence_funcs, fig.height=knitr::opts_chunk$get("fig.width") * .5, cache = 1}
+local({
+  # get the estimates
+  coef_risk_est <- fit$par[comp_obj$indices$coef_risk] |> 
+    matrix(ncol = n_causes)
+  coef_traject_time_est <- fit$par[comp_obj$indices$coef_trajectory_time] |> 
+    matrix(ncol = n_causes)
+  coef_traject_est <- fit$par[comp_obj$indices$coef_trajectory] |> 
+    matrix(ncol = n_causes)
+  
+  for(strata in 1:3 - 1L){
+    # compute the risk probabilities  
+    probs <- exp(coef_risk[1 + strata * 3, ]) / 
+      (1 + sum(exp(coef_risk[1 + strata * 3, ])))
+    probs_est <- exp(coef_risk_est[1 + strata, ]) / 
+      (1 + sum(exp(coef_risk_est[1 + strata, ])))
+  
+    # plot the estimated and true conditional cumulative incidence functions. The
+    # estimates are the dashed lines
+    par(mar = c(5, 5, 1, 1), mfcol = c(1, 2))
+    pts <- seq(1e-8, delta * (1 - 1e-8), length.out = 1000)
+    
+    for(i in 1:2){
+      true_vals <- probs[i] * pnorm(
+        -coef_traject[1 + strata * 2, i] * 
+          atanh((pts - delta / 2) / (delta / 2)) - 
+          coef_traject[2 + strata * 2, i])
+      
+      estimates <- probs_est[i] * pnorm(
+        -comp_obj$time_expansion(pts, cause = i, which_strata = strata + 1L) %*% 
+          coef_traject_time_est[, i] - 
+          coef_traject_est[13 + strata, i]) |> drop()
+      
+      matplot(pts, cbind(true_vals, estimates), xlim = c(0, delta), 
+              ylim = c(0, 1), bty = "l",  
+              xlab = sprintf("Time; strata %d", strata + 1L), lty = c(1, 2),
+              ylab = sprintf("Cumulative incidence; cause %d", i),
+              yaxs = "i", xaxs = "i", type = "l", col = "black")
+      grid()
+    }
+  }
+})
 ```
 
 Further illustrations of the estimated model are given below.

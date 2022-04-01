@@ -28,6 +28,8 @@
 #' @param ghq_data the default Gauss-Hermite quadrature nodes and weights to
 #' use. It should be stored as a list with two elements called \code{"node"}
 #' and \code{"weight"}. A default is provided if \code{NULL} is passed.
+#' @param strata an integer vector or a factor vector with the strata of each
+#' individual. \code{NULL} implies that there are no strata.
 #'
 #' @seealso
 #' \code{\link{mmcif_fit}}, \code{\link{mmcif_start_values}} and
@@ -36,7 +38,8 @@
 #' @importFrom stats model.frame model.matrix terms ave
 #' @export
 mmcif_data <- function(formula, data, cause, time, cluster_id, max_time,
-                       spline_df = 3L, left_trunc = NULL, ghq_data = NULL){
+                       spline_df = 3L, left_trunc = NULL, ghq_data = NULL,
+                       strata = NULL){
   stopifnot(inherits(formula, "formula"),
             is.data.frame(data),
             length(spline_df) == 1, is.finite(spline_df), spline_df > 0)
@@ -48,6 +51,15 @@ mmcif_data <- function(formula, data, cause, time, cluster_id, max_time,
   cause <- eval(substitute(cause), data, parent.frame())
   time_observed <- eval(substitute(time), data, parent.frame())
   cluster_id <- eval(substitute(cluster_id), data, parent.frame())
+
+  strata <- eval(substitute(strata), data, parent.frame())
+  if(!is.null(strata)){
+    if(is.integer(strata))
+      strata <- factor(strata)
+    n_strata <- length(unique(strata))
+
+  } else
+    n_strata <- 1L
 
   left_trunc <- eval(substitute(left_trunc), data, parent.frame())
   if(is.null(left_trunc))
@@ -73,7 +85,9 @@ mmcif_data <- function(formula, data, cause, time, cluster_id, max_time,
     is.list(ghq_data), all(c("node", "weight") %in% names(ghq_data)),
     length(ghq_data$node) == length(ghq_data$weight),
     length(ghq_data$node) > 0,
-    all(sapply(ghq_data, function(x) all(is.finite(x)))))
+    all(sapply(ghq_data, function(x) all(is.finite(x)))),
+    (is.factor(strata) && length(strata) == length(cause) && n_strata > 1) ||
+      is.null(strata))
 
   # add the time transformations
   time_trans <- function(x) atanh((x - max_time / 2) / (max_time / 2))
@@ -91,28 +105,58 @@ mmcif_data <- function(formula, data, cause, time, cluster_id, max_time,
     function(time_observed_trans)
       monotone_ns(time_observed_trans, df = spline_df), simplify = FALSE)
 
-  time_expansion <- function(x, cause){
+  time_expansion <- function(x, cause, which_strata = NULL){
     x <- suppressWarnings(time_trans(x))
-    splines[[cause]]$expansion(x, ders = 0L)
+    out <- splines[[cause]]$expansion(x, ders = 0L)
+
+    if(!is.null(which_strata)){
+      which_strata <- as.integer(which_strata)
+      stopifnot(all(which_strata %in% 1:n_strata),
+                length(which_strata) %in% c(1L, NROW(out)))
+      out_expanded <- matrix(0., NROW(out), NCOL(out) * n_strata)
+      for(i in 1:n_strata - 1L){
+        strata_match <- which_strata == i + 1L
+        out_expanded[strata_match, 1:NCOL(out) + i * NCOL(out)] <-
+          out[strata_match, ]
+      }
+      out <- out_expanded
+    }
+
+    out
   }
 
-  d_time_expansion <- function(x, cause){
+  d_time_expansion <- function(x, cause, which_strata = NULL){
     z <- suppressWarnings(time_trans(x))
     d_x <- suppressWarnings(d_time_trans(x))
-    splines[[cause]]$expansion(z, ders = 1L) * d_x
+    out <- splines[[cause]]$expansion(z, ders = 1L) * d_x
+
+    if(!is.null(which_strata)){
+      which_strata <- as.integer(which_strata)
+      stopifnot(all(which_strata %in% 1:n_strata),
+                length(which_strata) %in% c(1L, NROW(out)))
+      out_expanded <- matrix(0., NROW(out), NCOL(out) * n_strata)
+      for(i in 1:n_strata - 1L){
+        strata_match <- which_strata == i + 1L
+        out_expanded[strata_match, 1:NCOL(out) + i * NCOL(out)] <-
+          out[strata_match, ]
+      }
+      out <- out_expanded
+    }
+
+    out
   }
 
-  eval_trajectory_covs <- function(x, FUN, covs){
-    varying_covs <- lapply(1:n_causes, FUN, x = x)
+  eval_trajectory_covs <- function(x, FUN, covs, which_strata){
+    varying_covs <- lapply(1:n_causes, FUN, x = x, which_strata = which_strata)
     do.call(cbind, lapply(varying_covs, cbind, covs))
   }
 
   covs_trajectory <- eval_trajectory_covs(
-    time_observed, time_expansion, covs_risk)
+    time_observed, time_expansion, covs_risk, strata)
 
   d_covs_trajectory <- eval_trajectory_covs(
     time_observed, d_time_expansion,
-    matrix(0, NROW(covs_risk), NCOL(covs_risk)))
+    matrix(0, NROW(covs_risk), NCOL(covs_risk)), strata)
 
   has_finite_trajectory_prob <- time_observed < max_time
 
@@ -124,7 +168,8 @@ mmcif_data <- function(formula, data, cause, time, cluster_id, max_time,
   covs_trajectory_delayed[has_delayed_entry, ] <-
     eval_trajectory_covs(
       left_trunc[has_delayed_entry], time_expansion,
-      covs_risk[has_delayed_entry, ])
+      covs_risk[has_delayed_entry, ],
+      if(!is.null(strata)) strata[has_delayed_entry] else strata)
 
   # find all permutation of indices in each cluster
   cluster_length <- ave(cluster_id, cluster_id, FUN = length)
@@ -150,11 +195,12 @@ mmcif_data <- function(formula, data, cause, time, cluster_id, max_time,
 
   # create an object to do index the parameters
   n_coef_risk <- NCOL(covs_risk) * n_causes
-  n_coef_trajectory <- (spline_df + NCOL(covs_risk)) * n_causes
+  n_coef_trajectory <- (spline_df * n_strata + NCOL(covs_risk)) * n_causes
 
   coef_trajectory_time <- matrix(
-    seq_len(n_coef_trajectory) + n_coef_risk, spline_df + NCOL(covs_risk))
-  coef_trajectory_time <- coef_trajectory_time[1:spline_df, ]
+    seq_len(n_coef_trajectory) + n_coef_risk,
+    spline_df * n_strata + NCOL(covs_risk))
+  coef_trajectory_time <- coef_trajectory_time[seq_len(spline_df * n_strata), ]
 
   idx_coef_trajectory <- seq_len(n_coef_trajectory) + n_coef_risk
 
@@ -172,17 +218,25 @@ mmcif_data <- function(formula, data, cause, time, cluster_id, max_time,
     n_causes = n_causes,
     n_par = max(vcov_full),
     n_par_upper_tri = max(vcov_upper),
-    n_par_wo_vcov = max(idx_coef_trajectory))
+    n_par_wo_vcov = max(idx_coef_trajectory),
+    n_strata = n_strata)
 
   # create the constrain matrices
   n_constraints_per_spline <- NROW(splines[[1]]$constraints)
-  constraints <- matrix(0., n_constraints_per_spline * n_causes,
+  constraints <- matrix(0., n_constraints_per_spline * n_causes * n_strata,
                         indices$n_par_wo_vcov)
-  for(i in 1:n_causes)
-    constraints[
-      1:n_constraints_per_spline + (i - 1L) * n_constraints_per_spline,
-      matrix(indices$coef_trajectory_time, spline_df)[, i]] <-
-      splines[[i]]$constraints
+
+  for(i in 1:n_causes){
+    cols_idx <-
+      matrix(matrix(indices$coef_trajectory_time, spline_df * n_strata)[, i],
+             spline_df)
+    for(j in 1:n_strata){
+      rows <- 1:n_constraints_per_spline +
+        (n_strata * (i - 1L) + j - 1L) * n_constraints_per_spline
+      cols <-
+      constraints[rows, cols_idx[, j]] <- splines[[i]]$constraints
+    }
+  }
 
   constraints <- list(
     wo_vcov = constraints,
@@ -193,9 +247,21 @@ mmcif_data <- function(formula, data, cause, time, cluster_id, max_time,
                                 (vcov_dim * (vcov_dim + 1L)) %/% 2L)))
 
   # create the parameter names variable
-  n_varying <- NCOL(covs_trajectory) %/% n_causes - NCOL(covs_risk)
-  fixed_covs_names <- colnames(covs_risk)
-  varying_covs_names <- sprintf("spline%d", 1:n_varying)
+  if(!is.null(strata)){
+    n_varying <- NCOL(covs_trajectory) %/% n_causes - NCOL(covs_risk)
+    n_varying <- n_varying %/% n_strata
+    fixed_covs_names <- colnames(covs_risk)
+    varying_covs_names <- sprintf("spline%d", 1:n_varying)
+    varying_covs_names <-
+      c(outer(varying_covs_names, sprintf("strata%d", 1:n_strata),
+              function(x, y) sprintf("%s:%s", y, x)))
+
+  } else {
+    n_varying <- NCOL(covs_trajectory) %/% n_causes - NCOL(covs_risk)
+    fixed_covs_names <- colnames(covs_risk)
+    varying_covs_names <- sprintf("spline%d", 1:n_varying)
+
+  }
 
   trajectory_names <- outer(
     c(varying_covs_names, sprintf("traject:%s", fixed_covs_names)),
@@ -224,6 +290,11 @@ mmcif_data <- function(formula, data, cause, time, cluster_id, max_time,
 
   param_names <- list(full = param_names, upper = param_names_upper)
 
+  colnames(constraints$wo_vcov) <-
+    param_names$upper[1:indices$n_par_wo_vcov]
+  colnames(constraints$vcov_upper) <- param_names$upper
+  colnames(constraints$vcov_full) <- param_names$full
+
   # clean up
   rm(list = setdiff(
     ls(),
@@ -232,7 +303,7 @@ mmcif_data <- function(formula, data, cause, time, cluster_id, max_time,
       "d_time_trans", "max_time", "indices", "splines", "d_covs_trajectory",
       "constraints", "covs_trajectory_delayed", "time_expansion",
       "d_time_expansion", "pair_cluster_id", "ghq_data",
-      "param_names")))
+      "param_names", "n_strata", "strata")))
 
   structure(
     list(comp_obj = comp_obj, pair_indices = pair_indices,
@@ -244,7 +315,7 @@ mmcif_data <- function(formula, data, cause, time, cluster_id, max_time,
          d_covs_trajectory = d_covs_trajectory, constraints = constraints,
          covs_trajectory_delayed = covs_trajectory_delayed,
          pair_cluster_id = pair_cluster_id, ghq_data = ghq_data,
-         param_names = param_names),
+         param_names = param_names, strata = strata),
     class = "mmcif")
 }
 
@@ -331,19 +402,19 @@ mmcif_start_values <- function(object, n_threads = 1L, vcov_start = NULL){
 
   # find intercepts and slopes in a simple model
   n_causes <- object$indices$n_causes
+  n_strata <- object$indices$n_strata
   cause <- object$cause
   time_observed <- object$time_observed
 
   is_observed <- cause %in% 1:n_causes
 
   slope_n_time <- tapply(
-    time_observed[is_observed], cause[is_observed], function(time_observed){
-    time_observed_trans <- object$time_trans(time_observed)
-
-    time_sd <- sd(time_observed_trans)
-
-    c(slope = -1 / time_sd, intercept = mean(time_observed_trans) / time_sd)
-  })
+    time_observed[is_observed], cause[is_observed],
+    function(time_observed){
+      time_observed_trans <- object$time_trans(time_observed)
+      time_sd <- sd(time_observed_trans)
+      c(slope = -1 / time_sd, intercept = mean(time_observed_trans) / time_sd)
+    })
 
   # find the linear combination which gives a line and a slope
   comb_slope <- sapply(object$splines, function(spline){
@@ -351,10 +422,12 @@ mmcif_start_values <- function(object, n_threads = 1L, vcov_start = NULL){
     pts <- seq(boundary_knots[1], boundary_knots[2], length.out = 1000)
     lm.fit(cbind(1, spline$expansion(pts)), pts)$coef
   })
+  if(n_strata > 1)
+    comb_slope <- apply(
+      comb_slope, 2, function(x) c(x[1], rep(x[-1], n_strata)))
 
-  n_causes <- object$indices$n_causes
   n_cov_traject <- NCOL(object$covs_trajectory) %/% n_causes
-  traject_factor <- gl(2, n_cov_traject)
+  traject_factor <- gl(n_causes, n_cov_traject)
 
   comb_line <-
     tapply(1:NCOL(object$covs_trajectory), traject_factor, function(indices){

@@ -13,7 +13,8 @@ mmcif_data(
   max_time,
   spline_df = 3L,
   left_trunc = NULL,
-  ghq_data = NULL
+  ghq_data = NULL,
+  strata = NULL
 )
 }
 \arguments{
@@ -41,6 +42,9 @@ implies that there is not any individuals with left-truncation.}
 \item{ghq_data}{the default Gauss-Hermite quadrature nodes and weights to
 use. It should be stored as a list with two elements called \code{"node"}
 and \code{"weight"}. A default is provided if \code{NULL} is passed.}
+
+\item{strata}{an integer vector or a factor vector with the strata of each
+individual. \code{NULL} implies that there are no strata.}
 }
 \description{
 Setup Object to Compute the Log Composite Likelihood
