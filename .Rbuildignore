@@ -3,6 +3,7 @@
 ^LICENSE\.md$
 ^vignettes/cache
 ^benchmark
+^create-vignette\.Rout
 ^\.github$
 ^vignettes/.*\.out
 ^vignettes/.*\.log

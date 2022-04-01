@@ -217,7 +217,7 @@ test_that("the Hessian of log composite likelihood match the one from numerical 
     cpp_obj, truth, ghq_data = ghq_data, n_threads = 2L)
 
   expect_equal(attr(sandwich_value, "hessian"), hess_log_compos,
-               tolerance = 1e-4)
+               tolerance = 1e-4, ignore_attr = "dimnames")
   expect_snapshot_value(
     sandwich_value, style = "serialize", tolerance = 1e-5)
 })

@@ -19,6 +19,8 @@ Computes the Log Cholesky Decomposition and the Inverse
 \examples{
 set.seed(1)
 S <- drop(rWishart(1, 10, diag(10)))
-stopifnot(isTRUE(all.equal(S, log_chol_inv(log_chol(S)))))
+log_chol(S)
+stopifnot(isTRUE(all.equal(S, log_chol_inv(log_chol(S)))),
+          (NCOL(S) * (NCOL(S) + 1L)) \%/\% 2L == length(log_chol(S)))
 
 }

@@ -192,6 +192,38 @@ mmcif_data <- function(formula, data, cause, time, cluster_id, max_time,
       cbind(constraints, matrix(0., NROW(constraints),
                                 (vcov_dim * (vcov_dim + 1L)) %/% 2L)))
 
+  # create the parameter names variable
+  n_varying <- NCOL(covs_trajectory) %/% n_causes - NCOL(covs_risk)
+  fixed_covs_names <- colnames(covs_risk)
+  varying_covs_names <- sprintf("spline%d", 1:n_varying)
+
+  trajectory_names <- outer(
+    c(varying_covs_names, sprintf("traject:%s", fixed_covs_names)),
+      1:n_causes, function(x, y) sprintf("cause%d:%s", y, x))
+  colnames(covs_trajectory) <- colnames(covs_trajectory_delayed) <-
+    colnames(d_covs_trajectory) <- c(trajectory_names)
+
+  param_names_upper <- character(indices$n_par_upper_tri)
+  param_names_upper[indices$coef_trajectory] <- c(trajectory_names)
+  param_names_upper[indices$coef_risk] <-
+    c(outer(fixed_covs_names, 1:n_causes,
+            function(x, y) sprintf("cause%d:risk:%s", y, x)))
+
+  vcov_full_names <-
+    c(sprintf("risk%d", 1:n_causes), sprintf("traject%d", 1:n_causes))
+  vcov_full_names <-
+    outer(vcov_full_names, vcov_full_names, function(x, y) paste0(x, ":", y))
+  vcov_full_names[] <- sprintf("vcov:%s", vcov_full_names)
+
+  param_names_upper[indices$vcov_upper] <-
+    vcov_full_names[upper.tri(vcov_full_names, TRUE)]
+
+  param_names <- character(indices$n_par)
+  param_names[-indices$vcov_full] <- param_names_upper[-indices$vcov_upper]
+  param_names[indices$vcov_full] <- c(vcov_full_names)
+
+  param_names <- list(full = param_names, upper = param_names_upper)
+
   # clean up
   rm(list = setdiff(
     ls(),
@@ -199,7 +231,8 @@ mmcif_data <- function(formula, data, cause, time, cluster_id, max_time,
       "covs_trajectory", "time_observed", "cause", "time_trans",
       "d_time_trans", "max_time", "indices", "splines", "d_covs_trajectory",
       "constraints", "covs_trajectory_delayed", "time_expansion",
-      "d_time_expansion", "pair_cluster_id", "ghq_data")))
+      "d_time_expansion", "pair_cluster_id", "ghq_data",
+      "param_names")))
 
   structure(
     list(comp_obj = comp_obj, pair_indices = pair_indices,
@@ -210,7 +243,8 @@ mmcif_data <- function(formula, data, cause, time, cluster_id, max_time,
          max_time = max_time, indices = indices, splines = splines,
          d_covs_trajectory = d_covs_trajectory, constraints = constraints,
          covs_trajectory_delayed = covs_trajectory_delayed,
-         pair_cluster_id = pair_cluster_id, ghq_data = ghq_data),
+         pair_cluster_id = pair_cluster_id, ghq_data = ghq_data,
+         param_names = param_names),
     class = "mmcif")
 }
 
@@ -367,23 +401,28 @@ mmcif_start_values <- function(object, n_threads = 1L, vcov_start = NULL){
       par[coef_trajectory], fn, gr, method = "BFGS",
       ui = constraints[, coef_trajectory], ci = rep(1e-8, NROW(constraints)),
       control = list(maxit = 1000L), with_risk = FALSE)
-  stopifnot(opt_trajectory$convergence == 0)
+  if(opt_trajectory$convergence != 0)
+    warning(sprintf("convergence code is %d", opt_trajectory$convergence))
 
   par[coef_trajectory] <- opt_trajectory$par
   opt <- constrOptim(
     par, fn, gr, method = "BFGS", ui = constraints,
     ci = rep(1e-8, NROW(constraints)), control = list(maxit = 1000L),
     with_risk = TRUE)
-  stopifnot(opt$convergence == 0)
+  if(opt$convergence != 0)
+    warning(sprintf("convergence code is %d", opt$convergence))
 
   if(is.null(vcov_start))
     vcov_start <- diag(2L * n_causes)
   stopifnot(is.matrix(vcov_start), all(dim(vcov_start) == 2L * n_causes),
             all(is.finite(vcov_start)))
 
-  structure(list(full = c(opt$par, c(vcov_start)),
-                 upper = c(opt$par, log_chol(vcov_start))),
-            logLik = -opt$value)
+  structure(
+    list(full = setNames(
+           c(opt$par, c(vcov_start)), object$param_names$full),
+         upper = setNames(
+           c(opt$par, log_chol(vcov_start)), object$param_names$upper)),
+    logLik = -opt$value)
 }
 
 
@@ -398,7 +437,7 @@ mmcif_start_values <- function(object, n_threads = 1L, vcov_start = NULL){
 #' \code{\link{mmcif_data}}, \code{\link{mmcif_start_values}} and
 #' \code{\link{mmcif_sandwich}}.
 #'
-#' @importFrom stats constrOptim
+#' @importFrom stats constrOptim setNames
 #' @export
 mmcif_fit <- function(
   par, object, n_threads = 1L, control = list(maxit = 10000L), method = "BFGS",
@@ -406,7 +445,7 @@ mmcif_fit <- function(
   stopifnot(inherits(object, "mmcif"))
   constraints <- object$constraints$vcov_upper
 
-  constrOptim(
+  out <- constrOptim(
     par, function(par) -mmcif_logLik(
       object, par, n_threads = n_threads, is_log_chol = TRUE),
     grad = function(par) -mmcif_logLik_grad(
@@ -414,6 +453,8 @@ mmcif_fit <- function(
     method = method, ui = constraints,
     ci = rep(1e-8, NROW(constraints)),
     control = control, ...)
+  out$par <- setNames(out$par, object$param_names$upper)
+  out
 }
 
 #' Computes the Sandwich Estimator
@@ -459,6 +500,12 @@ mmcif_sandwich <- function(
   jac[object$indices$vcov_upper, object$indices$vcov_upper] <-
     jac_log_chol_inv(par[object$indices$vcov_upper])
   res_org <- tcrossprod(jac %*% res, jac)
+
+  rownames(hessian) <- colnames(hessian) <-
+    rownames(meat) <- colnames(meat) <-
+    rownames(res) <- colnames(res) <-
+    rownames(res_org) <- colnames(res_org) <-
+    object$param_names$upper
 
   structure(res, meat = meat, hessian = hessian, `res vcov` = res_org)
 }
