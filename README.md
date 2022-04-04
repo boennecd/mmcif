@@ -307,10 +307,10 @@ bench::mark(
 #> # A tibble: 4 × 6
 #>   expression         min   median `itr/sec` mem_alloc `gc/sec`
 #>   <bch:expr>    <bch:tm> <bch:tm>     <dbl> <bch:byt>    <dbl>
-#> 1 one thread      55.1ms   55.5ms      18.0        0B        0
-#> 2 two threads     29.6ms   29.9ms      33.3        0B        0
-#> 3 three threads   20.4ms   20.8ms      48.0        0B        0
-#> 4 four threads    16.2ms   16.6ms      60.2        0B        0
+#> 1 one thread      54.2ms   54.6ms      18.3        0B        0
+#> 2 two threads       29ms   29.2ms      34.2        0B        0
+#> 3 three threads   19.3ms   19.5ms      51.1        0B        0
+#> 4 four threads    15.4ms   16.1ms      61.6        0B        0
 
 # next, we compute the gradient of the log composite likelihood at the true 
 # parameters. First we assign a few functions to verify the result. You can 
@@ -378,10 +378,10 @@ bench::mark(
 #> # A tibble: 4 × 6
 #>   expression         min   median `itr/sec` mem_alloc `gc/sec`
 #>   <bch:expr>    <bch:tm> <bch:tm>     <dbl> <bch:byt>    <dbl>
-#> 1 one thread     155.8ms  156.9ms      6.34      336B        0
-#> 2 two threads     85.9ms   86.7ms     11.4       336B        0
-#> 3 three threads     59ms   60.5ms     16.1       336B        0
-#> 4 four threads    46.9ms   48.6ms     19.2       336B        0
+#> 1 one thread     156.8ms  157.4ms      6.22      336B        0
+#> 2 two threads       86ms   86.5ms     11.4       336B        0
+#> 3 three threads   56.9ms   57.8ms     17.3       336B        0
+#> 4 four threads      46ms     48ms     20.9       336B        0
 ```
 
 Then we optimize the parameters.
@@ -390,7 +390,7 @@ Then we optimize the parameters.
 # find the starting values
 system.time(start <- mmcif_start_values(comp_obj, n_threads = 4L))
 #>    user  system elapsed 
-#>   0.066   0.000   0.020
+#>   0.056   0.000   0.018
 
 # the maximum likelihood without the random effects. Note that this is not 
 # comparable with the composite likelihood
@@ -433,7 +433,7 @@ rbind(`Numerical gradient` = gr_num, `Gradient package` = gr_package)
 # optimize the log composite likelihood
 system.time(fit <- mmcif_fit(start$upper, comp_obj, n_threads = 4L))
 #>    user  system elapsed 
-#>  41.012   0.000  10.309
+#>  27.074   0.056   6.858
 
 # the log composite likelihood at different points
 mmcif_logLik(comp_obj, truth, n_threads = 4L, is_log_chol = TRUE)
@@ -441,7 +441,7 @@ mmcif_logLik(comp_obj, truth, n_threads = 4L, is_log_chol = TRUE)
 mmcif_logLik(comp_obj, start$upper, n_threads = 4L, is_log_chol = TRUE)
 #> [1] -7572.462
 -fit$value
-#> [1] -7050.352
+#> [1] -7050.351
 ```
 
 Then we compute the sandwich estimator. The Hessian is currently
@@ -450,14 +450,14 @@ computed with numerical differentiation which is why it takes a while.
 ``` r
 system.time(sandwich_est <- mmcif_sandwich(comp_obj, fit$par, n_threads = 4L))
 #>    user  system elapsed 
-#>  91.222   0.004  23.210
+#>  88.983   0.004  22.606
 
 # setting order equal to zero yield no Richardson extrapolation and just
 # standard symmetric difference quotient. This is less precise but faster 
 system.time(sandwich_est_simple <- 
               mmcif_sandwich(comp_obj, fit$par, n_threads = 4L, order = 0L))
 #>    user  system elapsed 
-#>  12.349   0.000   3.145
+#>  12.415   0.000   3.158
 ```
 
 We show the estimated and true the conditional cumulative incidence
@@ -512,7 +512,7 @@ Further illustrations of the estimated model are given below.
 # the number of call we made
 fit$counts
 #> function gradient 
-#>      329      104
+#>      110      104
 fit$outer.iterations
 #> [1] 2
 
@@ -526,48 +526,48 @@ rbind(`Estimate AGHQ` = fit$par[comp_obj$indices$coef_risk],
       `Standard errors simple` = SEs_simple[comp_obj$indices$coef_risk],
       Truth = truth[comp_obj$indices$coef_risk])
 #>                        cause1:risk:(Intercept) cause1:risk:a cause1:risk:b
-#> Estimate AGHQ                       0.58696491    0.94948776    0.08989454
-#> Standard errors                     0.07240484    0.06902271    0.10193339
-#> Standard errors simple              0.07240502    0.06902199    0.10193339
+#> Estimate AGHQ                       0.58620564    0.94954204    0.08950182
+#> Standard errors                     0.07248608    0.06900108    0.10192677
+#> Standard errors simple              0.07248630    0.06900042    0.10192677
 #> Truth                               0.67000000    1.00000000    0.10000000
 #>                        cause2:risk:(Intercept) cause2:risk:a cause2:risk:b
-#> Estimate AGHQ                      -0.40852737    0.20872800     0.5051021
-#> Standard errors                     0.09894766    0.07073087     0.1233468
-#> Standard errors simple              0.09894653    0.07073066     0.1233466
+#> Estimate AGHQ                      -0.40865018    0.20842971     0.5046457
+#> Standard errors                     0.09901495    0.07071248     0.1232734
+#> Standard errors simple              0.09901363    0.07071228     0.1232732
 #> Truth                              -0.40000000    0.25000000     0.3000000
 rbind(`Estimate AGHQ` = fit$par[comp_obj$indices$coef_trajectory],
       `Standard errors` = SEs[comp_obj$indices$coef_trajectory],
       `Standard errors simple` = SEs_simple[comp_obj$indices$coef_trajectory],
       Truth = truth[comp_obj$indices$coef_trajectory])
 #>                        cause1:spline1 cause1:spline2 cause1:spline3
-#> Estimate AGHQ              -2.7612653     -3.6361658     -6.5360919
-#> Standard errors             0.1115511      0.1320472      0.2122189
-#> Standard errors simple      0.1115845      0.1320861      0.2121753
+#> Estimate AGHQ              -2.7627254     -3.6378274     -6.5395047
+#> Standard errors             0.1116663      0.1321685      0.2124841
+#> Standard errors simple      0.1116999      0.1322075      0.2124407
 #> Truth                      -2.8546006     -3.5847914     -6.5119295
 #>                        cause1:spline4 cause1:traject:(Intercept)
-#> Estimate AGHQ              -4.9825472                  2.7889557
-#> Standard errors             0.1573129                  0.1048409
-#> Standard errors simple      0.1572809                  0.1048510
+#> Estimate AGHQ              -4.9846541                  2.7904996
+#> Standard errors             0.1574550                  0.1049764
+#> Standard errors simple      0.1574231                  0.1049866
 #> Truth                      -4.9573949                  2.8655410
 #>                        cause1:traject:a cause1:traject:b cause2:spline1
-#> Estimate AGHQ                0.78978436       0.32070402     -2.8898834
-#> Standard errors              0.05136435       0.06088643      0.2251655
-#> Standard errors simple       0.05136649       0.06088767      0.2250641
+#> Estimate AGHQ                0.79012484       0.32085836     -2.8832267
+#> Standard errors              0.05139623       0.06090990      0.2243698
+#> Standard errors simple       0.05139838       0.06091115      0.2242685
 #> Truth                        0.80000000       0.40000000     -2.5969205
 #>                        cause2:spline2 cause2:spline3 cause2:spline4
-#> Estimate AGHQ              -3.3092236     -6.2132723     -4.8800326
-#> Standard errors             0.2292161      0.4479185      0.3180172
-#> Standard errors simple      0.2291399      0.4474995      0.3177405
+#> Estimate AGHQ              -3.3018386     -6.1991157     -4.8688943
+#> Standard errors             0.2282964      0.4462072      0.3165857
+#> Standard errors simple      0.2282202      0.4457886      0.3163094
 #> Truth                      -3.3415994     -6.0232223     -4.6611059
 #>                        cause2:traject:(Intercept) cause2:traject:a
-#> Estimate AGHQ                           3.3640785       0.24690166
-#> Standard errors                         0.2575477       0.06955240
-#> Standard errors simple                  0.2573933       0.06955049
+#> Estimate AGHQ                           3.3577293       0.24607315
+#> Standard errors                         0.2567064       0.06942385
+#> Standard errors simple                  0.2565522       0.06942196
 #> Truth                                   3.1144598       0.25000000
 #>                        cause2:traject:b
-#> Estimate AGHQ                -0.3477308
-#> Standard errors               0.1059213
-#> Standard errors simple        0.1059163
+#> Estimate AGHQ                -0.3471028
+#> Standard errors               0.1057178
+#> Standard errors simple        0.1057128
 #> Truth                        -0.2000000
 
 n_vcov <- (2L * n_causes * (2L * n_causes + 1L)) %/% 2L
@@ -579,10 +579,10 @@ Sigma
 #> [4,]  0.197 -0.250 -0.319  0.903
 log_chol_inv(tail(fit$par, n_vcov))
 #>             [,1]        [,2]        [,3]       [,4]
-#> [1,]  0.38543112  0.05166155 -0.05648918  0.1600121
-#> [2,]  0.05166155  0.81947676  0.24228289 -0.4243911
-#> [3,] -0.05648918  0.24228289  0.68712660 -0.2424933
-#> [4,]  0.16001213 -0.42439109 -0.24249325  1.0620045
+#> [1,]  0.38507267  0.04766207 -0.05680156  0.1582099
+#> [2,]  0.04766207  0.81270528  0.24236467 -0.4260827
+#> [3,] -0.05680156  0.24236467  0.68842695 -0.2425395
+#> [4,]  0.15820990 -0.42608266 -0.24253949  1.0533736
 
 # on the log Cholesky scale
 rbind(`Estimate AGHQ` = fit$par[comp_obj$indices$vcov_upper],
@@ -590,29 +590,29 @@ rbind(`Estimate AGHQ` = fit$par[comp_obj$indices$vcov_upper],
       `Standard errors simple` = SEs_simple[comp_obj$indices$vcov_upper],
       Truth = truth[comp_obj$indices$vcov_upper])
 #>                        vcov:risk1:risk1 vcov:risk1:risk2 vcov:risk2:risk2
-#> Estimate AGHQ                -0.4766964       0.08321355       -0.1037875
-#> Standard errors               0.2078371       0.23516165        0.1574319
-#> Standard errors simple        0.2078164       0.23516090        0.1574276
+#> Estimate AGHQ                -0.4771616       0.07680713       -0.1073361
+#> Standard errors               0.2078095       0.23790573        0.1594426
+#> Standard errors simple        0.2077903       0.23790612        0.1594369
 #> Truth                        -0.5920851       0.01446203       -0.1380145
 #>                        vcov:risk1:traject1 vcov:risk2:traject1
-#> Estimate AGHQ                  -0.09098963           0.2771797
-#> Standard errors                 0.14515039           0.1154924
-#> Standard errors simple          0.14514814           0.1154906
+#> Estimate AGHQ                  -0.09153537           0.2776538
+#> Standard errors                 0.14526369           0.1161468
+#> Standard errors simple          0.14526139           0.1161449
 #> Truth                          -0.24947003           0.2922878
 #>                        vcov:traject1:traject1 vcov:risk1:traject2
-#> Estimate AGHQ                      -0.2537332           0.2577386
-#> Standard errors                     0.1064636           0.2403597
-#> Standard errors simple              0.1064561           0.2403502
+#> Estimate AGHQ                      -0.2529550           0.2549543
+#> Standard errors                     0.1064977           0.2403814
+#> Standard errors simple              0.1064902           0.2403721
 #> Truth                              -0.2485168           0.3561275
 #>                        vcov:risk2:traject2 vcov:traject1:traject2
-#> Estimate AGHQ                   -0.4945974             -0.1056186
-#> Standard errors                  0.2011015              0.1503139
-#> Standard errors simple           0.2011077              0.1503137
+#> Estimate AGHQ                   -0.4961625             -0.1048815
+#> Standard errors                  0.2021080              0.1505190
+#> Standard errors simple           0.2021143              0.1505188
 #> Truth                           -0.2929106             -0.1853214
 #>                        vcov:traject2:traject2
-#> Estimate AGHQ                      -0.1506922
-#> Standard errors                     0.1873742
-#> Standard errors simple              0.1873061
+#> Estimate AGHQ                      -0.1565378
+#> Standard errors                     0.1889483
+#> Standard errors simple              0.1888801
 #> Truth                              -0.2107724
 
 # on the original covariance matrix scale
@@ -628,15 +628,15 @@ colnames(vcov_show) <-
   c(rep("Est.", NCOL(vcov_est)), "", rep("SE", NCOL(vcov_est)))
 print(vcov_show, na.print = "")
 #>           Est.       Est.        Est.       Est.         SE        SE        SE
-#> [1,] 0.3854311 0.05166155 -0.05648918  0.1600121  0.1602137 0.3012599 0.1787952
-#> [2,]           0.81947676  0.24228289 -0.4243911            0.2724139 0.2208577
-#> [3,]                       0.68712660 -0.2424933                      0.1158075
-#> [4,]                                   1.0620045                               
+#> [1,] 0.3850727 0.04766207 -0.05680156  0.1582099  0.1600435 0.3039355 0.1788339
+#> [2,]           0.81270528  0.24236467 -0.4260827            0.2729629 0.2206890
+#> [3,]                       0.68842695 -0.2425395                      0.1159555
+#> [4,]                                   1.0533736                               
 #>             SE
-#> [1,] 0.3015231
-#> [2,] 0.3633107
-#> [3,] 0.2065627
-#> [4,] 0.2820618
+#> [1,] 0.3015934
+#> [2,] 0.3628394
+#> [3,] 0.2063421
+#> [4,] 0.2802714
 
 Sigma # the true values
 #>        [,1]   [,2]   [,3]   [,4]
@@ -800,7 +800,7 @@ truth <- c(coef_risk, coef_traject_spline, log_chol(Sigma))
 # find the starting values
 system.time(start <- mmcif_start_values(comp_obj, n_threads = 4L))
 #>    user  system elapsed 
-#>   0.055   0.000   0.017
+#>   0.048   0.000   0.016
 
 # we can verify that the gradient is correct again
 gr_package <- mmcif_logLik_grad(
@@ -829,7 +829,7 @@ rbind(`Numerical gradient` = gr_num, `Gradient package` = gr_package)
 # optimize the log composite likelihood
 system.time(fit <- mmcif_fit(start$upper, comp_obj, n_threads = 4L))
 #>    user  system elapsed 
-#>  52.364   0.000  13.521
+#>  78.293   0.000  20.330
 
 # the log composite likelihood at different points
 mmcif_logLik(comp_obj, truth, n_threads = 4L, is_log_chol = TRUE)
@@ -837,7 +837,7 @@ mmcif_logLik(comp_obj, truth, n_threads = 4L, is_log_chol = TRUE)
 mmcif_logLik(comp_obj, start$upper, n_threads = 4L, is_log_chol = TRUE)
 #> [1] -5077.429
 -fit$value
-#> [1] -4723.988
+#> [1] -4723.969
 ```
 
 Then we compute the sandwich estimator. The Hessian is currently
@@ -846,14 +846,14 @@ computed with numerical differentiation which is why it takes a while.
 ``` r
 system.time(sandwich_est <- mmcif_sandwich(comp_obj, fit$par, n_threads = 4L))
 #>    user  system elapsed 
-#> 225.872   0.008  59.799
+#> 228.422   0.009  60.317
 
 # setting order equal to zero yield no Richardson extrapolation and just
 # standard symmetric difference quotient. This is less precise but faster 
 system.time(sandwich_est_simple <- 
               mmcif_sandwich(comp_obj, fit$par, n_threads = 4L, order = 0L))
 #>    user  system elapsed 
-#>  33.849   0.001   8.989
+#>  31.326   0.000   8.309
 ```
 
 We show the estimated and true the conditional cumulative incidence
@@ -908,7 +908,7 @@ Further illustrations of the estimated model are given below.
 # the number of call we made
 fit$counts
 #> function gradient 
-#>      157       52
+#>      120      117
 fit$outer.iterations
 #> [1] 2
 
@@ -922,48 +922,48 @@ rbind(`Estimate AGHQ` = fit$par[comp_obj$indices$coef_risk],
       `Standard errors simple` = SEs_simple[comp_obj$indices$coef_risk],
       Truth = truth[comp_obj$indices$coef_risk])
 #>                        cause1:risk:(Intercept) cause1:risk:a cause1:risk:b
-#> Estimate AGHQ                       0.57771877    0.98274469     0.1390372
-#> Standard errors                     0.07591667    0.08423562     0.1052981
-#> Standard errors simple              0.07591717    0.08423421     0.1052985
+#> Estimate AGHQ                       0.57739741    0.98254944     0.1390546
+#> Standard errors                     0.07589777    0.08422798     0.1052925
+#> Standard errors simple              0.07589783    0.08422731     0.1052928
 #> Truth                               0.67000000    1.00000000     0.1000000
 #>                        cause2:risk:(Intercept) cause2:risk:a cause2:risk:b
-#> Estimate AGHQ                       -0.4127569    0.23022875     0.3438114
-#> Standard errors                      0.1034130    0.07867398     0.1175204
-#> Standard errors simple               0.1034106    0.07867299     0.1175195
+#> Estimate AGHQ                       -0.4140296    0.23000878     0.3439262
+#> Standard errors                      0.1033378    0.07871263     0.1175257
+#> Standard errors simple               0.1033356    0.07871211     0.1175253
 #> Truth                               -0.4000000    0.25000000     0.3000000
 rbind(`Estimate AGHQ` = fit$par[comp_obj$indices$coef_trajectory],
       `Standard errors` = SEs[comp_obj$indices$coef_trajectory],
       `Standard errors simple` = SEs_simple[comp_obj$indices$coef_trajectory],
       Truth = truth[comp_obj$indices$coef_trajectory])
 #>                        cause1:spline1 cause1:spline2 cause1:spline3
-#> Estimate AGHQ              -2.9829886     -3.6259795     -6.6762599
-#> Standard errors             0.1640940      0.1649436      0.3373203
-#> Standard errors simple      0.1641261      0.1649679      0.3372301
+#> Estimate AGHQ              -2.9834789     -3.6264445     -6.6774679
+#> Standard errors             0.1642122      0.1650987      0.3376146
+#> Standard errors simple      0.1642446      0.1651228      0.3375251
 #> Truth                      -3.0513444     -3.6657486     -6.6720198
 #>                        cause1:spline4 cause1:traject:(Intercept)
-#> Estimate AGHQ              -4.7860112                  2.5966298
-#> Standard errors             0.2230601                  0.1503130
-#> Standard errors simple      0.2229781                  0.1503156
+#> Estimate AGHQ              -4.7865951                  2.5968313
+#> Standard errors             0.2232754                  0.1504230
+#> Standard errors simple      0.2231936                  0.1504262
 #> Truth                      -4.8559792                  2.6777525
 #>                        cause1:traject:a cause1:traject:b cause2:spline1
-#> Estimate AGHQ                0.88394510       0.40170354     -2.6792464
-#> Standard errors              0.06574697       0.07498460      0.2104229
-#> Standard errors simple       0.06573972       0.07498481      0.2104938
+#> Estimate AGHQ                0.88419262       0.40167971     -2.6815559
+#> Standard errors              0.06577916       0.07498845      0.2115471
+#> Standard errors simple       0.06577133       0.07498862      0.2116242
 #> Truth                        0.80000000       0.40000000     -2.7771001
 #>                        cause2:spline2 cause2:spline3 cause2:spline4
-#> Estimate AGHQ              -3.1392296     -5.6456602     -4.1521398
-#> Standard errors             0.1883607      0.4000963      0.2553798
-#> Standard errors simple      0.1884786      0.4000108      0.2552799
+#> Estimate AGHQ              -3.1416503     -5.6506497     -4.1551289
+#> Standard errors             0.1897188      0.4024503      0.2574492
+#> Standard errors simple      0.1898439      0.4023770      0.2573637
 #> Truth                      -3.3481062     -6.2334375     -4.6449539
 #>                        cause2:traject:(Intercept) cause2:traject:a
-#> Estimate AGHQ                           2.7000388       0.24516632
-#> Standard errors                         0.2252095       0.06476620
-#> Standard errors simple                  0.2251804       0.06476116
+#> Estimate AGHQ                           2.6975075       0.24617100
+#> Standard errors                         0.2257982       0.06481589
+#> Standard errors simple                  0.2257853       0.06481115
 #> Truth                                   3.0259114       0.25000000
 #>                        cause2:traject:b
-#> Estimate AGHQ                -0.1692536
-#> Standard errors               0.1199285
-#> Standard errors simple        0.1199266
+#> Estimate AGHQ                -0.1692573
+#> Standard errors               0.1199820
+#> Standard errors simple        0.1199801
 #> Truth                        -0.2000000
 
 n_vcov <- (2L * n_causes * (2L * n_causes + 1L)) %/% 2L
@@ -975,10 +975,10 @@ Sigma
 #> [4,]  0.197 -0.250 -0.319  0.903
 log_chol_inv(tail(fit$par, n_vcov))
 #>             [,1]       [,2]        [,3]       [,4]
-#> [1,]  0.33704691 -0.1472955 -0.07178608  0.1340456
-#> [2,] -0.14729555  0.3656635  0.41934137 -0.1207782
-#> [3,] -0.07178608  0.4193414  0.72101446 -0.4180224
-#> [4,]  0.13404558 -0.1207782 -0.41802243  0.5935066
+#> [1,]  0.33610958 -0.1474731 -0.07154827  0.1427470
+#> [2,] -0.14747306  0.3688796  0.41853415 -0.1078322
+#> [3,] -0.07154827  0.4185341  0.72133123 -0.4205271
+#> [4,]  0.14274700 -0.1078322 -0.42052705  0.5950032
 
 # on the log Cholesky scale
 rbind(`Estimate AGHQ` = fit$par[comp_obj$indices$vcov_upper],
@@ -986,29 +986,29 @@ rbind(`Estimate AGHQ` = fit$par[comp_obj$indices$vcov_upper],
       `Standard errors simple` = SEs_simple[comp_obj$indices$vcov_upper],
       Truth = truth[comp_obj$indices$vcov_upper])
 #>                        vcov:risk1:risk1 vcov:risk1:risk2 vcov:risk2:risk2
-#> Estimate AGHQ                -0.5437666      -0.25371401       -0.5998365
-#> Standard errors               0.2758094       0.23393335        0.3605840
-#> Standard errors simple        0.2757693       0.23383601        0.3601435
+#> Estimate AGHQ                -0.5451590      -0.25437372       -0.5950783
+#> Standard errors               0.2756519       0.22890496        0.3423229
+#> Standard errors simple        0.2756258       0.22884814        0.3420288
 #> Truth                        -0.5920851       0.01446203       -0.1380145
 #>                        vcov:risk1:traject1 vcov:risk2:traject1
-#> Estimate AGHQ                   -0.1236503           0.7068111
-#> Standard errors                  0.1949164           0.1901756
-#> Standard errors simple           0.1949140           0.1898221
+#> Estimate AGHQ                   -0.1234124           0.7019541
+#> Standard errors                  0.1956053           0.1751353
+#> Standard errors simple           0.1956090           0.1749164
 #> Truth                           -0.2494700           0.2922878
 #>                        vcov:traject1:traject1 vcov:risk1:traject2
-#> Estimate AGHQ                      -0.7895923           0.2308912
-#> Standard errors                     0.5918002           0.2204120
-#> Standard errors simple              0.5898923           0.2202166
+#> Estimate AGHQ                      -0.7723847           0.2462218
+#> Standard errors                     0.5158879           0.2157852
+#> Standard errors simple              0.5145938           0.2156687
 #> Truth                              -0.2485168           0.3561275
 #>                        vcov:risk2:traject2 vcov:traject1:traject2
-#> Estimate AGHQ                   -0.1133134             -0.6814123
-#> Standard errors                  0.3098811              0.1525855
-#> Standard errors simple           0.3092876              0.1523458
-#> Truth                           -0.2929106             -0.1853214
+#> Estimate AGHQ                  -0.08195509             -0.7200783
+#> Standard errors                 0.28633866              0.1296342
+#> Standard errors simple          0.28596812              0.1297394
+#> Truth                          -0.29291060             -0.1853214
 #>                        vcov:traject2:traject2
-#> Estimate AGHQ                      -1.3820464
-#> Standard errors                     0.8795667
-#> Standard errors simple              0.8687469
+#> Estimate AGHQ                      -2.3470742
+#> Standard errors                     1.4385800
+#> Standard errors simple              1.4235827
 #> Truth                              -0.2107724
 
 # on the original covariance matrix scale
@@ -1024,15 +1024,15 @@ colnames(vcov_show) <-
   c(rep("Est.", NCOL(vcov_est)), "", rep("SE", NCOL(vcov_est)))
 print(vcov_show, na.print = "")
 #>           Est.       Est.        Est.       Est.         SE        SE        SE
-#> [1,] 0.3370469 -0.1472955 -0.07178608  0.1340456  0.1859214 0.2396936 0.2268023
-#> [2,]            0.3656635  0.41934137 -0.1207782            0.1702492 0.2281030
-#> [3,]                       0.72101446 -0.4180224                      0.1472856
-#> [4,]                                   0.5935066                               
+#> [1,] 0.3361096 -0.1474731 -0.07154827  0.1427470  0.1852985 0.2343531 0.2271176
+#> [2,]            0.3688796  0.41853415 -0.1078322            0.1655676 0.2287801
+#> [3,]                       0.72133123 -0.4205271                      0.1473798
+#> [4,]                                   0.5950032                               
 #>             SE
-#> [1,] 0.2721851
-#> [2,] 0.2972779
-#> [3,] 0.2563843
-#> [4,] 0.1838320
+#> [1,] 0.2639076
+#> [2,] 0.2790536
+#> [3,] 0.2561399
+#> [4,] 0.1855851
 
 Sigma # the true values
 #>        [,1]   [,2]   [,3]   [,4]
@@ -1367,7 +1367,7 @@ truth <- c(coef_risk[permu, ],
 # find the starting values
 system.time(start <- mmcif_start_values(comp_obj, n_threads = 4L))
 #>    user  system elapsed 
-#>   0.220   0.000   0.061
+#>   0.257   0.000   0.067
 
 # we can verify that the gradient is correct again
 gr_package <- mmcif_logLik_grad(
@@ -1396,7 +1396,7 @@ rbind(`Numerical gradient` = gr_num, `Gradient package` = gr_package)
 #> Numerical gradient 25.19498 -16.81884 48.56917 10.18288 -9.259465 7.030678
 #> Gradient package   25.20503 -16.79895 48.57437 10.19814 -9.238732 7.035232
 #>                       [,37]    [,38]    [,39]    [,40]    [,41]    [,42]
-#> Numerical gradient 2.899077 2.785980 7.046566 6.839909 6.109974 2.291246
+#> Numerical gradient 2.899077 2.785980 7.046566 6.839909 6.109974 2.291247
 #> Gradient package   2.904297 2.792787 7.049303 6.841548 6.110747 2.291344
 #>                        [,43]     [,44]   [,45]    [,46]     [,47]    [,48]
 #> Numerical gradient -2.230388 -28.17980 37.4577 4.681710 -28.40913 27.85014
@@ -1417,7 +1417,7 @@ rbind(`Numerical gradient` = gr_num, `Gradient package` = gr_package)
 # optimize the log composite likelihood
 system.time(fit <- mmcif_fit(start$upper, comp_obj, n_threads = 4L))
 #>    user  system elapsed 
-#>  74.981   0.000  19.199
+#> 167.352   0.004  43.175
 
 # the log composite likelihood at different points
 mmcif_logLik(comp_obj, truth, n_threads = 4L, is_log_chol = TRUE)
@@ -1425,7 +1425,7 @@ mmcif_logLik(comp_obj, truth, n_threads = 4L, is_log_chol = TRUE)
 mmcif_logLik(comp_obj, start$upper, n_threads = 4L, is_log_chol = TRUE)
 #> [1] -3453.665
 -fit$value
-#> [1] -3113.28
+#> [1] -3113.285
 ```
 
 Then we compute the sandwich estimator. The Hessian is currently
@@ -1434,14 +1434,14 @@ computed with numerical differentiation which is why it takes a while.
 ``` r
 system.time(sandwich_est <- mmcif_sandwich(comp_obj, fit$par, n_threads = 4L))
 #>    user  system elapsed 
-#> 447.588   0.192 116.465
+#> 414.968   0.012 107.909
 
 # setting order equal to zero yield no Richardson extrapolation and just
 # standard symmetric difference quotient. This is less precise but faster 
 system.time(sandwich_est_simple <- 
               mmcif_sandwich(comp_obj, fit$par, n_threads = 4L, order = 0L))
 #>    user  system elapsed 
-#>  70.122   0.016  18.238
+#>  70.603   0.004  18.388
 ```
 
 We show the estimated and true the conditional cumulative incidence
@@ -1502,7 +1502,7 @@ Further illustrations of the estimated model are given below.
 # the number of call we made
 fit$counts
 #> function gradient 
-#>      282       84
+#>      259      256
 fit$outer.iterations
 #> [1] 2
 
@@ -1516,159 +1516,159 @@ rbind(`Estimate AGHQ` = fit$par[comp_obj$indices$coef_risk],
       `Standard errors simple` = SEs_simple[comp_obj$indices$coef_risk],
       Truth = truth[comp_obj$indices$coef_risk])
 #>                        cause1:risk:stratas1 cause1:risk:stratas2
-#> Estimate AGHQ                     0.7922430           -0.1759467
-#> Standard errors                   0.1630214            0.1172211
-#> Standard errors simple            0.1630207            0.1172203
+#> Estimate AGHQ                     0.7922891           -0.1756971
+#> Standard errors                   0.1630274            0.1172098
+#> Standard errors simple            0.1630266            0.1172090
 #> Truth                             0.9000000           -0.2000000
 #>                        cause1:risk:stratas3 cause1:risk:stratas1:a
-#> Estimate AGHQ                   0.001151619              1.0591150
-#> Standard errors                 0.197074463              0.1605918
-#> Standard errors simple          0.197073052              0.1605866
+#> Estimate AGHQ                   0.001345903              1.0592843
+#> Standard errors                 0.197079775              0.1606144
+#> Standard errors simple          0.197078348              0.1606098
 #> Truth                           0.000000000              1.0000000
 #>                        cause1:risk:stratas2:a cause1:risk:stratas3:a
-#> Estimate AGHQ                      0.53803127             0.03491036
-#> Standard errors                    0.09332510             0.14147630
-#> Standard errors simple             0.09332503             0.14147615
+#> Estimate AGHQ                      0.53808422             0.03497927
+#> Standard errors                    0.09332375             0.14147083
+#> Standard errors simple             0.09332368             0.14147068
 #> Truth                              0.50000000             0.00000000
 #>                        cause1:risk:stratas1:b cause1:risk:stratas2:b
-#> Estimate AGHQ                       0.0583522             -0.1338563
-#> Standard errors                     0.2407993              0.1514631
-#> Standard errors simple              0.2407993              0.1514631
-#> Truth                               0.1000000              0.0000000
+#> Estimate AGHQ                      0.05853282             -0.1336840
+#> Standard errors                    0.24079177              0.1514553
+#> Standard errors simple             0.24079179              0.1514553
+#> Truth                              0.10000000              0.0000000
 #>                        cause1:risk:stratas3:b cause2:risk:stratas1
-#> Estimate AGHQ                      0.09208176           -0.2901821
-#> Standard errors                    0.30168639            0.1931605
-#> Standard errors simple             0.30168599            0.1931619
+#> Estimate AGHQ                      0.09248032           -0.2900559
+#> Standard errors                    0.30169043            0.1931723
+#> Standard errors simple             0.30169003            0.1931741
 #> Truth                              0.50000000           -0.4000000
 #>                        cause2:risk:stratas2 cause2:risk:stratas3
-#> Estimate AGHQ                    0.06877565            1.4503517
-#> Standard errors                  0.11723132            0.1619713
-#> Standard errors simple           0.11723070            0.1619716
+#> Estimate AGHQ                    0.06880132            1.4504241
+#> Standard errors                  0.11723453            0.1619753
+#> Standard errors simple           0.11723389            0.1619755
 #> Truth                            0.00000000            1.5000000
 #>                        cause2:risk:stratas1:a cause2:risk:stratas2:a
-#> Estimate AGHQ                       0.3511424              0.5658853
-#> Standard errors                     0.1695989              0.1020581
-#> Standard errors simple              0.1695817              0.1020582
+#> Estimate AGHQ                       0.3515460              0.5659669
+#> Standard errors                     0.1696191              0.1020672
+#> Standard errors simple              0.1696033              0.1020673
 #> Truth                               0.2500000              0.5000000
 #>                        cause2:risk:stratas3:a cause2:risk:stratas1:b
-#> Estimate AGHQ                      -0.3921915              0.7424858
-#> Standard errors                     0.1273516              0.2507329
-#> Standard errors simple              0.1273518              0.2507325
+#> Estimate AGHQ                      -0.3921941              0.7420469
+#> Standard errors                     0.1273544              0.2507171
+#> Standard errors simple              0.1273546              0.2507167
 #> Truth                              -0.2500000              0.3000000
 #>                        cause2:risk:stratas2:b cause2:risk:stratas3:b
-#> Estimate AGHQ                      0.07193662             0.06818382
-#> Standard errors                    0.16242239             0.23685735
-#> Standard errors simple             0.16242254             0.23685699
-#> Truth                              0.25000000             0.00000000
+#> Estimate AGHQ                       0.0720306             0.06860908
+#> Standard errors                     0.1624276             0.23688057
+#> Standard errors simple              0.1624277             0.23688021
+#> Truth                               0.2500000             0.00000000
 rbind(`Estimate AGHQ` = fit$par[comp_obj$indices$coef_trajectory],
       `Standard errors` = SEs[comp_obj$indices$coef_trajectory],
       `Standard errors simple` = SEs_simple[comp_obj$indices$coef_trajectory],
       Truth = truth[comp_obj$indices$coef_trajectory])
 #>                        cause1:strata1:spline1 cause1:strata1:spline2
-#> Estimate AGHQ                      -3.2011429             -3.5608450
-#> Standard errors                     0.2427245              0.2601032
-#> Standard errors simple              0.2427908              0.2601886
+#> Estimate AGHQ                      -3.2015649             -3.5616728
+#> Standard errors                     0.2427267              0.2601628
+#> Standard errors simple              0.2427929              0.2602482
 #> Truth                              -2.8429994             -3.3002000
 #>                        cause1:strata1:spline3 cause1:strata1:spline4
-#> Estimate AGHQ                      -6.7797999             -5.1282012
-#> Standard errors                     0.4561529              0.2910662
-#> Standard errors simple              0.4561294              0.2911048
+#> Estimate AGHQ                      -6.7806828             -5.1295718
+#> Standard errors                     0.4561244              0.2911589
+#> Standard errors simple              0.4561008              0.2911978
 #> Truth                              -6.2296492             -4.5237055
 #>                        cause1:strata2:spline1 cause1:strata2:spline2
-#> Estimate AGHQ                      -3.7160372             -4.5712090
-#> Standard errors                     0.3601730              0.3229761
-#> Standard errors simple              0.3609457              0.3235849
+#> Estimate AGHQ                      -3.7185904             -4.5735116
+#> Standard errors                     0.3607189              0.3233739
+#> Standard errors simple              0.3614938              0.3239846
 #> Truth                              -3.5537493             -4.1252500
 #>                        cause1:strata2:spline3 cause1:strata2:spline4
-#> Estimate AGHQ                      -8.5857671             -6.2921143
-#> Standard errors                     0.7572260              0.4279391
-#> Standard errors simple              0.7585803              0.4281361
+#> Estimate AGHQ                      -8.5917576             -6.2961255
+#> Standard errors                     0.7584787              0.4286720
+#> Standard errors simple              0.7598372              0.4288698
 #> Truth                              -7.7870616             -5.6546319
 #>                        cause1:strata3:spline1 cause1:strata3:spline2
-#> Estimate AGHQ                      -1.7814162             -2.0844716
-#> Standard errors                     0.2581910              0.2722796
-#> Standard errors simple              0.2582856              0.2724115
+#> Estimate AGHQ                      -1.7822819             -2.0857876
+#> Standard errors                     0.2583571              0.2725111
+#> Standard errors simple              0.2584518              0.2726432
 #> Truth                              -1.7768747             -2.0626250
 #>                        cause1:strata3:spline3 cause1:strata3:spline4
-#> Estimate AGHQ                      -4.0291253             -3.0248083
-#> Standard errors                     0.3674460              0.2751608
-#> Standard errors simple              0.3674735              0.2752634
+#> Estimate AGHQ                      -4.0312462             -3.0266751
+#> Standard errors                     0.3677312              0.2754555
+#> Standard errors simple              0.3677587              0.2755583
 #> Truth                              -3.8935308             -2.8273159
 #>                        cause1:traject:stratas1 cause1:traject:stratas2
-#> Estimate AGHQ                        2.8065505               3.6770895
-#> Standard errors                      0.2388532               0.3796388
-#> Standard errors simple               0.2388962               0.3803234
+#> Estimate AGHQ                        2.8069771               3.6795408
+#> Standard errors                      0.2388469               0.3802249
+#> Standard errors simple               0.2388900               0.3809116
 #> Truth                                2.4723583               3.5529479
 #>                        cause1:traject:stratas3 cause1:traject:stratas1:a
-#> Estimate AGHQ                        1.7958374                 0.8952492
-#> Standard errors                      0.2393003                 0.1051564
-#> Standard errors simple               0.2393394                 0.1051595
+#> Estimate AGHQ                        1.7970961                 0.8953815
+#> Standard errors                      0.2394907                 0.1051754
+#> Standard errors simple               0.2395300                 0.1051785
 #> Truth                                1.4264739                 0.8000000
 #>                        cause1:traject:stratas2:a cause1:traject:stratas3:a
-#> Estimate AGHQ                        -0.01427507                -0.1030341
-#> Standard errors                       0.10678621                 0.1967608
-#> Standard errors simple                0.10678660                 0.1967600
+#> Estimate AGHQ                        -0.01421898                -0.1032773
+#> Standard errors                       0.10684325                 0.1968660
+#> Standard errors simple                0.10684365                 0.1968652
 #> Truth                                 0.00000000                 0.0000000
 #>                        cause1:traject:stratas1:b cause1:traject:stratas2:b
-#> Estimate AGHQ                          0.4838277                 0.4795993
-#> Standard errors                        0.1812684                 0.1592273
-#> Standard errors simple                 0.1812696                 0.1592403
+#> Estimate AGHQ                          0.4838568                 0.4798645
+#> Standard errors                        0.1813106                 0.1593105
+#> Standard errors simple                 0.1813118                 0.1593235
 #> Truth                                  0.4000000                 0.4000000
 #>                        cause1:traject:stratas3:b cause2:strata1:spline1
-#> Estimate AGHQ                          0.5816492              -5.770940
-#> Standard errors                        0.2325443               2.138914
-#> Standard errors simple                 0.2325360               2.192926
+#> Estimate AGHQ                          0.5819734              -5.533182
+#> Standard errors                        0.2326716               2.017375
+#> Standard errors simple                 0.2326633               2.062676
 #> Truth                                  0.4000000              -7.489220
 #>                        cause2:strata1:spline2 cause2:strata1:spline3
-#> Estimate AGHQ                       -7.042035             -14.744752
-#> Standard errors                      1.475973               4.739041
-#> Standard errors simple               1.509259               4.838281
+#> Estimate AGHQ                       -6.886268             -14.255027
+#> Standard errors                      1.408168               4.522870
+#> Standard errors simple               1.435869               4.605603
 #> Truth                               -8.626866             -16.184799
 #>                        cause2:strata1:spline4 cause2:strata2:spline1
-#> Estimate AGHQ                      -16.475822             -2.8103630
-#> Standard errors                      2.939965              0.2073171
-#> Standard errors simple               2.940515              0.2073022
+#> Estimate AGHQ                      -16.349271             -2.8068700
+#> Standard errors                      2.906072              0.2070903
+#> Standard errors simple               2.905909              0.2070736
 #> Truth                              -11.544659             -2.4964067
 #>                        cause2:strata2:spline2 cause2:strata2:spline3
-#> Estimate AGHQ                      -2.9689132             -5.8043181
-#> Standard errors                     0.2002707              0.3985170
-#> Standard errors simple              0.2002946              0.3983822
+#> Estimate AGHQ                      -2.9653221             -5.7972382
+#> Standard errors                     0.2000256              0.3980463
+#> Standard errors simple              0.2000474              0.3979077
 #> Truth                              -2.8756220             -5.3949331
 #>                        cause2:strata2:spline4 cause2:strata3:spline1
-#> Estimate AGHQ                      -4.3458217             -3.3809622
-#> Standard errors                     0.2495230              0.2144667
-#> Standard errors simple              0.2494696              0.2147330
+#> Estimate AGHQ                      -4.3406259             -3.3754001
+#> Standard errors                     0.2491784              0.2139228
+#> Standard errors simple              0.2491216              0.2141860
 #> Truth                              -3.8482196             -3.1205084
 #>                        cause2:strata3:spline2 cause2:strata3:spline3
-#> Estimate AGHQ                      -3.8471547             -7.5456375
-#> Standard errors                     0.1953259              0.4057326
-#> Standard errors simple              0.1955334              0.4061115
+#> Estimate AGHQ                      -3.8418560             -7.5333498
+#> Standard errors                     0.1949043              0.4045862
+#> Standard errors simple              0.1951083              0.4049575
 #> Truth                              -3.5945275             -6.7436663
 #>                        cause2:strata3:spline4 cause2:traject:stratas1
-#> Estimate AGHQ                      -5.1461949                5.854813
-#> Standard errors                     0.2331613                2.188386
-#> Standard errors simple              0.2332317                2.243675
+#> Estimate AGHQ                      -5.1395682                5.611321
+#> Standard errors                     0.2326657                2.068628
+#> Standard errors simple              0.2327319                2.114993
 #> Truth                              -4.8102745                7.839085
 #>                        cause2:traject:stratas2 cause2:traject:stratas3
-#> Estimate AGHQ                        2.4703894               3.3417470
-#> Standard errors                      0.2028079               0.2058834
-#> Standard errors simple               0.2027711               0.2060642
+#> Estimate AGHQ                        2.4675290               3.3365015
+#> Standard errors                      0.2025788               0.2052060
+#> Standard errors simple               0.2025419               0.2053849
 #> Truth                                2.4130284               2.9537855
 #>                        cause2:traject:stratas1:a cause2:traject:stratas2:a
-#> Estimate AGHQ                          0.7083001                0.12652635
-#> Standard errors                        0.1864573                0.08229989
-#> Standard errors simple                 0.1864420                0.08230060
+#> Estimate AGHQ                          0.7064067                0.12637470
+#> Standard errors                        0.1862586                0.08221796
+#> Standard errors simple                 0.1862453                0.08221864
 #> Truth                                  0.2500000                0.00000000
 #>                        cause2:traject:stratas3:a cause2:traject:stratas1:b
-#> Estimate AGHQ                         0.20878460                 0.1150160
-#> Standard errors                       0.07843598                 0.2440429
-#> Standard errors simple                0.07843471                 0.2440339
+#> Estimate AGHQ                         0.20851914                 0.1158351
+#> Standard errors                       0.07836823                 0.2438536
+#> Standard errors simple                0.07836695                 0.2438453
 #> Truth                                 0.25000000                -0.2000000
 #>                        cause2:traject:stratas2:b cause2:traject:stratas3:b
-#> Estimate AGHQ                        -0.00904438                -0.1022603
-#> Standard errors                       0.13946784                 0.1221637
-#> Standard errors simple                0.13946801                 0.1221630
-#> Truth                                -0.20000000                 0.0000000
+#> Estimate AGHQ                       -0.008881347                -0.1020800
+#> Standard errors                      0.139340228                 0.1220400
+#> Standard errors simple               0.139340383                 0.1220394
+#> Truth                               -0.200000000                 0.0000000
 
 n_vcov <- (2L * n_causes * (2L * n_causes + 1L)) %/% 2L
 Sigma
@@ -1679,10 +1679,10 @@ Sigma
 #> [4,]  0.197 -0.250 -0.319  0.903
 log_chol_inv(tail(fit$par, n_vcov))
 #>              [,1]       [,2]         [,3]        [,4]
-#> [1,]  0.542647150 0.18168548 -0.007476723  0.29928644
-#> [2,]  0.181685479 0.72794757  0.209268443  0.04287587
-#> [3,] -0.007476723 0.20926844  0.942265865 -0.32365426
-#> [4,]  0.299286436 0.04287587 -0.323654265  1.14987457
+#> [1,]  0.542162433 0.18203635 -0.007640552  0.29844029
+#> [2,]  0.182036346 0.72822129  0.209117678  0.04279961
+#> [3,] -0.007640552 0.20911768  0.943807137 -0.32343247
+#> [4,]  0.298440294 0.04279961 -0.323432472  1.14442299
 
 # on the log Cholesky scale
 rbind(`Estimate AGHQ` = fit$par[comp_obj$indices$vcov_upper],
@@ -1690,29 +1690,29 @@ rbind(`Estimate AGHQ` = fit$par[comp_obj$indices$vcov_upper],
       `Standard errors simple` = SEs_simple[comp_obj$indices$vcov_upper],
       Truth = truth[comp_obj$indices$vcov_upper])
 #>                        vcov:risk1:risk1 vcov:risk1:risk2 vcov:risk2:risk2
-#> Estimate AGHQ                -0.3056480       0.24663883       -0.2023950
-#> Standard errors               0.1951808       0.24679583        0.1543245
-#> Standard errors simple        0.1951713       0.24679311        0.1543223
+#> Estimate AGHQ                -0.3060948       0.24722558       -0.2024071
+#> Standard errors               0.1954875       0.24681870        0.1543118
+#> Standard errors simple        0.1954778       0.24681589        0.1543098
 #> Truth                        -0.5920851       0.01446203       -0.1380145
 #>                        vcov:risk1:traject1 vcov:risk2:traject1
-#> Estimate AGHQ                  -0.01014968           0.2592788
-#> Standard errors                 0.20104401           0.1759740
-#> Standard errors simple          0.20103547           0.1759679
+#> Estimate AGHQ                  -0.01037672           0.2591734
+#> Standard errors                 0.20120826           0.1759879
+#> Standard errors simple          0.20119992           0.1759819
 #> Truth                          -0.24947003           0.2922878
 #>                        vcov:traject1:traject1 vcov:risk1:traject2
-#> Estimate AGHQ                     -0.06680151           0.4062826
-#> Standard errors                    0.10731157           0.2190157
-#> Standard errors simple             0.10735833           0.2190179
+#> Estimate AGHQ                     -0.06589296           0.4053151
+#> Standard errors                    0.10725230           0.2187823
+#> Standard errors simple             0.10729922           0.2187843
 #> Truth                             -0.24851681           0.3561275
 #>                        vcov:risk2:traject2 vcov:traject1:traject2
-#> Estimate AGHQ                  -0.07018996             -0.3221488
-#> Standard errors                 0.23727589              0.1872184
-#> Standard errors simple          0.23726448              0.1872100
+#> Estimate AGHQ                  -0.07028316             -0.3215137
+#> Standard errors                 0.23690625              0.1868295
+#> Standard errors simple          0.23689608              0.1868211
 #> Truth                          -0.29291060             -0.1853214
 #>                        vcov:traject2:traject2
-#> Estimate AGHQ                     -0.06613611
-#> Standard errors                    0.15170986
-#> Standard errors simple             0.15171770
+#> Estimate AGHQ                     -0.06857932
+#> Standard errors                    0.15194135
+#> Standard errors simple             0.15194689
 #> Truth                             -0.21077242
 
 # on the original covariance matrix scale
@@ -1727,16 +1727,16 @@ vcov_show <- cbind(Estimates = vcov_est, NA, SEs = vcov_SE)
 colnames(vcov_show) <- 
   c(rep("Est.", NCOL(vcov_est)), "", rep("SE", NCOL(vcov_est)))
 print(vcov_show, na.print = "")
-#>           Est.      Est.         Est.        Est.         SE        SE
-#> [1,] 0.5426472 0.1816855 -0.007476723  0.29928644  0.2118286 0.3975254
-#> [2,]           0.7279476  0.209268443  0.04287587            0.2557492
-#> [3,]                      0.942265865 -0.32365426                     
-#> [4,]                                   1.14987457                     
-#>             SE        SE
-#> [1,] 0.2961188 0.3127988
-#> [2,] 0.3177356 0.3874551
-#> [3,] 0.1865696 0.3323792
-#> [4,]           0.2149910
+#>           Est.      Est.         Est.        Est.        SE        SE        SE
+#> [1,] 0.5421624 0.1820363 -0.007640552  0.29844029  0.211972 0.3974736 0.2962258
+#> [2,]           0.7282213  0.209117678  0.04279961           0.2558114 0.3178490
+#> [3,]                      0.943807137 -0.32343247                     0.1868292
+#> [4,]                                   1.14442299                              
+#>             SE
+#> [1,] 0.3123872
+#> [2,] 0.3869999
+#> [3,] 0.3320827
+#> [4,] 0.2143212
 
 Sigma # the true values
 #>        [,1]   [,2]   [,3]   [,4]

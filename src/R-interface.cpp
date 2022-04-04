@@ -283,6 +283,12 @@ SEXP mmcif_data_holder_to_R
         singletons, covs_trajectory_delayed, pair_cluster_id));
 }
 
+// [[Rcpp::export(rng = false)]]
+int mmcif_n_terms(SEXP data_ptr){
+  Rcpp::XPtr<mmcif_data_holder const> data(data_ptr);
+  return data->singletons.size() + data->clusters_to_pair.size();
+}
+
 // [[Rcpp::export("mmcif_logLik_cpp", rng = false)]]
 double mmcif_logLik_to_R
   (SEXP data_ptr, NumericVector const par, Rcpp::List ghq_data,

@@ -30,6 +30,16 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// mmcif_n_terms
+int mmcif_n_terms(SEXP data_ptr);
+RcppExport SEXP _mmcif_mmcif_n_terms(SEXP data_ptrSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::traits::input_parameter< SEXP >::type data_ptr(data_ptrSEXP);
+    rcpp_result_gen = Rcpp::wrap(mmcif_n_terms(data_ptr));
+    return rcpp_result_gen;
+END_RCPP
+}
 // mmcif_logLik_to_R
 double mmcif_logLik_to_R(SEXP data_ptr, NumericVector const par, Rcpp::List ghq_data, unsigned n_threads);
 RcppExport SEXP _mmcif_mmcif_logLik_to_R(SEXP data_ptrSEXP, SEXP parSEXP, SEXP ghq_dataSEXP, SEXP n_threadsSEXP) {
@@ -162,6 +172,7 @@ RcppExport SEXP run_testthat_tests(SEXP);
 
 static const R_CallMethodDef CallEntries[] = {
     {"_mmcif_mmcif_data_holder_to_R", (DL_FUNC) &_mmcif_mmcif_data_holder_to_R, 10},
+    {"_mmcif_mmcif_n_terms", (DL_FUNC) &_mmcif_mmcif_n_terms, 1},
     {"_mmcif_mmcif_logLik_to_R", (DL_FUNC) &_mmcif_mmcif_logLik_to_R, 4},
     {"_mmcif_mmcif_logLik_grad_to_R", (DL_FUNC) &_mmcif_mmcif_logLik_grad_to_R, 4},
     {"_mmcif_mmcif_sandwich", (DL_FUNC) &_mmcif_mmcif_sandwich, 8},

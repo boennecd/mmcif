@@ -517,6 +517,8 @@ mmcif_fit <- function(
   ...){
   stopifnot(inherits(object, "mmcif"))
   constraints <- object$constraints$vcov_upper
+  if(is.null(control$fnscale))
+    control$fnscale <- mmcif_n_terms(object$comp_obj)
 
   out <- constrOptim(
     par, function(par) -mmcif_logLik(

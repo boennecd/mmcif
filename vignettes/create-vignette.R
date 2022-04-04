@@ -1,6 +1,7 @@
 library(rmarkdown)
 (function(){
-  setwd("vignettes")
+  if(!grepl("*vignettes$", getwd()))
+    setwd("vignettes")
 
   render("mmcif.Rmd", output_format = "html_document")
   render("mmcif.Rmd", output_format = github_document(

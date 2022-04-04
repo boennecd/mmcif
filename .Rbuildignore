@@ -14,3 +14,4 @@
 ^vignettes/.*\.synctex.gz
 ^vignettes/.*\.R
 ^vignettes/.*\.tex
+^examples/.*
