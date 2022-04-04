@@ -54,19 +54,22 @@ fit_model <- function(data, res_name){
   res_name <- file.path("cache", res_name)
   
   if(!file.exists(res_name)){
-    get_comp_obj <- function(dat = data)
+    get_comp_obj <- function(dat = data){
+      ghq_data <- fastGHQuad::gaussHermiteData(8) |> 
+        with(list(node = x, weight = w))
+      
       mmcif_data(
         formula = ~ country - 1, data, cause = status, time = time, 
         cluster_id = id, max_time = max_time, spline_df = 5L, 
-        strata = country)
+        strata = country, ghq_data = ghq_data)
+    }
     comp_obj <- get_comp_obj()
     
     start_time <- 
       system.time(start_vals <- mmcif_start_values(comp_obj, n_threads = 4L))
     
     fit_time <- system.time(fit <- mmcif_fit(
-      start_vals$upper, object = comp_obj, n_threads = 4L,
-      control = list(maxit = 10000L, reltol = 1e-10)))
+      start_vals$upper, object = comp_obj, n_threads = 4L))
     
     ll_start <- mmcif_logLik(
       comp_obj, start_vals$upper, n_threads = 4L, is_log_chol = TRUE)
@@ -101,7 +104,58 @@ fit_dz <- fit_model(prt_dz, "fit_dz.RDS")
 fit_mz <- fit_model(prt_mz, "fit_mz.RDS")
 ```
 
+```{r, eval = FALSE, echo = FALSE}
+library(nloptr)
+object <- fit_mz$get_comp_obj()
+
+gr <- mmcif_logLik_grad(object, fit_mz$fit$par, is_log_chol = TRUE, 
+                        n_threads = 6L)
+num_gr <- numDeriv::grad(
+  \(x) mmcif_logLik(object, x, is_log_chol = TRUE, 
+                    n_threads = 6L),
+  fit_mz$fit$par)
+rbind(gr, num_gr)
+
+fix <- 2
+vcov <- log_chol_inv(fit_mz$fit$par[object$indices$vcov_upper])
+D <- diag(4)
+D[2, 2] <- sqrt(fix / vcov[2, 2])
+vcov <- D %*% vcov %*% D
+par <- fit_mz$fit$par
+par[object$indices$vcov_upper] <- log_chol(vcov)
+n_threads <- 6L
+
+fit <- auglag(
+  par, 
+  fn = function(par) {
+    out <- try(mmcif_logLik(
+      object, par, n_threads = n_threads, is_log_chol = TRUE), silent = TRUE)
+    if(inherits(out, "try-errir"))
+      return(NA_real_)
+    print(out, digits = 10)
+    -out
+  },
+  gr = function(par){
+    out <- try(mmcif_logLik_grad(
+      object, par, n_threads = n_threads, is_log_chol = TRUE), silent = TRUE)
+    if(inherits(out, "try-error"))
+      return(rep(NA_real_, length(par)))
+    print(sum(out^2) |> sqrt(), digits = 10)
+    -out
+  },
+  hin = function(par) c(object$constraints$vcov_upper %*% par),
+  hinjac = function(par) object$constraints$vcov_upper,
+  heq = function(par){
+    vcov <- try(log_chol_inv(par[object$indices$vcov_upper]), silent = TRUE)
+    if(inherits(vcov, "try-error"))
+      return(NA_real_)
+    vcov[2, 2] - fix
+  }, 
+  nl.info = TRUE, localsolver = "SLSQP")
+```
+
 The results are summarized below.
+
 
 ```{r show_fit}
 # check convergence codes and counts
