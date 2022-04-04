@@ -1,0 +1,192 @@
+---
+github_document:
+  pandoc_args:
+    --webtex=https://render.githubusercontent.com/render/math?math=
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.path = "figures/prostate/",
+  out.width = "100%",
+  cache.path = "cache/prostate/")
+options(digits = 5)
+```
+
+We load and prepare the prostate cancer data set.
+
+```{r load_data}
+library(mets)
+library(mmcif)
+
+data(prt)
+str(prt)
+
+with(prt, quantile(time[status > 0], probs = seq(0, 1, by = .1)))
+max_time <- 100
+prt <- within(prt, {
+  status[time >= max_time] <- 0
+  time <- pmin(time, max_time)
+})
+
+# use another code for censoring
+prt_dz <- subset(prt, zyg == "DZ") |> 
+  transform(status = ifelse(status == 0, 3L, status))
+prt_mz <- subset(prt, zyg == "MZ") |> 
+  transform(status = ifelse(status == 0, 3L, status))
+
+# check distribution of observed events disregarding time
+table(prt_dz$status)
+xtabs(~ status + country, prt_dz)
+prop.table(xtabs(~ status + country, prt_dz), margin = 2L)
+
+table(prt_mz$status)
+xtabs(~ status + country, prt_mz)
+prop.table(xtabs(~ status + country, prt_mz), margin = 2L)
+```
+
+Then we fit separate models for DZ and MZ twins.
+
+```{r fit_models}
+# fits a model given a data set
+fit_model <- function(data, res_name){
+  res_name <- file.path("cache", res_name)
+  
+  if(!file.exists(res_name)){
+    get_comp_obj <- function(dat = data)
+      mmcif_data(
+        formula = ~ country - 1, data, cause = status, time = time, 
+        cluster_id = id, max_time = max_time, spline_df = 5L, 
+        strata = country)
+    comp_obj <- get_comp_obj()
+    
+    start_time <- 
+      system.time(start_vals <- mmcif_start_values(comp_obj, n_threads = 4L))
+    
+    fit_time <- system.time(fit <- mmcif_fit(
+      start_vals$upper, object = comp_obj, n_threads = 4L,
+      control = list(maxit = 10000L, reltol = 1e-10)))
+    
+    ll_start <- mmcif_logLik(
+      comp_obj, start_vals$upper, n_threads = 4L, is_log_chol = TRUE)
+    
+    gr_mle <- mmcif_logLik_grad(
+      comp_obj, fit$par, n_threads = 4L, is_log_chol = TRUE)
+    
+    sandwich_time <- system.time(sandwich_est <- mmcif_sandwich(
+      comp_obj, fit$par, n_threads = 4L, order = 0L))
+    
+    vcov_est <- log_chol_inv(fit$par[comp_obj$indices$vcov_upper])
+    vcov_est[lower.tri(vcov_est)] <- NA_real_
+    vcov_SE <- matrix(NA_real_, NROW(vcov_est), NCOL(vcov_est))
+    vcov_SE[upper.tri(vcov_SE, TRUE)] <- 
+      (attr(sandwich_est, "res vcov") |> diag() |> sqrt())[
+        comp_obj$indices$vcov_upper]
+    
+    list(
+      fit = fit, start = start_vals, ll_start = ll_start, 
+      sandwich_est = sandwich_est, get_comp_obj = get_comp_obj, 
+      time = list(start = start_time, fit = fit_time, 
+                  sandwich = sandwich_time), 
+      vcov_est = vcov_est, vcov_SE = vcov_SE, gr_mle = gr_mle) |> 
+      saveRDS(res_name)
+  }
+  
+  readRDS(res_name)
+}
+
+# fit models on the two types of twins
+fit_dz <- fit_model(prt_dz, "fit_dz.RDS")
+fit_mz <- fit_model(prt_mz, "fit_mz.RDS")
+```
+
+The results are summarized below.
+
+```{r show_fit}
+# check convergence codes and counts
+fit_dz$fit$convergence
+fit_mz$fit$convergence
+fit_dz$fit$counts
+fit_mz$fit$counts
+
+sqrt(sum(fit_dz$gr_mle^2)) # L2 norm of the gradient at the MLE
+sqrt(sum(fit_mz$gr_mle^2)) # L2 norm of the gradient at the MLE
+
+# the maximum log composite likelihood
+-fit_dz$fit$value
+-fit_mz$fit$value
+
+# the time to estimate the model and to compute the sandwich estimator
+with(fit_dz$time, start + fit + sandwich)
+with(fit_mz$time, start + fit + sandwich)
+
+# the parameter estimates along with standard errors
+rbind(`DZ estimate` = fit_dz$fit$par,
+      `DZ SE` = diag(fit_dz$sandwich_est) |> sqrt(),
+      `MZ estimate` = fit_mz$fit$par,
+      `MZ SE` = diag(fit_mz$sandwich_est) |> sqrt())
+
+# the estimated covariance matrices along with standard errors
+fit_dz$vcov_est # the estimates for DZ
+fit_dz$vcov_SE # the SEs
+fit_mz$vcov_est # the estimates for MZ
+fit_mz$vcov_SE # the SEs
+```
+
+```{r plots, fig.height=knitr::opts_chunk$get("fig.width") * .5}
+# plot the conditional cumulative incidence functions
+plot_curves <- function(fit){
+  comp_obj <- fit$get_comp_obj()
+  
+  # get the estimates
+  n_causes <- 2L
+  coef_risk_est <- fit$fit$par[comp_obj$indices$coef_risk] |> 
+    matrix(ncol = n_causes)
+  coef_traject_time_est <- fit$fit$par[comp_obj$indices$coef_trajectory_time] |> 
+    matrix(ncol = n_causes)
+  coef_traject_est <- fit$fit$par[comp_obj$indices$coef_trajectory] |> 
+    matrix(ncol = n_causes)
+  
+  # plot the estimated cumulative incidence functions
+  par(mar = c(5, 5, 1, 1), mfcol = c(1, 2))
+  for(i in 1:2){
+    pts <- seq(min(prt$time), max_time * (1 - 1e-8), length.out = 1000)
+    curves <- sapply(1:4 - 1L, \(strata){
+      # compute the risk probabilities  
+      probs_est <- exp(coef_risk_est[1 + strata, ]) / 
+        (1 + sum(exp(coef_risk_est[1 + strata, ])))
+      
+      probs_est[i] * pnorm(
+        -comp_obj$time_expansion(pts, cause = i, which_strata = strata + 1L) %*% 
+          coef_traject_time_est[, i] - 
+          coef_traject_est[21 + strata, i]) |> drop()
+    })
+    
+    matplot(
+      pts, curves, ylim = c(0, 1), bty = "l",  xlab = "time", type = "l",
+      ylab = sprintf("Cumulative incidence; cause %d", i), lty = 1:4, 
+      col = "black", yaxs = "i", xaxs = "i")
+    grid(ny = 10)
+    legend("topleft", legend = levels(prt$country), bty = "n", 
+           cex = par("cex") * .8, lty = 1:4)
+  }
+}
+
+plot_curves(fit_dz)
+plot_curves(fit_mz)
+# compare to marginal estimates (NOT directly comparable; the above are 
+# conditional)
+par(mar = c(5, 5, 1, 1))
+plot_cif <- \(data, cause){
+  cif(Event(time, status) ~ strata(country), data = data,
+              cause = cause, cens.code = 3) |>
+    bplot(se = TRUE, ylim = c(0, 1), bty = "l", yaxs = "i", xaxs = "i")
+  grid(ny = 10)
+}
+
+plot_cif(prt_dz, 1)
+plot_cif(prt_dz, 2)
+plot_cif(prt_mz, 1)
+plot_cif(prt_mz, 2)
+```
