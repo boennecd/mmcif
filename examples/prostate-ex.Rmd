@@ -56,7 +56,7 @@ fit_model <- function(data, res_name){
   
   if(!file.exists(res_name)){
     get_comp_obj <- function(dat = data){
-      ghq_data <- fastGHQuad::gaussHermiteData(8) |> 
+      ghq_data <- fastGHQuad::gaussHermiteData(10) |> 
         with(list(node = x, weight = w))
       
       mmcif_data(
