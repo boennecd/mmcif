@@ -1,7 +1,8 @@
 ---
-github_document:
-  pandoc_args:
-    --webtex=https://render.githubusercontent.com/render/math?math=
+output:
+  github_document:
+    pandoc_args:
+      --webtex=https://render.githubusercontent.com/render/math?math=
 ---
 
 ```{r setup, include = FALSE}
@@ -168,8 +169,8 @@ sqrt(sum(fit_dz$gr_mle^2)) # L2 norm of the gradient at the MLE
 sqrt(sum(fit_mz$gr_mle^2)) # L2 norm of the gradient at the MLE
 
 # the maximum log composite likelihood
--fit_dz$fit$value
--fit_mz$fit$value
+print(-fit_dz$fit$value, digits = 10)
+print(-fit_mz$fit$value, digits = 10)
 
 # the time to estimate the model and to compute the sandwich estimator
 with(fit_dz$time, start + fit + sandwich)
