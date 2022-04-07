@@ -25,7 +25,7 @@ data(prt)
 str(prt)
 
 with(prt, quantile(time[status > 0], probs = seq(0, 1, by = .1)))
-max_time <- 100
+max_time <- 90
 prt <- within(prt, {
   status[time >= max_time] <- 0
   time <- pmin(time, max_time)
@@ -117,15 +117,8 @@ num_gr <- numDeriv::grad(
   fit_mz$fit$par)
 rbind(gr, num_gr)
 
-fix <- 2
-vcov <- log_chol_inv(fit_mz$fit$par[object$indices$vcov_upper])
-D <- diag(4)
-D[2, 2] <- sqrt(fix / vcov[2, 2])
-vcov <- D %*% vcov %*% D
 par <- fit_mz$fit$par
-par[object$indices$vcov_upper] <- log_chol(vcov)
 n_threads <- 6L
-
 fit <- auglag(
   par, 
   fn = function(par) {
@@ -146,12 +139,6 @@ fit <- auglag(
   },
   hin = function(par) c(object$constraints$vcov_upper %*% par),
   hinjac = function(par) object$constraints$vcov_upper,
-  heq = function(par){
-    vcov <- try(log_chol_inv(par[object$indices$vcov_upper]), silent = TRUE)
-    if(inherits(vcov, "try-error"))
-      return(NA_real_)
-    vcov[2, 2] - fix
-  }, 
   nl.info = TRUE, localsolver = "SLSQP")
 ```
 
