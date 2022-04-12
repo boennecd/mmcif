@@ -40,10 +40,10 @@ adaptive_problem::adaptive_problem
     mode_problem my_mode_problem(problem, mem);
     mu.zeros(n_vars());
 
-    double * psqn_wmem{mem.get(PSQN::bfgs_n_wmem(my_mode_problem))};
-    auto psqn_wmem_mark = mem.set_mark_raii();
+    double *bfgs_mem{mem.get(PSQN::bfgs_n_wmem(n_vars()))};
+    auto bfgs_marker = mem.set_mark_raii();
     auto res = PSQN::bfgs
-      (my_mode_problem, mu.memptr(), psqn_wmem, rel_eps, max_it, c1, c2, 0L,
+      (my_mode_problem, mu.memptr(), bfgs_mem, rel_eps, max_it, c1, c2, 0L,
        gr_tol);
 
     bool succeeded = res.info == PSQN::info_code::converged;
@@ -121,6 +121,11 @@ void adaptive_problem::eval
   for(size_t j = 0; j < n_out(); ++j)
     for(size_t i = 0; i < n_points; ++i)
       outs[i + j * n_points] *= fac[i];
+}
+
+void adaptive_problem::post_process
+  (double *res, simple_mem_stack<double> &mem) const {
+  problem.post_process(res, mem);
 }
 
 // recursive functions needed for quadrature implementation
@@ -235,6 +240,8 @@ void ghq
 
   ghq_inner(res, n_out, outs, n_vars, idx_fix, n_points, n_vars, points,
             weights, problem, ghq_data_use, mem);
+
+  problem.post_process(res, mem);
 }
 
 combined_problem::combined_problem
@@ -329,6 +336,29 @@ void combined_problem::log_integrand_hess
     p->log_integrand_hess(point, hess_inner, mem);
     for(size_t i = 0; i < n_vars_sq; ++i)
       hess[i] += hess_inner[i];
+  }
+}
+
+void combined_problem::post_process
+(double *res, simple_mem_stack<double> &mem) const {
+  double const integral{res[0]};
+  res += 1;
+
+  for(auto p : problems){
+    size_t const p_n_out{p->n_out()};
+    if(p_n_out < 2)
+      continue;
+
+    double * const cp{mem.get(p_n_out)};
+    auto cp_marker = mem.set_mark_raii();
+    cp[0] = integral;
+    std::copy(res, res + p_n_out - 1, cp + 1);
+    p->post_process(cp, mem);
+
+    if(cp[0] != integral)
+      throw std::runtime_error("post_process changed the first element");
+    std::copy(cp + 1, cp + p_n_out, res);
+    res += p_n_out - 1;
   }
 }
 
@@ -445,8 +475,12 @@ void rescale_problem<comp_grad>::log_integrand_hess
 
 template<bool comp_grad>
 void rescale_problem<comp_grad>::post_process
-  (double * __restrict__ res, double const integral)
-  const {
+  (double *res, simple_mem_stack<double> &mem) const {
+  inner_problem.post_process(res, mem);
+  if constexpr(!comp_grad)
+    return;
+
+  double const integral{res[0]};
   res += inner_problem.n_out();
 
   arma::mat outer_int(n_vars(), n_vars());
@@ -600,8 +634,12 @@ void rescale_shift_problem<comp_grad>::log_integrand_hess
 
 template<bool comp_grad>
 void rescale_shift_problem<comp_grad>::post_process
-  (double * __restrict__ res, double const integral)
-  const {
+  (double *res, simple_mem_stack<double> &mem) const {
+  inner_problem.post_process(res, mem);
+  if constexpr(!comp_grad)
+    return;
+
+  double const integral{res[0]};
   res += inner_problem.n_out();
 
   {

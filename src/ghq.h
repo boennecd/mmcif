@@ -17,7 +17,12 @@ namespace ghqCpp {
  *   int phi(x)g(x)dx
  *
  * where phi(x) is a given dimensional standard multivariate normal
- * distribution. The class also computes g(x).
+ * distribution. The class also computes g(x). The integrals can be extended
+ * to
+ *
+ *   int phi(x; mu, Sigma)g(x) dx
+ *
+ * with the rescale_problem and rescale_shift_problem classes.
  *
  * To perform adaptive Gauss-Hermite quadrature for one of the elements of g,
  * say g_i, the class also has member functions to compute log g_i(x), the
@@ -62,6 +67,10 @@ struct ghq_problem {
      simple_mem_stack<double> &mem) const {
     throw std::runtime_error("not implemented");
   }
+
+  /// possibly performs post-processing on the n_out() dimensional output
+  virtual void post_process
+    (double *res, simple_mem_stack<double> &mem) const { }
 
   virtual ~ghq_problem() = default;
 };
@@ -154,6 +163,8 @@ public:
   void eval
   (double const *points, size_t const n_points, double * __restrict__ outs,
    simple_mem_stack<double> &mem) const;
+
+  void post_process(double *res, simple_mem_stack<double> &mem) const;
 };
 
 /**
@@ -217,6 +228,8 @@ public:
   void log_integrand_hess
     (double const *point, double *hess,
      simple_mem_stack<double> &mem) const;
+
+  void post_process(double *res, simple_mem_stack<double> &mem) const;
 };
 
 /**
@@ -224,8 +237,8 @@ public:
  *
  *   A = int phi(x; 0, Sigma)g(x) dx = int phi(x)g(C.x) dx
  *
- * where C.C^T = Sigma is the Cholesky decomposition. If passed problem is
- * multivariate, then it is assumed that the first element of the the output
+ * where C.C^T = Sigma is the Cholesky decomposition. If the passed problem
+ * is multivariate, then it is assumed that the first element of the output
  * is the integrand of A of interest.
  *
  * The derivatives w.r.t. Sigma can be computed and are appended after those of
@@ -277,10 +290,10 @@ public:
      simple_mem_stack<double> &mem) const;
 
   /**
-   * computes the derivatives w.r.t. Sigma given the final output and the value of
-   * the entire integral.
+   * computes the derivatives w.r.t. Sigma given the final output and assuming
+   * that the first element is the integral value.
    */
-  void post_process(double * __restrict__ res, double const integral) const;
+  void post_process(double *res, simple_mem_stack<double> &mem) const;
 };
 
 /**
@@ -330,7 +343,7 @@ public:
     (double const *point, double *hess,
      simple_mem_stack<double> &mem) const;
 
-  void post_process(double * __restrict__ res, double const integral) const;
+  void post_process(double *res, simple_mem_stack<double> &mem) const;
 };
 
 } // namespace ghqCpp

@@ -531,7 +531,6 @@ double mmcif_logLik_both_obs_grad
   ghq(ghq_res, dat, prob, mem, ghq_target_size);
 
   double const integral{ghq_res[0]};
-  prob_use.post_process(ghq_res, integral);
   out += std::log(integral);
 
   std::for_each(ghq_res + 1, ghq_res + prob_use.n_out(),
@@ -616,7 +615,6 @@ double mmcif_logLik_one_obs_grad
 
     double const integral{ghq_res[0]};
     out += std::log(integral);
-    prob_use.post_process(ghq_res, integral);
     std::for_each(ghq_res + 1, ghq_res + prob_use.n_out(),
                   [&](double &x){ x /= integral; });
 
@@ -670,7 +668,6 @@ double mmcif_logLik_one_obs_grad
     ghq(ghq_res, dat, prob, mem, ghq_target_size);
 
     integral_term += ghq_res[0];
-    prob_use.post_process(ghq_res, ghq_res[0]);
 
     double * d_logit_offsets{ghq_res + 1};
     arma::vec d_cond_mean_sub(d_logit_offsets + n_causes, n_causes, false);
@@ -739,7 +736,6 @@ double mmcif_logLik_one_obs_grad
     ghq(ghq_res, dat, prob, mem, ghq_target_size);
 
     integral_term -= ghq_res[0];
-    prob_use.post_process(ghq_res, ghq_res[0]);
 
     double d_shift_prob{ghq_res[1]},
              d_var_cond{ghq_res[2] / (2 * std::sqrt(var_cond))};
@@ -830,7 +826,6 @@ double mmcif_logLik_both_cens_grad
     ghq(ghq_res, dat, prob, mem, ghq_target_size);
 
     double const integral{ghq_res[0]};
-    prob_use.post_process(ghq_res, integral);
     std::for_each(ghq_res + 1, ghq_res + prob_use.n_out(),
                   [&](double &x){ x /= integral; });
 
@@ -867,7 +862,6 @@ double mmcif_logLik_both_cens_grad
       ghq(ghq_res, dat, prob, mem, ghq_target_size);
 
       integral += ghq_res[0];
-      prob_use.post_process(ghq_res, ghq_res[0]);
 
       double * d_logit_offsets_2{ghq_res + 1};
       arma::mat d_vcov_sub
@@ -909,7 +903,6 @@ double mmcif_logLik_both_cens_grad
       ghq(ghq_res, dat, prob, mem, ghq_target_size);
 
       integral -= ghq_res[0];
-      prob_use.post_process(ghq_res, ghq_res[0]);
 
       double const d_lp_traject1{ghq_res[1]};
       double const d_var_cond{ghq_res[2] / (2 * std::sqrt(var_cond))};
@@ -1013,7 +1006,6 @@ double mmcif_logLik_both_cens_grad
       ghq(ghq_res, dat, prob, mem, ghq_target_size);
 
       integral += ghq_res[0];
-      prob_use.post_process(ghq_res, ghq_res[0]);
 
       double * d_dens_point{ghq_res + 1};
       arma::mat d_rng_coefs(d_dens_point + 2, 2, n_causes, false),
@@ -1240,7 +1232,6 @@ double mmcif_logLik_grad
       double * const ghq_res{mem.get(prob.n_out())};
       auto mem_mark2 = mem.set_mark_raii();
       ghq(ghq_res, dat, prob, mem, ghq_target_size);
-      prob_use.post_process(ghq_res, ghq_res[0]);
 
       double const integrand{ghq_res[0]};
       double * d_logit_offset{ghq_res + 1},
@@ -1285,7 +1276,6 @@ double mmcif_logLik_grad
       double * const ghq_res{mem.get(prob.n_out())};
       auto loop_marker = mem.set_mark_raii();
       ghq(ghq_res, dat, prob, mem, ghq_target_size);
-      prob_use.post_process(ghq_res, ghq_res[0]);
 
       double d_lp_traject{ghq_res[1]},
              d_var_cond{ghq_res[2] / (2 * std::sqrt(var_cond))},
@@ -1360,7 +1350,6 @@ double mmcif_logLik_grad
   double * ghq_res{mem.get(prob.n_out())};
   auto ghq_mark = mem.set_mark_raii();
   ghq(ghq_res, dat, prob, mem, ghq_target_size);
-  prob_use.post_process(ghq_res, ghq_res[0]);
 
   double const integrand{ghq_res[0]};
   out += std::log(integrand);
