@@ -2,4 +2,8 @@
 .Rhistory
 .RData
 .Ruserdata
-cache
+vignettes/cache
+examples/cache/*
+!examples/cache/prostate-dz-sims
+examples/cache/prostate-dz-sims/*
+!examples/cache/prostate-dz-sims/.placeholder

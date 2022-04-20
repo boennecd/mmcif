@@ -1,0 +1,572 @@
+
+``` r
+n_causes <- 2L
+delta <- 90
+
+rng_vcov <- 
+  c(0.4892, 0.1561, -0.1745, -0.26, 0.1561, 1.2592, -0.1114, -0.5234, -0.1745, -0.1114, 0.2138, -0.0237, -0.26, -0.5234, -0.0237, 0.4314) |>
+  matrix(n_causes * n_causes)
+rng_vcov
+#>         [,1]    [,2]    [,3]    [,4]
+#> [1,]  0.4892  0.1561 -0.1745 -0.2600
+#> [2,]  0.1561  1.2592 -0.1114 -0.5234
+#> [3,] -0.1745 -0.1114  0.2138 -0.0237
+#> [4,] -0.2600 -0.5234 -0.0237  0.4314
+cov2cor(rng_vcov)
+#>         [,1]    [,2]     [,3]     [,4]
+#> [1,]  1.0000  0.1989 -0.53957 -0.56597
+#> [2,]  0.1989  1.0000 -0.21470 -0.71014
+#> [3,] -0.5396 -0.2147  1.00000 -0.07804
+#> [4,] -0.5660 -0.7101 -0.07804  1.00000
+
+fixef_use <- c(
+  `cause1:risk:countryDenmark` = 0.7252, `cause1:risk:countryFinland` = 0.6383, 
+  `cause1:risk:countryNorway` = 0.4264, `cause1:risk:countrySweden` = 0.4331, 
+  `cause2:risk:countryDenmark` = -2.4591, `cause2:risk:countryFinland` = -1.4777, 
+  `cause2:risk:countryNorway` = -1.8817, `cause2:risk:countrySweden` = -1.5715, 
+  `cause1:strataDenmark:spline1` = -1.7529, `cause1:strataDenmark:spline2` = -2.3438, 
+  `cause1:strataDenmark:spline3` = -3.1098, `cause1:strataDenmark:spline4` = -4.7918, 
+  `cause1:strataDenmark:spline5` = -3.9685, `cause1:strataFinland:spline1` = -1.9382, 
+  `cause1:strataFinland:spline2` = -2.5424, `cause1:strataFinland:spline3` = -3.1068, 
+  `cause1:strataFinland:spline4` = -5.0375, `cause1:strataFinland:spline5` = -3.9724, 
+  `cause1:strataNorway:spline1` = -1.6497, `cause1:strataNorway:spline2` = -2.2562, 
+  `cause1:strataNorway:spline3` = -2.924, `cause1:strataNorway:spline4` = -4.6692, 
+  `cause1:strataNorway:spline5` = -3.7744, `cause1:strataSweden:spline1` = -1.9205, 
+  `cause1:strataSweden:spline2` = -2.5753, `cause1:strataSweden:spline3` = -3.2019, 
+  `cause1:strataSweden:spline4` = -5.048, `cause1:strataSweden:spline5` = -4.0264, 
+  `cause1:traject:countryDenmark` = 2.4684, `cause1:traject:countryFinland` = 2.6575, 
+  `cause1:traject:countryNorway` = 2.5543, `cause1:traject:countrySweden` = 2.9144, 
+  `cause2:strataDenmark:spline1` = -2.1629, `cause2:strataDenmark:spline2` = -3.0452, 
+  `cause2:strataDenmark:spline3` = -3.2643, `cause2:strataDenmark:spline4` = -5.9301, 
+  `cause2:strataDenmark:spline5` = -4.4731, `cause2:strataFinland:spline1` = -1.909, 
+  `cause2:strataFinland:spline2` = -2.1615, `cause2:strataFinland:spline3` = -3.1091, 
+  `cause2:strataFinland:spline4` = -5.1093, `cause2:strataFinland:spline5` = -4.2497, 
+  `cause2:strataNorway:spline1` = -2.4255, `cause2:strataNorway:spline2` = -2.7336, 
+  `cause2:strataNorway:spline3` = -3.643, `cause2:strataNorway:spline4` = -5.3371, 
+  `cause2:strataNorway:spline5` = -4.1427, `cause2:strataSweden:spline1` = -2.063, 
+  `cause2:strataSweden:spline2` = -2.684, `cause2:strataSweden:spline3` = -3.2335, 
+  `cause2:strataSweden:spline4` = -5.3911, `cause2:strataSweden:spline5` = -3.8636, 
+  `cause2:traject:countryDenmark` = 3.064, `cause2:traject:countryFinland` = 2.8621, 
+  `cause2:traject:countryNorway` = 3.0288, `cause2:traject:countrySweden` = 3.0493)
+
+# split the coefficients
+countries <- c("Denmark", "Finland", "Norway", "Sweden")
+country_indices <- setNames(countries, countries) |> 
+  lapply(grepl, names(fixef_use)) |> lapply(which)
+
+knots <- list(
+  `1` = list(
+    knots = c(`21.5%` = 0.3496, `40.5%` = 0.6007, `59.5%` = 0.8536, `78.5%` = 1.2062), 
+    boundary_knots = c(`2.5%` = -0.2174, `97.5%` = 2.2291)), 
+  `2` = list(
+    knots = c(`21.5%` = 0.5769, `40.5%` = 0.7479, `59.5%` = 0.9623, `78.5%` = 1.259), 
+    boundary_knots = c(`2.5%` = 0.2772, `97.5%` = 2.0689)))
+```
+
+``` r
+library(mvtnorm)
+library(splines)
+library(SimSurvNMarker)
+sim_dat <- \(n_clusters, max_cluster_size){
+  stopifnot(max_cluster_size > 0,
+            n_clusters > 0)
+  
+  cluster_id <- 0L
+  apply(rmvnorm(n_clusters, sigma = rng_vcov), 1, \(rng_effects){
+    U <- head(rng_effects, n_causes)
+    eta <- tail(rng_effects, n_causes)
+    
+    n_obs <- sample.int(max_cluster_size, 1L)
+    cluster_id <<- cluster_id + 1L
+    
+    # draw the cause
+    country <- sample(countries, 1L)
+    country_coefs <- fixef_use[country_indices[[country]]]
+    Z <- matrix(1., n_obs, 1)
+    coef_risk <- head(country_coefs, 2) |> matrix(ncol = 2)
+    country_coefs <- country_coefs[-(1:2)]
+  
+    cond_logits_exp <- exp(Z %*% coef_risk + rep(U, each = n_obs)) |> 
+      cbind(1)
+    cond_probs <- cond_logits_exp / rowSums(cond_logits_exp)
+    cause <- apply(cond_probs, 1, 
+                   \(prob) sample.int(n_causes + 1L, 1L, prob = prob))
+    
+    # compute the observed time if needed
+    coef_traject <- matrix(country_coefs, ncol = 2)
+    
+    obs_time <- mapply(\(cause, idx){
+      if(cause > n_causes)
+        return(delta)
+      
+      # can likely be done smarter but this is more general
+      coefs <- coef_traject[, cause]
+      n_coefs <- length(coefs)
+      offset <- Z[idx, ] * coefs[n_coefs] + eta[cause]
+      rng <- runif(1)
+      eps <- .Machine$double.eps
+      
+      knots <- sort(c(
+        knots[[cause]]$knots, knots[[cause]]$boundary_knots))
+      ns_func <- get_ns_spline(knots = knots, intercept = FALSE, do_log = FALSE)
+      
+      root <- uniroot(
+        \(x) rng - pnorm(
+          -ns_func(atanh((x - delta / 2) / (delta / 2))) %*% coefs[-n_coefs] - 
+            offset), 
+        c(delta * eps, delta * (1 - eps)), tol = 1e-12)$root
+    }, cause, 1:n_obs)
+    
+    cens <- runif(n_obs, 70, max = 140)
+    has_finite_trajectory_prob <- cause <= n_causes
+    is_censored <- which(!has_finite_trajectory_prob | cens < obs_time)
+    
+    if(length(is_censored) > 0){
+      obs_time[is_censored] <- pmin(delta, cens[is_censored])
+      cause[is_censored] <- n_causes + 1L
+    }
+    
+    data.frame(country = factor(country,levels = countries), 
+               cause, time = obs_time, cluster_id)
+  }, simplify = FALSE) |> 
+    do.call(what = rbind)
+}
+```
+
+``` r
+set.seed(1)
+dat <- sim_dat(10000L, 4L)
+
+# quantiles of the observed event times
+subset(dat, cause < 3 & country == "Denmark") |> 
+  with(tapply(time, cause, quantile, probs = seq(0, 1, length.out = 11)))
+#> $`1`
+#>    0%   10%   20%   30%   40%   50%   60%   70%   80%   90%  100% 
+#> 16.79 56.12 63.67 68.74 72.65 76.09 78.91 81.37 84.17 86.91 89.96 
+#> 
+#> $`2`
+#>    0%   10%   20%   30%   40%   50%   60%   70%   80%   90%  100% 
+#> 55.88 65.90 70.26 72.44 75.57 77.45 79.32 81.51 84.44 87.00 88.79
+subset(dat, cause < 3 & country == "Sweden") |> 
+  with(tapply(time, cause, quantile, probs = seq(0, 1, length.out = 11)))
+#> $`1`
+#>    0%   10%   20%   30%   40%   50%   60%   70%   80%   90%  100% 
+#> 16.94 60.06 67.17 71.65 75.54 78.41 81.30 83.66 85.79 87.96 89.96 
+#> 
+#> $`2`
+#>    0%   10%   20%   30%   40%   50%   60%   70%   80%   90%  100% 
+#> 45.71 65.10 69.20 72.38 75.71 78.26 80.63 82.71 84.87 87.12 89.77
+subset(dat, cause < 3 & country == "Norway") |> 
+  with(tapply(time, cause, quantile, probs = seq(0, 1, length.out = 11)))
+#> $`1`
+#>    0%   10%   20%   30%   40%   50%   60%   70%   80%   90%  100% 
+#> 14.14 55.26 64.65 70.44 74.30 77.53 80.36 83.00 85.43 87.79 89.97 
+#> 
+#> $`2`
+#>    0%   10%   20%   30%   40%   50%   60%   70%   80%   90%  100% 
+#> 53.84 66.71 69.86 71.88 74.23 77.47 80.42 82.15 83.83 86.53 89.96
+subset(dat, cause < 3 & country == "Finland") |> 
+  with(tapply(time, cause, quantile, probs = seq(0, 1, length.out = 11)))
+#> $`1`
+#>    0%   10%   20%   30%   40%   50%   60%   70%   80%   90%  100% 
+#> 14.56 56.08 63.81 69.49 73.15 76.35 79.31 82.19 84.54 87.21 89.97 
+#> 
+#> $`2`
+#>    0%   10%   20%   30%   40%   50%   60%   70%   80%   90%  100% 
+#> 40.22 66.22 70.17 73.42 76.29 79.88 81.96 83.42 85.04 86.82 89.54
+
+# compare with the real data
+library(mets)
+data(prt)
+
+subset(prt, status > 0 & zyg == "DZ" & country == "Denmark" & time < delta) |> 
+  with(tapply(time, status, quantile, probs = seq(0, 1, length.out = 11)))
+#> $`1`
+#>     0%    10%    20%    30%    40%    50%    60%    70%    80%    90%   100% 
+#>  9.921 46.994 57.308 62.765 67.332 71.512 75.163 78.539 82.096 85.587 89.941 
+#> 
+#> $`2`
+#>    0%   10%   20%   30%   40%   50%   60%   70%   80%   90%  100% 
+#> 56.37 61.39 67.95 70.32 72.14 75.44 77.28 78.97 82.54 84.85 88.61
+subset(prt, status > 0 & zyg == "DZ" & country == "Sweden" & time < delta) |> 
+  with(tapply(time, status, quantile, probs = seq(0, 1, length.out = 11)))
+#> $`1`
+#>    0%   10%   20%   30%   40%   50%   60%   70%   80%   90%  100% 
+#> 22.72 55.91 64.00 68.64 72.17 75.75 78.94 81.94 84.81 87.28 89.94 
+#> 
+#> $`2`
+#>    0%   10%   20%   30%   40%   50%   60%   70%   80%   90%  100% 
+#> 52.84 63.73 68.37 71.45 74.41 77.07 79.07 82.23 84.25 86.42 89.86
+subset(prt, status > 0 & zyg == "DZ" & country == "Norway" & time < delta) |> 
+  with(tapply(time, status, quantile, probs = seq(0, 1, length.out = 11)))
+#> $`1`
+#>    0%   10%   20%   30%   40%   50%   60%   70%   80%   90%  100% 
+#> 25.36 46.34 56.62 63.78 68.39 72.42 76.21 79.59 82.60 86.12 89.84 
+#> 
+#> $`2`
+#>    0%   10%   20%   30%   40%   50%   60%   70%   80%   90%  100% 
+#> 52.67 64.15 67.38 70.51 72.62 73.90 75.93 79.59 82.16 84.41 89.76
+subset(prt, status > 0 & zyg == "DZ" & country == "Finland" & time < delta) |> 
+  with(tapply(time, status, quantile, probs = seq(0, 1, length.out = 11)))
+#> $`1`
+#>    0%   10%   20%   30%   40%   50%   60%   70%   80%   90%  100% 
+#> 15.83 49.95 57.50 62.47 66.60 70.01 73.62 77.33 81.45 85.25 89.96 
+#> 
+#> $`2`
+#>    0%   10%   20%   30%   40%   50%   60%   70%   80%   90%  100% 
+#> 51.95 62.99 68.20 70.02 72.44 76.72 79.71 81.49 83.94 86.15 89.24
+
+# compare the cumulative incidence functions
+plot_cif <- \(data, cause, cens.code){
+  cif(Event(time, status) ~ strata(country), data = data,
+              cause = cause, cens.code = cens.code) |>
+    bplot(se = TRUE, ylim = c(0, 1), bty = "l", yaxs = "i", xaxs = "i",
+          xlim = range(data$time, delta))
+  grid(ny = 10)
+}
+par(mar = c(5, 5, 1, 1), mfcol = c(1, 2))
+transform(dat, status = cause) |> 
+  plot_cif(1, 3)
+transform(prt, status = ifelse(time > delta, 0, status), 
+          time = pmin(time, delta)) |> 
+  plot_cif(1, 0)
+```
+
+<img src="figures/prostate/sims-show_example-1.png" width="100%" />
+
+``` r
+transform(dat, status = cause) |> 
+  plot_cif(2, 3)
+transform(prt, status = ifelse(time > delta, 0, status), 
+          time = pmin(time, delta)) |> 
+  plot_cif(2, 0)
+```
+
+<img src="figures/prostate/sims-show_example-2.png" width="100%" />
+
+``` r
+# distribution of cause and censoring by country
+xtabs(~ cause + country, dat)
+#>      country
+#> cause Denmark Finland Norway Sweden
+#>     1    3442    3188   3081   2972
+#>     2     209     512    513    571
+#>     3    2418    2401   2923   2800
+
+# compare with the real data
+xtabs(~ status + country, prt, zyg == "DZ")
+#>       country
+#> status Denmark Finland Norway Sweden
+#>      0    4580    1832   1775   4587
+#>      1    1519     871    542   1702
+#>      2      92     130     76    285
+```
+
+The censoring distribution in the two data set is deliberately
+different.
+
+Run the simulation study.
+
+``` r
+seeds <- c(
+  3801443L, 5075715L, 90654298L, 69953569L, 24145488L, 37395236L, 3397298L, 29556452L, 11902732L, 83659145L, 79020848L, 6873483L, 52104313L, 82575228L, 39854843L, 27659320L, 21545556L, 99303315L, 30514827L, 97314625L, 66681319L, 7554587L, 10601023L, 98955744L, 7973414L, 27137806L, 97086805L, 10849812L, 56811865L, 40591357L, 27622323L, 20704367L, 26129989L, 59664086L, 20394834L, 31041096L, 69241317L, 98143755L, 69747552L, 95522767L, 20988881L, 92765370L, 92007002L, 38995781L, 61844563L, 37767715L, 6892297L, 44823300L, 90427433L, 16652226L, 19238582L, 18868020L, 45371242L, 34896848L, 3147855L, 19145988L, 6956189L, 26394416L, 90119619L, 70061324L, 34856298L, 6480659L, 470084L, 99164168L, 54598713L, 56242522L, 946619L, 71842730L, 78916610L, 43197670L, 40785255L, 68430049L, 7316996L, 88007217L, 97779949L, 18204348L, 42580794L, 48043274L, 49422563L, 23384843L, 48119653L, 40024064L, 82241542L, 23945157L, 7348966L, 31308406L, 50655843L, 5511073L, 86409696L, 17254829L, 86625590L, 39016554L, 254960L, 72325897L, 81907993L, 43767460L, 9813746L, 67163411L, 34771638L, 14458784L,
+  6107389L, 99222470L, 74541671L, 4427521L, 31324739L, 87909863L, 5363954L, 7972436L, 89091551L, 82522565L, 38322145L, 80853692L, 4635947L, 14226266L, 57255540L, 47917984L, 15134599L, 41074789L, 34747341L, 37713337L, 73576213L, 22896151L, 19294728L, 11903703L, 81652663L, 65628379L, 7759554L, 38085849L, 77988326L, 2711476L, 42699072L, 13939535L, 13309636L, 40783840L, 66953812L, 44937860L, 56848683L, 38494023L, 34446891L, 56212562L, 12159007L, 78524592L, 77158965L, 60902768L, 26391744L, 20759428L, 5142151L, 49822423L, 34755341L, 2343101L, 89647424L, 54335676L, 53949934L, 25553437L, 95464965L, 33724618L, 44759763L, 43170713L, 21473251L, 95385587L, 73469462L, 75583390L, 62325031L, 36708220L, 74462145L, 1531695L, 97162075L, 2238573L, 93241786L, 86012090L, 32512791L, 98512628L, 10785328L, 69070455L, 65335558L, 79956047L, 79786019L, 75611428L, 43037890L, 77173274L, 80088784L, 98780063L, 22158404L, 26285879L, 20173650L, 93837891L, 79077674L, 99777953L, 45511660L, 34988180L, 26270083L, 41748471L, 78623133L, 9851304L, 70926906L, 97440067L, 44231504L, 65209848L, 32477966L, 35286669L,
+  18612880L, 75158978L, 24945044L, 83128915L, 12422305L, 76310401L, 96911366L, 24836498L, 24390614L, 47805304L, 48798547L, 12801456L, 28338722L, 22176621L, 30278043L, 68233057L, 52273206L, 86526863L, 64350206L, 52093957L, 61471870L, 41651208L, 41179957L, 60068169L, 51497552L, 22762841L, 81656534L, 31158389L, 56580439L, 96912971L, 6555878L, 28828203L, 68602177L, 66386801L, 26870516L, 66175055L, 56898305L, 25152489L, 15088101L, 76363313L, 57811523L, 23194661L, 56627634L, 5085932L, 69771046L, 28971027L, 99985241L, 89781247L, 46215360L, 78596105L, 28037431L, 23334254L, 60129591L, 54857626L, 34779583L, 87318869L, 92543979L, 4258411L, 11741323L, 9736304L, 1105185L, 3889258L, 80513224L, 23477889L, 66925771L, 5908957L, 86116672L, 24714502L, 23917962L, 34271842L, 22849618L, 70096844L, 49411557L, 59852608L, 389877L, 1858501L, 18890179L, 52717398L, 23675950L, 52136511L, 71688163L, 10775075L, 74797137L, 6177792L, 39137897L, 47181219L, 25066264L, 44294609L, 99906466L, 64652899L, 82925731L, 56146323L, 9806843L, 80762335L, 3827387L, 39657827L, 15506997L, 3490081L, 35652802L, 9820523L,
+  62616043L, 20475253L, 89064395L, 13130003L, 95488873L, 7238038L, 18075730L, 44587103L, 45828578L, 51575539L, 76451839L, 8106703L, 1113945L, 52633558L, 14690401L, 40999412L, 43933435L, 65061607L, 47877981L, 23224074L, 78474160L, 62745187L, 25589650L, 13786756L, 34117568L, 4438216L, 2700155L, 38502728L, 76521927L, 96933209L, 81528891L, 36765812L, 4996397L, 82540687L, 6875573L, 17036587L, 42214037L, 77928212L, 13534602L, 56877525L, 79043614L, 99580396L, 87620545L, 55317489L, 20012714L, 63463965L, 62766573L, 55964135L, 87799889L, 15461970L, 21984948L, 64938455L, 12652112L, 70415954L, 2514074L, 47475316L, 47172210L, 18729706L, 78681351L, 79166766L, 97542763L, 2368997L, 55450348L, 38062414L, 15472283L, 19926953L, 89823491L, 67177945L, 49552682L, 49983278L, 58641302L, 7184941L, 37496327L, 91996546L, 19075493L, 78971421L, 96072442L, 53971762L, 62161727L, 2185452L, 15569204L, 37550407L, 95037413L, 41337970L, 22712614L, 69950897L, 75645089L, 89536138L, 85532353L, 40760984L, 60196849L, 76536101L, 76082706L, 5551998L, 31970436L, 17847791L, 13812134L, 55355922L, 8505085L, 63220064L,
+  61234474L, 30200168L, 84240136L, 68321585L, 33575055L, 21116116L, 88980361L, 2516517L, 69906784L, 37680684L, 43736077L, 48331115L, 79355597L, 33417522L, 40649828L, 45982578L, 60617935L, 32401420L, 61313453L, 1572539L, 54808234L, 57999496L, 40116922L, 49060893L, 74565980L, 93464330L, 22122463L, 47585667L, 13861801L, 22985672L, 56076498L, 73527537L, 28054349L, 83563265L, 55466361L, 86430609L, 88361652L, 69479444L, 53712907L, 43906456L, 35111767L, 86127804L, 75942093L, 21522330L, 80897555L, 80555880L, 43218655L, 52260220L, 464593L, 81458721L, 7060488L, 84286414L, 27856056L, 10447187L, 43325654L, 40167013L, 98137483L, 32965627L, 84111108L, 24301678L, 26067151L, 36734543L, 75518576L, 79633405L, 81220969L, 12444910L, 48800038L, 57180080L, 4063371L, 26788765L, 59073945L, 56747185L, 27425910L, 48027993L, 88613419L, 33435531L, 95782106L, 11272047L, 7990797L, 45876196L, 20671861L, 62040606L, 204277L, 59878704L, 8066223L, 63102811L, 61937910L, 49962187L, 5463598L, 63090128L, 91444829L, 51681529L, 47692226L, 93172334L, 39929967L, 40063903L, 58806613L, 4506225L, 9098662L, 61421212L,
+  39836029L, 91922701L, 25658659L, 89651740L, 85299171L, 1329487L, 54514576L, 84973569L, 8901869L, 38952372L, 38964348L, 59615517L, 39230306L, 92336850L, 55506486L, 73024849L, 7011440L, 57475802L, 25357386L, 34815592L, 49702338L, 59461428L, 10468906L, 63896687L, 11453245L, 22855763L, 12822184L, 80649178L, 31440252L, 85692415L, 55113925L, 2938089L, 62170569L, 71808096L, 14272639L, 75434596L, 22090797L, 26095941L, 48190909L, 5420440L, 62433837L, 91995360L, 32161100L, 51499042L, 21753325L, 11573205L, 62917496L, 38844830L, 10597660L, 28691232L, 45193046L, 69504445L, 58095011L, 87294769L, 98899794L, 7948320L, 65628845L, 84993125L, 14337526L, 70225771L, 45659451L, 48008366L, 29494192L, 92610860L, 61883958L, 38323024L, 12756309L, 20747297L, 60755526L, 32258141L, 59829257L, 43091311L, 62866717L, 57283975L, 13646889L, 97325006L, 26680820L, 36795322L, 12217068L, 52175104L, 43457304L, 81139664L, 80364158L, 33341271L, 31610679L, 65586442L, 21885124L, 54563233L, 76375541L, 72484121L, 53619798L, 44242065L, 55640933L, 84880344L, 13618246L, 41270444L, 46050500L, 22141537L, 47964010L, 28046584L,
+  83092261L, 20290303L, 92511623L, 4235814L, 46503168L, 58993765L, 62175378L, 57722403L, 35442388L, 41407680L, 51033462L, 1269772L, 41650305L, 20790426L, 71540937L, 56135805L, 15250307L, 88593235L, 28044464L, 28271725L, 92888299L, 36700742L, 69752062L, 99110254L, 46417047L, 55285597L, 54697905L, 91904868L, 97933733L, 12630412L, 46838691L, 726245L, 43175934L, 58627144L, 69057198L, 41712378L, 32876384L, 5913184L, 21164248L, 84593196L, 4916581L, 86141165L, 37548356L, 89972651L, 92857944L, 84434380L, 74882512L, 6053420L, 88322037L, 2271826L, 77937445L, 34179301L, 1627810L, 89883487L, 52512335L, 26163799L, 1606212L, 26192443L, 67733426L, 86885799L, 74417774L, 46166858L, 95503206L, 90538745L, 54006634L, 80511938L, 35732538L, 16689596L, 31976218L, 9473644L, 49767944L, 2908602L, 92249609L, 20855716L, 6393681L, 57123668L, 17211911L, 47111829L, 4053791L, 74051625L, 59391179L, 41840999L, 54783904L, 13002111L, 73826458L, 96683355L, 76446156L, 23013953L, 11985286L, 19300289L, 46175080L, 41683768L, 56739472L, 5410874L, 57528197L, 54215130L, 96490116L, 26025074L, 6884000L, 10573547L,
+  20787201L, 30367152L, 75536710L, 68551423L, 8665297L, 91781144L, 80348201L, 22060772L, 40765203L, 40766134L, 13992389L, 35981917L, 30865917L, 30731345L, 55100790L, 36990304L, 70989289L, 47244669L, 39876055L, 27305114L, 76973517L, 22752098L, 61468441L, 80758524L, 13099548L, 11680836L, 63920731L, 47693384L, 82384941L, 62793409L, 37013092L, 96716531L, 26498684L, 1162412L, 29994025L, 94469373L, 50783806L, 32986659L, 70293143L, 38790113L, 72981559L, 25786532L, 60153699L, 44155527L, 66395941L, 91034886L, 39444285L, 26550722L, 99472137L, 37588010L, 14970462L, 84238442L, 18800267L, 77098635L, 15507875L, 71754511L, 40135748L, 7632798L, 51769683L, 46634356L, 97619400L, 99633704L, 71452716L, 11289578L, 65112392L, 1202104L, 28293157L, 51109736L, 21550928L, 17997165L, 43905869L, 8644433L, 39643940L, 72722404L, 56905337L, 49866604L, 30194987L, 26967720L, 75740552L, 48149225L, 96438500L, 51480213L, 64019784L, 47550674L, 7868588L, 20642195L, 82056435L, 86189871L, 76903409L, 85513353L, 40624355L, 57218131L, 90881719L, 88982246L, 6907566L, 49494285L, 2178330L, 11535786L, 24707388L, 20759569L,
+  30904032L, 19714495L, 98914091L, 14286683L, 34246919L, 53454221L, 29909767L, 76107852L, 98287495L, 31848418L, 97332259L, 90237542L, 90407513L, 36601675L, 61379373L, 14962579L, 85751855L, 51097600L, 4579658L, 35037827L, 65983268L, 95664338L, 64445293L, 92847320L, 36427756L, 94972167L, 48536641L, 34634792L, 93686906L, 75625134L, 54411521L, 99683827L, 98285194L, 50851692L, 53173589L, 54339157L, 85982326L, 49578776L, 19055596L, 17845714L, 58172223L, 87776266L, 82451837L, 30963812L, 96550150L, 16789675L, 72405623L, 73280738L, 17882245L, 53674826L, 58421140L, 17657080L, 56357029L, 97279465L, 76339423L, 38655861L, 47795476L, 24127591L, 17003141L, 31529280L, 44795973L, 57192219L, 77011411L, 77082301L, 66809391L, 73628782L, 80618785L, 60290896L, 98816410L, 78459249L, 51015747L, 9339438L, 7735653L, 55137964L, 2649782L, 32094862L, 11054537L, 55026725L, 36501345L, 37160307L, 95290669L, 78105354L, 61896597L, 90529291L, 62058339L, 82587737L, 86434308L, 11314106L, 65585680L, 44631521L, 66707823L, 36945987L, 62771270L, 56041216L, 49407463L, 35064480L, 82935524L, 82926618L, 99011220L, 66551356L,
+  57734420L, 87705847L, 68700642L, 94998529L, 40638205L, 17472862L, 9623244L, 41911377L, 90727630L, 20192974L, 51911714L, 72037717L, 29055347L, 79084121L, 42690442L, 57658800L, 32406854L, 11827378L, 71434903L, 6520224L, 40378081L, 82454413L, 49848684L, 99156729L, 43200689L, 45825970L, 56813057L, 66668227L, 15410386L, 45786940L, 11577290L, 96659464L, 27838101L, 89447174L, 94661063L, 43143144L, 92436466L, 28795868L, 88719708L, 58012414L, 83663820L, 92536227L, 6478836L, 75961355L, 93750181L, 40809923L, 40248631L, 24026365L, 76747845L, 39579657L, 22304528L, 25408144L, 98475143L, 91338826L, 9659112L, 9676169L, 97647129L, 75995932L, 21077602L, 14599886L, 14063561L, 87754142L, 49651428L, 93579175L, 16856482L, 62909222L, 28203791L, 82130229L, 10563540L, 29795807L, 74012489L, 51608268L, 36025923L, 49002154L, 44820329L, 32215766L, 37729563L, 46243684L, 93235654L, 70479327L, 48931268L, 75147153L, 18645143L, 63509016L, 19247702L, 88851527L, 38252804L, 8409059L, 29640815L, 48907451L, 29317158L, 37326621L, 29213441L, 81371490L, 7635543L, 29283495L, 37070578L, 36994816L, 19320871L, 75198921L)
+seeds <- head(seeds, 600)
+
+n_clusters <- 4000L
+max_cluster_size <- 4L
+n_quad_nodes <- 6L
+
+library(mmcif)
+sim_res <- lapply(seeds, \(s){
+  res_file <- file.path(
+    "cache", "prostate-dz-sims", sprintf(
+      "%d-%d-%d-%d.RDS", n_clusters, max_cluster_size, n_quad_nodes, s))
+  
+  if(!file.exists(res_file)){
+    set.seed(s)
+    data <- sim_dat(n_clusters, max_cluster_size)
+    
+    ghq_data <- fastGHQuad::gaussHermiteData(n_quad_nodes) |> 
+        with(list(node = x, weight = w))
+    
+    fit_obj <- mmcif_data(
+      ~ country - 1, data, cause = cause, time = time, cluster_id = cluster_id,
+      max_time = delta, ghq_data = ghq_data, knots = knots, strata = country)
+    
+    fit_time <- system.time({
+      start <- mmcif_start_values(fit_obj, n_threads = 4L)
+      fit <- mmcif_fit(start$upper, fit_obj, n_threads = 4L)
+      sandwich <- mmcif_sandwich(fit_obj, fit$par, n_threads = 4L, order = 1L)
+    })
+    
+    gr_max <- mmcif_logLik_grad(
+      fit_obj, fit$par, n_threads = 4L, is_log_chol = TRUE)
+    
+    list(start = start, fit = fit, sandwich = sandwich, gr_max = gr_max, 
+         time = fit_time, vcov = tail(fit$par, 10) |> log_chol_inv(), 
+         fixef = head(fit$par, -10)) |> 
+      saveRDS(res_file)
+  }
+  
+  out <- readRDS(res_file)
+  sprintf("\n\nMax composite log likelihood, gradient norm and computation time (seconds): %.4f %.4f %.2f",
+          -out$fit$value, sum(out$gr_max^2) |> sqrt(), out$time["elapsed"]) |> 
+    message()
+  
+  remove_lower <- \(x){
+    x[lower.tri(x)] <- NA
+    x
+  }
+  print_message <- \(x)
+    capture.output(print(x, na.print = "")) |> paste0(collapse = "\n") |> 
+      message()
+
+  message("\nEstimated fixed effects and z-stats")
+  SEs <- attr(out$sandwich, "res vcov") |> diag() |> sqrt()
+  tab_fixef <- rbind(
+    Estimates = out$fixef, 
+    `Z stats` = c(out$fixef - fixef_use) / head(SEs, length(fixef_use)))
+  colnames(tab_fixef) <- colnames(tab_fixef) |> abbreviate(minlength = 8)
+  print_message(tab_fixef)
+  
+  stopifnot(all(names(out$fixef) == names(fixef_use)))
+  out$tab_fixef <- tab_fixef
+  
+  message("\nEstimated covariance matrix followed by SEs and z-stats")
+  
+  SEs_mat <- matrix(NA, 4, 4)
+  SEs_mat[upper.tri(SEs_mat, TRUE)] <- 
+    tail(SEs, upper.tri(SEs_mat, TRUE) |> sum())
+  err_mat <- (out$vcov - rng_vcov) / SEs_mat
+  
+  print_message(cbind(remove_lower(out$vcov), NA, SEs_mat, NA, err_mat))
+  out$vcov_err_mat <- err_mat
+  
+  out
+})
+```
+
+``` r
+print_sym_mat <- \(x){
+  x[lower.tri(x)] <- NA
+  print(x, na.print = "")
+}
+
+vcov_est <- sapply(sim_res, `[[`, "vcov", simplify = "array")
+
+# the bias estimates
+vcov_bias <- apply(vcov_est - c(rng_vcov), 1:2, mean)
+print_sym_mat(vcov_bias) 
+#>          [,1]    [,2]      [,3]     [,4]
+#> [1,] 0.004786 0.01064  0.002234 0.020000
+#> [2,]          0.02025  0.005187 0.036900
+#> [3,]                  -0.001785 0.007265
+#> [4,]                            0.017131
+# the standard errors of the bias estimates and Z stats
+vcov_SEs <- apply(vcov_est - c(rng_vcov), 1:2, sd) / sqrt(dim(vcov_est)[3]) 
+print_sym_mat(vcov_SEs)
+#>          [,1]     [,2]     [,3]     [,4]
+#> [1,] 0.003726 0.004565 0.001470 0.003975
+#> [2,]          0.010605 0.002574 0.006666
+#> [3,]                   0.001274 0.002178
+#> [4,]                            0.007227
+print_sym_mat(vcov_bias / vcov_SEs)
+#>       [,1]  [,2]   [,3]  [,4]
+#> [1,] 1.285 2.331  1.519 5.032
+#> [2,]       1.910  2.015 5.535
+#> [3,]             -1.401 3.336
+#> [4,]                    2.371
+
+# plot the errors
+errs <- apply(vcov_est - c(rng_vcov), 3, \(x) x[upper.tri(x, TRUE)])
+par(mar = c(3, 5, 1, 1))
+boxplot(apply(errs, 1, \(x) x / sd(x)) |> t() |> c() ~ rep(1:10, NCOL(errs)),
+        xlab = "", ylab = "Standardized errors")
+abline(h = 0, lty = 2)
+```
+
+<img src="figures/prostate/sims-unnamed-chunk-1-1.png" width="100%" />
+
+``` r
+# the bias estimates, the standard errors and Z stats
+z_stats_fixef <- sapply(sim_res, `[[`, "tab_fixef", simplify = "array")
+errs <- z_stats_fixef["Estimates", , ] - fixef_use
+
+# box plots of the errors
+par(mar = c(5, 5, 1, 1))
+boxplot(
+  apply(errs, 1, \(x) x / sd(x)) |> t() |> c() ~ 
+    rep(rownames(errs), NCOL(errs)), xlab = "", 
+  ylab = "Standardized errors", las = 2)
+abline(h = 0, lty = 2)
+```
+
+<img src="figures/prostate/sims-unnamed-chunk-1-2.png" width="100%" />
+
+``` r
+fixef_table <- 
+  rbind(Bias = rowMeans(errs), 
+        SEs = sd(errs) / sqrt(NCOL(errs)),
+        `Z stat` = rowMeans(errs) / (sd(errs) / sqrt(NCOL(errs))))
+colnames(fixef_table) <- names(sim_res[[1]]$fit$par) |> head(-10)
+fixef_table
+#>        cause1:risk:countryDenmark cause1:risk:countryFinland
+#> Bias                     0.003211                  -0.002022
+#> SEs                      0.012453                   0.012453
+#> Z stat                   0.257815                  -0.162369
+#>        cause1:risk:countryNorway cause1:risk:countrySweden
+#> Bias                    0.002818                  0.006091
+#> SEs                     0.012453                  0.012453
+#> Z stat                  0.226326                  0.489116
+#>        cause2:risk:countryDenmark cause2:risk:countryFinland
+#> Bias                     -0.01326                   -0.01315
+#> SEs                       0.01245                    0.01245
+#> Z stat                   -1.06518                   -1.05607
+#>        cause2:risk:countryNorway cause2:risk:countrySweden
+#> Bias                   -0.003208                  0.004579
+#> SEs                     0.012453                  0.012453
+#> Z stat                 -0.257594                  0.367722
+#>        cause1:strataDenmark:spline1 cause1:strataDenmark:spline2
+#> Bias                      -0.008736                     -0.01199
+#> SEs                        0.012453                      0.01245
+#> Z stat                    -0.701490                     -0.96263
+#>        cause1:strataDenmark:spline3 cause1:strataDenmark:spline4
+#> Bias                      -0.007766                     -0.02097
+#> SEs                        0.012453                      0.01245
+#> Z stat                    -0.623640                     -1.68386
+#>        cause1:strataDenmark:spline5 cause1:strataFinland:spline1
+#> Bias                      -0.008438                    -0.005032
+#> SEs                        0.012453                     0.012453
+#> Z stat                    -0.677565                    -0.404058
+#>        cause1:strataFinland:spline2 cause1:strataFinland:spline3
+#> Bias                      -0.007707                   -0.0005551
+#> SEs                        0.012453                    0.0124531
+#> Z stat                    -0.618853                   -0.0445726
+#>        cause1:strataFinland:spline4 cause1:strataFinland:spline5
+#> Bias                       -0.01674                    -0.005181
+#> SEs                         0.01245                     0.012453
+#> Z stat                     -1.34414                    -0.416082
+#>        cause1:strataNorway:spline1 cause1:strataNorway:spline2
+#> Bias                      -0.01066                   -0.009492
+#> SEs                        0.01245                    0.012453
+#> Z stat                    -0.85578                   -0.762199
+#>        cause1:strataNorway:spline3 cause1:strataNorway:spline4
+#> Bias                      -0.00321                    -0.02582
+#> SEs                        0.01245                     0.01245
+#> Z stat                    -0.25778                    -2.07336
+#>        cause1:strataNorway:spline5 cause1:strataSweden:spline1
+#> Bias                     -0.006487                   -0.007563
+#> SEs                       0.012453                    0.012453
+#> Z stat                   -0.520913                   -0.607341
+#>        cause1:strataSweden:spline2 cause1:strataSweden:spline3
+#> Bias                      -0.01248                   -0.002707
+#> SEs                        0.01245                    0.012453
+#> Z stat                    -1.00226                   -0.217411
+#>        cause1:strataSweden:spline4 cause1:strataSweden:spline5
+#> Bias                      -0.02258                    -0.01084
+#> SEs                        0.01245                     0.01245
+#> Z stat                    -1.81318                    -0.87017
+#>        cause1:traject:countryDenmark cause1:traject:countryFinland
+#> Bias                         0.01011                      0.005115
+#> SEs                          0.01245                      0.012453
+#> Z stat                       0.81188                      0.410771
+#>        cause1:traject:countryNorway cause1:traject:countrySweden
+#> Bias                       0.009445                     0.008804
+#> SEs                        0.012453                     0.012453
+#> Z stat                     0.758438                     0.706991
+#>        cause2:strataDenmark:spline1 cause2:strataDenmark:spline2
+#> Bias                       -0.07608                     -0.11891
+#> SEs                         0.01245                      0.01245
+#> Z stat                     -6.10922                     -9.54836
+#>        cause2:strataDenmark:spline3 cause2:strataDenmark:spline4
+#> Bias                       -0.05554                     -0.26882
+#> SEs                         0.01245                      0.01245
+#> Z stat                     -4.45999                    -21.58694
+#>        cause2:strataDenmark:spline5 cause2:strataFinland:spline1
+#> Bias                       -0.20934                     -0.05674
+#> SEs                         0.01245                      0.01245
+#> Z stat                    -16.81059                     -4.55643
+#>        cause2:strataFinland:spline2 cause2:strataFinland:spline3
+#> Bias                       -0.07013                     -0.03582
+#> SEs                         0.01245                      0.01245
+#> Z stat                     -5.63153                     -2.87609
+#>        cause2:strataFinland:spline4 cause2:strataFinland:spline5
+#> Bias                       -0.16441                     -0.09411
+#> SEs                         0.01245                      0.01245
+#> Z stat                    -13.20271                     -7.55737
+#>        cause2:strataNorway:spline1 cause2:strataNorway:spline2
+#> Bias                      -0.10042                    -0.12019
+#> SEs                        0.01245                     0.01245
+#> Z stat                    -8.06367                    -9.65116
+#>        cause2:strataNorway:spline3 cause2:strataNorway:spline4
+#> Bias                      -0.06783                    -0.24741
+#> SEs                        0.01245                     0.01245
+#> Z stat                    -5.44668                   -19.86729
+#>        cause2:strataNorway:spline5 cause2:strataSweden:spline1
+#> Bias                      -0.11829                    -0.05855
+#> SEs                        0.01245                     0.01245
+#> Z stat                    -9.49858                    -4.70129
+#>        cause2:strataSweden:spline2 cause2:strataSweden:spline3
+#> Bias                      -0.06707                    -0.03342
+#> SEs                        0.01245                     0.01245
+#> Z stat                    -5.38558                    -2.68354
+#>        cause2:strataSweden:spline4 cause2:strataSweden:spline5
+#> Bias                      -0.12507                    -0.06119
+#> SEs                        0.01245                     0.01245
+#> Z stat                   -10.04319                    -4.91335
+#>        cause2:traject:countryDenmark cause2:traject:countryFinland
+#> Bias                         0.07114                       0.05633
+#> SEs                          0.01245                       0.01245
+#> Z stat                       5.71286                       4.52322
+#>        cause2:traject:countryNorway cause2:traject:countrySweden
+#> Bias                        0.09335                      0.04102
+#> SEs                         0.01245                      0.01245
+#> Z stat                      7.49628                      3.29377
+
+# check the coverage
+z_stats_vcov <- sapply(sim_res, `[[`, "vcov_err_mat", simplify = "array")
+apply(abs(z_stats_vcov) < qnorm(.975), 1:2, mean) |> print_sym_mat()
+#>        [,1]   [,2]   [,3]   [,4]
+#> [1,] 0.9283 1.0000 0.9983 0.9967
+#> [2,]        0.9367 0.9983 0.9883
+#> [3,]               0.9433 1.0000
+#> [4,]                      0.8983
+rowMeans(abs(z_stats_fixef["Z stats", ,]) < qnorm(.975))
+#> cs1:rs:D cs1:rs:F cs1:rs:N cs1:rs:S cs2:rs:D cs2:rs:F cs2:rs:N cs2:rs:S 
+#>   0.9400   0.9483   0.9500   0.9483   0.9417   0.9500   0.9483   0.9567 
+#> cs1:sD:1 cs1:sD:2 cs1:sD:3 cs1:sD:4 cs1:sD:5 cs1:sF:1 cs1:sF:2 cs1:sF:3 
+#>   0.9267   0.9133   0.9250   0.9200   0.9483   0.9283   0.9350   0.9550 
+#> cs1:sF:4 cs1:sF:5 cs1:sN:1 cs1:sN:2 cs1:sN:3 cs1:sN:4 cs1:sN:5 cs1:sS:1 
+#>   0.9333   0.9467   0.9450   0.9383   0.9517   0.9300   0.9583   0.9317 
+#> cs1:sS:2 cs1:sS:3 cs1:sS:4 cs1:sS:5 cs1:tr:D cs1:tr:F cs1:tr:N cs1:tr:S 
+#>   0.9267   0.9267   0.9333   0.9433   0.9267   0.9367   0.9500   0.9217 
+#> cs2:sD:1 cs2:sD:2 cs2:sD:3 cs2:sD:4 cs2:sD:5 cs2:sF:1 cs2:sF:2 cs2:sF:3 
+#>   0.9150   0.9167   0.9450   0.9133   0.8967   0.9317   0.9083   0.9167 
+#> cs2:sF:4 cs2:sF:5 cs2:sN:1 cs2:sN:2 cs2:sN:3 cs2:sN:4 cs2:sN:5 cs2:sS:1 
+#>   0.9083   0.9233   0.9167   0.9083   0.9283   0.8717   0.9150   0.9083 
+#> cs2:sS:2 cs2:sS:3 cs2:sS:4 cs2:sS:5 cs2:tr:D cs2:tr:F cs2:tr:N cs2:tr:S 
+#>   0.9300   0.9217   0.9133   0.9033   0.9100   0.9133   0.8867   0.9000
+
+# check convergence code
+table(sapply(sim_res, \(x) x$fit$convergence))
+#> 
+#>   0 
+#> 600
+
+# distribution of the gradient norm at the MLEs
+sapply(sim_res, \(x) sqrt(sum(x$gr_max^2))) |>  
+  quantile(probs = seq(0, 1, length.out = 11))
+#>       0%      10%      20%      30%      40%      50%      60%      70% 
+#>   0.5109   0.8535   0.9178   0.9780   1.0295   1.0773   1.1323   1.2019 
+#>      80%      90%     100% 
+#>   1.2879   1.4516 182.9147
+```

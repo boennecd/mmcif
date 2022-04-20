@@ -1,13 +1,19 @@
 #' @importFrom stats quantile
 #' @importFrom splines splineDesign
 #' @importFrom utils head tail
-monotone_ns <- function(times, df){
+monotone_ns <- function(times, df, knots = NULL, boundary_knots = NULL){
   stopifnot(is.numeric(times), all(is.finite(times)),
             length(df) == 1, is.finite(df), df > 0)
 
-  qs <- quantile(times, probs = seq(.025, .975, length.out = df + 1))
-  boundary_knots <- c(qs[1], tail(qs, 1))
-  knots <- head(qs[-1], -1)
+  if(is.null(knots) || is.null(boundary_knots)){
+    qs <- quantile(times, probs = seq(.025, .975, length.out = df + 1))
+
+    if(is.null(boundary_knots))
+      boundary_knots <- c(qs[1], tail(qs, 1))
+    if(is.null(knots))
+      knots <- head(qs[-1], -1)
+  } else
+    df <- length(knots) + 1L
 
   # construct matrix for the monotonicity constraint for the B-spline
   constrian_mat <- matrix(0., df + 1L, df + 2L)

@@ -3,6 +3,12 @@ cpp_obj <- mmcif_data(
   ~ a + b, dat, cause = cause, time = time, cluster_id = cluster_id,
   max_time = delta, spline_df = 2L, left_trunc = dat$delayed_entry)
 
+cpp_obj_knots <- mmcif_data(
+  ~ a + b, dat, cause = cause, time = time, cluster_id = cluster_id,
+  max_time = delta, spline_df = 2L, left_trunc = dat$delayed_entry,
+  knots = lapply(cpp_obj$splines, function(x)
+    list(knots = x$knots, boundary_knots = x$boundary_knots)))
+
 comb_slope <- sapply(cpp_obj$spline, function(spline){
   boundary_knots <- spline$boundary_knots
   pts <- seq(boundary_knots[1], boundary_knots[2], length.out = 1000)
@@ -26,6 +32,9 @@ test_that("the log composite likelihood gives the same as previously", {
   log_compos <- -439.949278998529
   expect_equal(mmcif_logLik(cpp_obj, truth, ghq_data, 1, TRUE), log_compos)
   expect_equal(mmcif_logLik(cpp_obj, truth, ghq_data, 2, TRUE), log_compos)
+
+  expect_equal(
+    mmcif_logLik(cpp_obj_knots, truth, ghq_data, 1, TRUE), log_compos)
 })
 
 test_that("the gradient of log composite likelihood match the one from numerical differentation", {
@@ -34,6 +43,9 @@ test_that("the gradient of log composite likelihood match the one from numerical
   expect_equal(mmcif_logLik_grad(cpp_obj, truth, ghq_data, 1, TRUE),
                grad_log_compos, tolerance = 1e-6)
   expect_equal(mmcif_logLik_grad(cpp_obj, truth, ghq_data, 2, TRUE),
+               grad_log_compos, tolerance = 1e-6)
+
+  expect_equal(mmcif_logLik_grad(cpp_obj_knots, truth, ghq_data, 1, TRUE),
                grad_log_compos, tolerance = 1e-6)
 })
 

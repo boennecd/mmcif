@@ -30,6 +30,12 @@
 #' and \code{"weight"}. A default is provided if \code{NULL} is passed.
 #' @param strata an integer vector or a factor vector with the strata of each
 #' individual. \code{NULL} implies that there are no strata.
+#' @param knots A list of lists with knots for the splines. The innner lists
+#'  needs to have elements called \code{"knots"} and
+#' \code{"boundary_knots"} which are passed to a function like \code{\link{ns}}.
+#' \code{NULL} yields defaults based on the quantiles of the observed event
+#' times. Note that the knots needs to be on the
+#' \code{atanh((time - max_time / 2) / (max_time / 2))} scale.
 #'
 #' @seealso
 #' \code{\link{mmcif_fit}}, \code{\link{mmcif_start_values}} and
@@ -39,7 +45,7 @@
 #' @export
 mmcif_data <- function(formula, data, cause, time, cluster_id, max_time,
                        spline_df = 3L, left_trunc = NULL, ghq_data = NULL,
-                       strata = NULL){
+                       strata = NULL, knots = NULL){
   stopifnot(inherits(formula, "formula"),
             is.data.frame(data),
             length(spline_df) == 1, is.finite(spline_df), spline_df > 0)
@@ -89,6 +95,30 @@ mmcif_data <- function(formula, data, cause, time, cluster_id, max_time,
     (is.factor(strata) && length(strata) == length(cause) && n_strata > 1) ||
       is.null(strata))
 
+  # check the knots
+  if(!is.null(knots)){
+    n_knots <- length(knots[[1]]$knots)
+
+    stopifnot(
+      is.list(knots),
+      all(sapply(knots, function(x)
+        is.numeric(x$boundary_knots) &&
+          length(x$boundary_knots) == 2 &&
+          all(is.finite(x$boundary_knots)) &&
+          diff(x$boundary_knots) > 0)),
+      all(sapply(knots, function(x)
+        all(
+          is.numeric(x$knots),
+          all(is.finite(x$knots)),
+          length(x$knots) == n_knots,
+          all(x$boundary_knots[1] <= x$knots & x$knots <= x$boundary_knots[2])
+          ))))
+
+    spline_df <- n_knots + 1L
+
+  } else
+    knots <- replicate(n_causes, list(), simplify = FALSE)
+
   # add the time transformations
   time_trans <- function(x) atanh((x - max_time / 2) / (max_time / 2))
   d_time_trans <- function(x) {
@@ -100,10 +130,13 @@ mmcif_data <- function(formula, data, cause, time, cluster_id, max_time,
     ifelse(time_observed < max_time, time_trans(time_observed), NA))
 
   is_observed <- cause %in% 1:n_causes
-  splines <- tapply(
-    time_observed_trans[is_observed], cause[is_observed],
-    function(time_observed_trans)
-      monotone_ns(time_observed_trans, df = spline_df), simplify = FALSE)
+  splines <- Map(
+    function(time_observed_trans, knots)
+      monotone_ns(
+        time_observed_trans, df = spline_df,
+        knots = knots$knots, boundary_knots = knots$boundary_knots),
+    split(time_observed_trans[is_observed], cause[is_observed]),
+    knots = knots)
 
   time_expansion <- function(x, cause, which_strata = NULL){
     x <- suppressWarnings(time_trans(x))
@@ -253,7 +286,7 @@ mmcif_data <- function(formula, data, cause, time, cluster_id, max_time,
     fixed_covs_names <- colnames(covs_risk)
     varying_covs_names <- sprintf("spline%d", 1:n_varying)
     varying_covs_names <-
-      c(outer(varying_covs_names, sprintf("strata%d", 1:n_strata),
+      c(outer(varying_covs_names, sprintf("strata%s", levels(strata)),
               function(x, y) sprintf("%s:%s", y, x)))
 
   } else {

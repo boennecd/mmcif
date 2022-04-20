@@ -14,7 +14,8 @@ mmcif_data(
   spline_df = 3L,
   left_trunc = NULL,
   ghq_data = NULL,
-  strata = NULL
+  strata = NULL,
+  knots = NULL
 )
 }
 \arguments{
@@ -45,6 +46,13 @@ and \code{"weight"}. A default is provided if \code{NULL} is passed.}
 
 \item{strata}{an integer vector or a factor vector with the strata of each
 individual. \code{NULL} implies that there are no strata.}
+
+\item{knots}{A list of lists with knots for the splines. The innner lists
+ needs to have elements called \code{"knots"} and
+\code{"boundary_knots"} which are passed to a function like \code{\link{ns}}.
+\code{NULL} yields defaults based on the quantiles of the observed event
+times. Note that the knots needs to be on the
+\code{atanh((time - max_time / 2) / (max_time / 2))} scale.}
 }
 \description{
 Setup Object to Compute the Log Composite Likelihood
