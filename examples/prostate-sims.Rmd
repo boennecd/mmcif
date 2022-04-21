@@ -349,32 +349,22 @@ vcov_est <- sapply(sim_res, `[[`, "vcov", simplify = "array")
 vcov_bias <- apply(vcov_est - c(rng_vcov), 1:2, mean)
 print_sym_mat(rng_vcov) # true values
 print_sym_mat(vcov_bias) # bias estimates
-# the standard errors of the bias estimates and Z stats
-vcov_SEs <- apply(vcov_est - c(rng_vcov), 1:2, sd) / sqrt(dim(vcov_est)[3]) 
-print_sym_mat(vcov_SEs) # standard errors
-print_sym_mat(vcov_bias / vcov_SEs) # Z stats
+# the standard errors of the Z stats
+print_sym_mat(
+  vcov_bias / (apply(vcov_est, 1:2, sd) / sqrt(dim(vcov_est)[3]))) # Z stats
 
-# plot the errors. Two plots are shown with everything and without those that 
-# hit a boundary condition
+# plot the errors
 errs <- apply(vcov_est - c(rng_vcov), 3, \(x) x[upper.tri(x, TRUE)])
 par(mar = c(3, 5, 1, 1))
 boxplot(apply(errs, 1, \(x) x / sd(x)) |> t() |> c() ~ rep(1:10, NCOL(errs)),
         xlab = "", ylab = "Standardized errors")
 abline(h = 0, lty = 2)
 
-is_boundary <- n_binding > 0
-boxplot(
-  apply(errs[, !is_boundary], 1, \(x) x / sd(x)) |> t() |> c() ~ 
-    rep(1:10, sum(!is_boundary)),
-  xlab = "", ylab = "Standardized errors (w/o boundary)")
-abline(h = 0, lty = 2)
-
 # then we turn the bias estimates for the fixed effects
 z_stats_fixef <- sapply(sim_res, `[[`, "tab_fixef", simplify = "array")
 errs <- z_stats_fixef["Estimates", , ] - fixef_use
 
-# box plots of the errors. Two plots are shown with everything and without 
-# those that hit a boundary condition
+# box plots of the errors
 par(mar = c(5, 5, 1, 1))
 boxplot(
   apply(errs, 1, \(x) x / sd(x)) |> t() |> c() ~ 
@@ -382,17 +372,10 @@ boxplot(
   ylab = "Standardized errors", las = 2)
 abline(h = 0, lty = 2)
 
-boxplot(
-  apply(errs[, !is_boundary], 1, \(x) x / sd(x)) |> t() |> c() ~ 
-    rep(rownames(errs), sum(!is_boundary)), xlab = "", 
-  ylab = "Standardized errors (w/o boundary)", las = 2)
-abline(h = 0, lty = 2)
-
-# the true values, bias estimates, standard errors and Z stats
+# the true values, bias estimates and Z stats
 rbind(Truth = fixef_use,
       Bias = rowMeans(errs), 
-      SEs = sd(errs) / sqrt(NCOL(errs)),
-      `Z stat` = rowMeans(errs) / (sd(errs) / sqrt(NCOL(errs))))
+      `Z stat` = rowMeans(errs) / apply(errs, 1, \(x) sd(x) / sqrt(length(x))))
 ```
 
 Then we look at the coverage.

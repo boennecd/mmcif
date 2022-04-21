@@ -382,23 +382,16 @@ print_sym_mat(vcov_bias) # bias estimates
 #> [2,]         0.01989  0.0010837 0.03061
 #> [3,]                 -0.0013149 0.00817
 #> [4,]                            0.03088
-# the standard errors of the bias estimates and Z stats
-vcov_SEs <- apply(vcov_est - c(rng_vcov), 1:2, sd) / sqrt(dim(vcov_est)[3]) 
-print_sym_mat(vcov_SEs) # standard errors
-#>          [,1]     [,2]     [,3]     [,4]
-#> [1,] 0.003059 0.004026 0.001258 0.002915
-#> [2,]          0.008972 0.002371 0.004903
-#> [3,]                   0.001092 0.001778
-#> [4,]                            0.004659
-print_sym_mat(vcov_bias / vcov_SEs) # Z stats
+# the standard errors of the Z stats
+print_sym_mat(
+  vcov_bias / (apply(vcov_est, 1:2, sd) / sqrt(dim(vcov_est)[3]))) # Z stats
 #>       [,1]  [,2]    [,3]  [,4]
 #> [1,] 2.818 3.711  0.2795 7.502
 #> [2,]       2.217  0.4572 6.242
 #> [3,]             -1.2039 4.595
 #> [4,]                     6.628
 
-# plot the errors. Two plots are shown with everything and without those that 
-# hit a boundary condition
+# plot the errors
 errs <- apply(vcov_est - c(rng_vcov), 3, \(x) x[upper.tri(x, TRUE)])
 par(mar = c(3, 5, 1, 1))
 boxplot(apply(errs, 1, \(x) x / sd(x)) |> t() |> c() ~ rep(1:10, NCOL(errs)),
@@ -409,23 +402,11 @@ abline(h = 0, lty = 2)
 <img src="figures/prostate/sims-bias_show_res-1.png" width="100%" />
 
 ``` r
-is_boundary <- n_binding > 0
-boxplot(
-  apply(errs[, !is_boundary], 1, \(x) x / sd(x)) |> t() |> c() ~ 
-    rep(1:10, sum(!is_boundary)),
-  xlab = "", ylab = "Standardized errors (w/o boundary)")
-abline(h = 0, lty = 2)
-```
-
-<img src="figures/prostate/sims-bias_show_res-2.png" width="100%" />
-
-``` r
 # then we turn the bias estimates for the fixed effects
 z_stats_fixef <- sapply(sim_res, `[[`, "tab_fixef", simplify = "array")
 errs <- z_stats_fixef["Estimates", , ] - fixef_use
 
-# box plots of the errors. Two plots are shown with everything and without 
-# those that hit a boundary condition
+# box plots of the errors
 par(mar = c(5, 5, 1, 1))
 boxplot(
   apply(errs, 1, \(x) x / sd(x)) |> t() |> c() ~ 
@@ -434,164 +415,125 @@ boxplot(
 abline(h = 0, lty = 2)
 ```
 
-<img src="figures/prostate/sims-bias_show_res-3.png" width="100%" />
+<img src="figures/prostate/sims-bias_show_res-2.png" width="100%" />
 
 ``` r
-boxplot(
-  apply(errs[, !is_boundary], 1, \(x) x / sd(x)) |> t() |> c() ~ 
-    rep(rownames(errs), sum(!is_boundary)), xlab = "", 
-  ylab = "Standardized errors (w/o boundary)", las = 2)
-abline(h = 0, lty = 2)
-```
-
-<img src="figures/prostate/sims-bias_show_res-4.png" width="100%" />
-
-``` r
-# the true values, bias estimates, standard errors and Z stats
+# the true values, bias estimates and Z stats
 rbind(Truth = fixef_use,
       Bias = rowMeans(errs), 
-      SEs = sd(errs) / sqrt(NCOL(errs)),
-      `Z stat` = rowMeans(errs) / (sd(errs) / sqrt(NCOL(errs))))
+      `Z stat` = rowMeans(errs) / apply(errs, 1, \(x) sd(x) / sqrt(length(x))))
 #>        cause1:risk:countryDenmark cause1:risk:countryFinland
 #> Truth                     0.72480                    0.63770
 #> Bias                     -0.00212                    0.00173
-#> SEs                       0.01050                    0.01050
-#> Z stat                   -0.20199                    0.16486
+#> Z stat                   -0.95359                    0.74671
 #>        cause1:risk:countryNorway cause1:risk:countrySweden
 #> Truth                   0.426300                  0.433700
 #> Bias                    0.005712                  0.001303
-#> SEs                     0.010497                  0.010497
-#> Z stat                  0.544203                  0.124137
+#> Z stat                  2.686090                  0.586791
 #>        cause2:risk:countryDenmark cause2:risk:countryFinland
 #> Truth                   -2.477500                  -1.497600
 #> Bias                    -0.007912                  -0.007163
-#> SEs                      0.010497                   0.010497
-#> Z stat                  -0.753721                  -0.682416
+#> Z stat                  -1.349187                  -1.511336
 #>        cause2:risk:countryNorway cause2:risk:countrySweden
 #> Truth                  -1.898300                  -1.58890
 #> Bias                    0.001862                   0.00324
-#> SEs                     0.010497                   0.01050
-#> Z stat                  0.177429                   0.30871
+#> Z stat                  0.402963                   0.71334
 #>        cause1:strataDenmark:spline1 cause1:strataDenmark:spline2
 #> Truth                     -1.753100                    -2.343600
 #> Bias                      -0.009539                    -0.009994
-#> SEs                        0.010497                     0.010497
-#> Z stat                    -0.908785                    -0.952120
+#> Z stat                    -2.970606                    -2.973611
 #>        cause1:strataDenmark:spline3 cause1:strataDenmark:spline4
 #> Truth                     -3.109400                     -4.79100
 #> Bias                      -0.007503                     -0.02312
-#> SEs                        0.010497                      0.01050
-#> Z stat                    -0.714827                     -2.20227
+#> Z stat                    -2.330796                     -3.78862
 #>        cause1:strataDenmark:spline5 cause1:strataFinland:spline1
 #> Truth                      -3.96740                     -1.94000
 #> Bias                       -0.01077                     -0.01029
-#> SEs                         0.01050                      0.01050
-#> Z stat                     -1.02582                     -0.98062
+#> Z stat                     -3.03775                     -2.76536
 #>        cause1:strataFinland:spline2 cause1:strataFinland:spline3
 #> Truth                     -2.543900                    -3.111900
 #> Bias                      -0.009284                    -0.007157
-#> SEs                        0.010497                     0.010497
-#> Z stat                    -0.884486                    -0.681810
+#> Z stat                    -2.332329                    -2.062908
 #>        cause1:strataFinland:spline4 cause1:strataFinland:spline5
 #> Truth                      -5.04570                     -3.98130
 #> Bias                       -0.02091                     -0.01072
-#> SEs                         0.01050                      0.01050
-#> Z stat                     -1.99212                     -1.02083
+#> Z stat                     -2.86319                     -2.96886
 #>        cause1:strataNorway:spline1 cause1:strataNorway:spline2
 #> Truth                    -1.652500                    -2.26000
 #> Bias                     -0.009437                    -0.01059
-#> SEs                       0.010497                     0.01050
-#> Z stat                   -0.899009                    -1.00868
+#> Z stat                   -2.649347                    -2.95514
 #>        cause1:strataNorway:spline3 cause1:strataNorway:spline4
 #> Truth                    -2.928100                    -4.67720
 #> Bias                     -0.005612                    -0.02836
-#> SEs                       0.010497                     0.01050
-#> Z stat                   -0.534644                    -2.70138
+#> Z stat                   -1.712956                    -4.24838
 #>        cause1:strataNorway:spline5 cause1:strataSweden:spline1
 #> Truth                     -3.77940                    -1.92380
 #> Bias                      -0.01158                    -0.02361
-#> SEs                        0.01050                     0.01050
-#> Z stat                    -1.10290                    -2.24921
+#> Z stat                    -3.40820                    -4.70140
 #>        cause1:strataSweden:spline2 cause1:strataSweden:spline3
 #> Truth                     -2.57940                    -3.20450
 #> Bias                      -0.02657                    -0.01152
-#> SEs                        0.01050                     0.01050
-#> Z stat                    -2.53158                    -1.09775
+#> Z stat                    -5.07238                    -2.77746
 #>        cause1:strataSweden:spline4 cause1:strataSweden:spline5
 #> Truth                      -5.0561                    -4.02990
 #> Bias                       -0.0532                    -0.01353
-#> SEs                         0.0105                     0.01050
-#> Z stat                     -5.0681                    -1.28892
+#> Z stat                     -5.4869                    -3.33361
 #>        cause1:traject:countryDenmark cause1:traject:countryFinland
 #> Truth                       2.468400                       2.65900
 #> Bias                        0.008849                       0.01015
-#> SEs                         0.010497                       0.01050
-#> Z stat                      0.843043                       0.96725
+#> Z stat                      2.670866                       2.66892
 #>        cause1:traject:countryNorway cause1:traject:countrySweden
 #> Truth                       2.55760                      2.91810
 #> Bias                        0.01143                      0.02428
-#> SEs                         0.01050                      0.01050
-#> Z stat                      1.08882                      2.31282
+#> Z stat                      3.24082                      4.74419
 #>        cause2:strataDenmark:spline1 cause2:strataDenmark:spline2
 #> Truth                       -2.0057                      -2.8358
 #> Bias                        -0.1364                      -0.1813
-#> SEs                          0.0105                       0.0105
-#> Z stat                     -12.9929                     -17.2722
+#> Z stat                      -9.1045                     -11.3116
 #>        cause2:strataDenmark:spline3 cause2:strataDenmark:spline4
 #> Truth                      -3.04880                      -5.5071
 #> Bias                       -0.09731                      -0.3988
-#> SEs                         0.01050                       0.0105
-#> Z stat                     -9.27087                     -37.9952
+#> Z stat                     -7.26716                     -13.5133
 #>        cause2:strataDenmark:spline5 cause2:strataFinland:spline1
 #> Truth                       -4.1739                     -1.79500
 #> Bias                        -0.2445                     -0.06866
-#> SEs                          0.0105                      0.01050
-#> Z stat                     -23.2884                     -6.54099
+#> Z stat                     -13.3133                     -8.12853
 #>        cause2:strataFinland:spline2 cause2:strataFinland:spline3
 #> Truth                      -2.03360                     -2.93600
 #> Bias                       -0.07991                     -0.05182
-#> SEs                         0.01050                      0.01050
-#> Z stat                     -7.61273                     -4.93687
+#> Z stat                     -8.76401                     -6.00831
 #>        cause2:strataFinland:spline4 cause2:strataFinland:spline5
 #> Truth                       -4.8131                      -3.9967
 #> Bias                        -0.1853                      -0.1052
-#> SEs                          0.0105                       0.0105
-#> Z stat                     -17.6515                     -10.0205
+#> Z stat                     -10.9657                     -10.1321
 #>        cause2:strataNorway:spline1 cause2:strataNorway:spline2
 #> Truth                      -2.2498                     -2.5397
 #> Bias                       -0.1234                     -0.1404
-#> SEs                         0.0105                      0.0105
-#> Z stat                    -11.7577                    -13.3772
+#> Z stat                     -9.8968                    -11.1876
 #>        cause2:strataNorway:spline3 cause2:strataNorway:spline4
 #> Truth                     -3.38970                     -4.9405
 #> Bias                      -0.09222                     -0.2906
-#> SEs                        0.01050                      0.0105
-#> Z stat                    -8.78561                    -27.6850
+#> Z stat                    -8.22199                    -12.2023
 #>        cause2:strataNorway:spline5 cause2:strataSweden:spline1
 #> Truth                      -3.8549                    -1.93650
 #> Bias                       -0.1353                    -0.06114
-#> SEs                         0.0105                     0.01050
-#> Z stat                    -12.8859                    -5.82438
+#> Z stat                    -12.0191                    -6.70490
 #>        cause2:strataSweden:spline2 cause2:strataSweden:spline3
 #> Truth                     -2.52220                    -3.04440
 #> Bias                      -0.07786                    -0.06182
-#> SEs                        0.01050                     0.01050
-#> Z stat                    -7.41764                    -5.88980
+#> Z stat                    -7.99709                    -6.96159
 #>        cause2:strataSweden:spline4 cause2:strataSweden:spline5
 #> Truth                      -5.0647                    -3.64860
 #> Bias                       -0.1678                    -0.09837
-#> SEs                         0.0105                     0.01050
-#> Z stat                    -15.9835                    -9.37100
+#> Z stat                     -9.0429                   -10.68606
 #>        cause2:traject:countryDenmark cause2:traject:countryFinland
 #> Truth                         2.8649                       2.69870
 #> Bias                          0.1517                       0.07084
-#> SEs                           0.0105                       0.01050
-#> Z stat                       14.4531                       6.74859
+#> Z stat                        9.4512                       7.24642
 #>        cause2:traject:countryNorway cause2:traject:countrySweden
 #> Truth                        2.8229                      2.86570
 #> Bias                         0.1181                      0.06017
-#> SEs                          0.0105                      0.01050
-#> Z stat                      11.2488                      5.73204
+#> Z stat                       8.8392                      5.72558
 ```
 
 Then we look at the coverage.
