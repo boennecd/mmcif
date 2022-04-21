@@ -1,59 +1,68 @@
 
+## Setup
+
+In this example, we simulate from the estimated model fitted to the DZ
+twins from the prt data set in the mets package. We start by assigning
+the model parameters.
+
 ``` r
 n_causes <- 2L
-delta <- 90
+delta <- 90 # maximum follow up 
 
+# the random effect covariance matrix
 rng_vcov <- 
-  c(0.4892, 0.1561, -0.1745, -0.26, 0.1561, 1.2592, -0.1114, -0.5234, -0.1745, -0.1114, 0.2138, -0.0237, -0.26, -0.5234, -0.0237, 0.4314) |>
+  c(0.4908, 0.1642, -0.175, -0.1981, 0.1642, 1.3268, -0.1143, -0.4673, -0.175, -0.1143, 0.2147, -0.0068, -0.1981, -0.4673, -0.0068, 0.2731) |>
   matrix(n_causes * n_causes)
 rng_vcov
 #>         [,1]    [,2]    [,3]    [,4]
-#> [1,]  0.4892  0.1561 -0.1745 -0.2600
-#> [2,]  0.1561  1.2592 -0.1114 -0.5234
-#> [3,] -0.1745 -0.1114  0.2138 -0.0237
-#> [4,] -0.2600 -0.5234 -0.0237  0.4314
+#> [1,]  0.4908  0.1642 -0.1750 -0.1981
+#> [2,]  0.1642  1.3268 -0.1143 -0.4673
+#> [3,] -0.1750 -0.1143  0.2147 -0.0068
+#> [4,] -0.1981 -0.4673 -0.0068  0.2731
 cov2cor(rng_vcov)
 #>         [,1]    [,2]     [,3]     [,4]
-#> [1,]  1.0000  0.1989 -0.53957 -0.56597
-#> [2,]  0.1989  1.0000 -0.21470 -0.71014
-#> [3,] -0.5396 -0.2147  1.00000 -0.07804
-#> [4,] -0.5660 -0.7101 -0.07804  1.00000
+#> [1,]  1.0000  0.2035 -0.53910 -0.54109
+#> [2,]  0.2035  1.0000 -0.21415 -0.77630
+#> [3,] -0.5391 -0.2142  1.00000 -0.02808
+#> [4,] -0.5411 -0.7763 -0.02808  1.00000
 
+# the fixed effects
 fixef_use <- c(
-  `cause1:risk:countryDenmark` = 0.7252, `cause1:risk:countryFinland` = 0.6383, 
-  `cause1:risk:countryNorway` = 0.4264, `cause1:risk:countrySweden` = 0.4331, 
-  `cause2:risk:countryDenmark` = -2.4591, `cause2:risk:countryFinland` = -1.4777, 
-  `cause2:risk:countryNorway` = -1.8817, `cause2:risk:countrySweden` = -1.5715, 
-  `cause1:strataDenmark:spline1` = -1.7529, `cause1:strataDenmark:spline2` = -2.3438, 
-  `cause1:strataDenmark:spline3` = -3.1098, `cause1:strataDenmark:spline4` = -4.7918, 
-  `cause1:strataDenmark:spline5` = -3.9685, `cause1:strataFinland:spline1` = -1.9382, 
-  `cause1:strataFinland:spline2` = -2.5424, `cause1:strataFinland:spline3` = -3.1068, 
-  `cause1:strataFinland:spline4` = -5.0375, `cause1:strataFinland:spline5` = -3.9724, 
-  `cause1:strataNorway:spline1` = -1.6497, `cause1:strataNorway:spline2` = -2.2562, 
-  `cause1:strataNorway:spline3` = -2.924, `cause1:strataNorway:spline4` = -4.6692, 
-  `cause1:strataNorway:spline5` = -3.7744, `cause1:strataSweden:spline1` = -1.9205, 
-  `cause1:strataSweden:spline2` = -2.5753, `cause1:strataSweden:spline3` = -3.2019, 
-  `cause1:strataSweden:spline4` = -5.048, `cause1:strataSweden:spline5` = -4.0264, 
-  `cause1:traject:countryDenmark` = 2.4684, `cause1:traject:countryFinland` = 2.6575, 
-  `cause1:traject:countryNorway` = 2.5543, `cause1:traject:countrySweden` = 2.9144, 
-  `cause2:strataDenmark:spline1` = -2.1629, `cause2:strataDenmark:spline2` = -3.0452, 
-  `cause2:strataDenmark:spline3` = -3.2643, `cause2:strataDenmark:spline4` = -5.9301, 
-  `cause2:strataDenmark:spline5` = -4.4731, `cause2:strataFinland:spline1` = -1.909, 
-  `cause2:strataFinland:spline2` = -2.1615, `cause2:strataFinland:spline3` = -3.1091, 
-  `cause2:strataFinland:spline4` = -5.1093, `cause2:strataFinland:spline5` = -4.2497, 
-  `cause2:strataNorway:spline1` = -2.4255, `cause2:strataNorway:spline2` = -2.7336, 
-  `cause2:strataNorway:spline3` = -3.643, `cause2:strataNorway:spline4` = -5.3371, 
-  `cause2:strataNorway:spline5` = -4.1427, `cause2:strataSweden:spline1` = -2.063, 
-  `cause2:strataSweden:spline2` = -2.684, `cause2:strataSweden:spline3` = -3.2335, 
-  `cause2:strataSweden:spline4` = -5.3911, `cause2:strataSweden:spline5` = -3.8636, 
-  `cause2:traject:countryDenmark` = 3.064, `cause2:traject:countryFinland` = 2.8621, 
-  `cause2:traject:countryNorway` = 3.0288, `cause2:traject:countrySweden` = 3.0493)
+  `cause1:risk:countryDenmark` = 0.7248, `cause1:risk:countryFinland` = 0.6377, 
+  `cause1:risk:countryNorway` = 0.4263, `cause1:risk:countrySweden` = 0.4337, 
+  `cause2:risk:countryDenmark` = -2.4775, `cause2:risk:countryFinland` = -1.4976, 
+  `cause2:risk:countryNorway` = -1.8983, `cause2:risk:countrySweden` = -1.5889, 
+  `cause1:strataDenmark:spline1` = -1.7531, `cause1:strataDenmark:spline2` = -2.3436, 
+  `cause1:strataDenmark:spline3` = -3.1094, `cause1:strataDenmark:spline4` = -4.791, 
+  `cause1:strataDenmark:spline5` = -3.9674, `cause1:strataFinland:spline1` = -1.94, 
+  `cause1:strataFinland:spline2` = -2.5439, `cause1:strataFinland:spline3` = -3.1119, 
+  `cause1:strataFinland:spline4` = -5.0457, `cause1:strataFinland:spline5` = -3.9813, 
+  `cause1:strataNorway:spline1` = -1.6525, `cause1:strataNorway:spline2` = -2.26, 
+  `cause1:strataNorway:spline3` = -2.9281, `cause1:strataNorway:spline4` = -4.6772, 
+  `cause1:strataNorway:spline5` = -3.7794, `cause1:strataSweden:spline1` = -1.9238, 
+  `cause1:strataSweden:spline2` = -2.5794, `cause1:strataSweden:spline3` = -3.2045, 
+  `cause1:strataSweden:spline4` = -5.0561, `cause1:strataSweden:spline5` = -4.0299, 
+  `cause1:traject:countryDenmark` = 2.4684, `cause1:traject:countryFinland` = 2.659, 
+  `cause1:traject:countryNorway` = 2.5576, `cause1:traject:countrySweden` = 2.9181, 
+  `cause2:strataDenmark:spline1` = -2.0057, `cause2:strataDenmark:spline2` = -2.8358, 
+  `cause2:strataDenmark:spline3` = -3.0488, `cause2:strataDenmark:spline4` = -5.5071, 
+  `cause2:strataDenmark:spline5` = -4.1739, `cause2:strataFinland:spline1` = -1.795, 
+  `cause2:strataFinland:spline2` = -2.0336, `cause2:strataFinland:spline3` = -2.936, 
+  `cause2:strataFinland:spline4` = -4.8131, `cause2:strataFinland:spline5` = -3.9967, 
+  `cause2:strataNorway:spline1` = -2.2498, `cause2:strataNorway:spline2` = -2.5397, 
+  `cause2:strataNorway:spline3` = -3.3897, `cause2:strataNorway:spline4` = -4.9405, 
+  `cause2:strataNorway:spline5` = -3.8549, `cause2:strataSweden:spline1` = -1.9365, 
+  `cause2:strataSweden:spline2` = -2.5222, `cause2:strataSweden:spline3` = -3.0444, 
+  `cause2:strataSweden:spline4` = -5.0647, `cause2:strataSweden:spline5` = -3.6486, 
+  `cause2:traject:countryDenmark` = 2.8649, `cause2:traject:countryFinland` = 2.6987, 
+  `cause2:traject:countryNorway` = 2.8229, `cause2:traject:countrySweden` = 2.8657)
 
 # split the coefficients
 countries <- c("Denmark", "Finland", "Norway", "Sweden")
 country_indices <- setNames(countries, countries) |> 
   lapply(grepl, names(fixef_use)) |> lapply(which)
 
+# the knots for the splines
 knots <- list(
   `1` = list(
     knots = c(`21.5%` = 0.3496, `40.5%` = 0.6007, `59.5%` = 0.8536, `78.5%` = 1.2062), 
@@ -62,6 +71,11 @@ knots <- list(
     knots = c(`21.5%` = 0.5769, `40.5%` = 0.7479, `59.5%` = 0.9623, `78.5%` = 1.259), 
     boundary_knots = c(`2.5%` = 0.2772, `97.5%` = 2.0689)))
 ```
+
+A function is then assigned to simulate a data set with a given number
+of families of a given maximum size. The families are taken to be
+siblings rather than DZ twins. We do this to test the code for the
+composite likelihood.
 
 ``` r
 library(mvtnorm)
@@ -133,113 +147,45 @@ sim_dat <- \(n_clusters, max_cluster_size){
 }
 ```
 
+The censoring distribution is deliberately different from that in the
+prt data set. Above, we sample a censoring time from the uniform
+distribution on 70 to 140 and use a maximum follow up for `delta` (90).
+
+### Big Example
+
+We simulate one very big sample as an example below. We use it to check
+the marginal cumulative incidence functions.
+
 ``` r
 set.seed(1)
-dat <- sim_dat(10000L, 4L)
-
-# quantiles of the observed event times
-subset(dat, cause < 3 & country == "Denmark") |> 
-  with(tapply(time, cause, quantile, probs = seq(0, 1, length.out = 11)))
-#> $`1`
-#>    0%   10%   20%   30%   40%   50%   60%   70%   80%   90%  100% 
-#> 16.79 56.12 63.67 68.74 72.65 76.09 78.91 81.37 84.17 86.91 89.96 
-#> 
-#> $`2`
-#>    0%   10%   20%   30%   40%   50%   60%   70%   80%   90%  100% 
-#> 55.88 65.90 70.26 72.44 75.57 77.45 79.32 81.51 84.44 87.00 88.79
-subset(dat, cause < 3 & country == "Sweden") |> 
-  with(tapply(time, cause, quantile, probs = seq(0, 1, length.out = 11)))
-#> $`1`
-#>    0%   10%   20%   30%   40%   50%   60%   70%   80%   90%  100% 
-#> 16.94 60.06 67.17 71.65 75.54 78.41 81.30 83.66 85.79 87.96 89.96 
-#> 
-#> $`2`
-#>    0%   10%   20%   30%   40%   50%   60%   70%   80%   90%  100% 
-#> 45.71 65.10 69.20 72.38 75.71 78.26 80.63 82.71 84.87 87.12 89.77
-subset(dat, cause < 3 & country == "Norway") |> 
-  with(tapply(time, cause, quantile, probs = seq(0, 1, length.out = 11)))
-#> $`1`
-#>    0%   10%   20%   30%   40%   50%   60%   70%   80%   90%  100% 
-#> 14.14 55.26 64.65 70.44 74.30 77.53 80.36 83.00 85.43 87.79 89.97 
-#> 
-#> $`2`
-#>    0%   10%   20%   30%   40%   50%   60%   70%   80%   90%  100% 
-#> 53.84 66.71 69.86 71.88 74.23 77.47 80.42 82.15 83.83 86.53 89.96
-subset(dat, cause < 3 & country == "Finland") |> 
-  with(tapply(time, cause, quantile, probs = seq(0, 1, length.out = 11)))
-#> $`1`
-#>    0%   10%   20%   30%   40%   50%   60%   70%   80%   90%  100% 
-#> 14.56 56.08 63.81 69.49 73.15 76.35 79.31 82.19 84.54 87.21 89.97 
-#> 
-#> $`2`
-#>    0%   10%   20%   30%   40%   50%   60%   70%   80%   90%  100% 
-#> 40.22 66.22 70.17 73.42 76.29 79.88 81.96 83.42 85.04 86.82 89.54
-
-# compare with the real data
-library(mets)
-data(prt)
-
-subset(prt, status > 0 & zyg == "DZ" & country == "Denmark" & time < delta) |> 
-  with(tapply(time, status, quantile, probs = seq(0, 1, length.out = 11)))
-#> $`1`
-#>     0%    10%    20%    30%    40%    50%    60%    70%    80%    90%   100% 
-#>  9.921 46.994 57.308 62.765 67.332 71.512 75.163 78.539 82.096 85.587 89.941 
-#> 
-#> $`2`
-#>    0%   10%   20%   30%   40%   50%   60%   70%   80%   90%  100% 
-#> 56.37 61.39 67.95 70.32 72.14 75.44 77.28 78.97 82.54 84.85 88.61
-subset(prt, status > 0 & zyg == "DZ" & country == "Sweden" & time < delta) |> 
-  with(tapply(time, status, quantile, probs = seq(0, 1, length.out = 11)))
-#> $`1`
-#>    0%   10%   20%   30%   40%   50%   60%   70%   80%   90%  100% 
-#> 22.72 55.91 64.00 68.64 72.17 75.75 78.94 81.94 84.81 87.28 89.94 
-#> 
-#> $`2`
-#>    0%   10%   20%   30%   40%   50%   60%   70%   80%   90%  100% 
-#> 52.84 63.73 68.37 71.45 74.41 77.07 79.07 82.23 84.25 86.42 89.86
-subset(prt, status > 0 & zyg == "DZ" & country == "Norway" & time < delta) |> 
-  with(tapply(time, status, quantile, probs = seq(0, 1, length.out = 11)))
-#> $`1`
-#>    0%   10%   20%   30%   40%   50%   60%   70%   80%   90%  100% 
-#> 25.36 46.34 56.62 63.78 68.39 72.42 76.21 79.59 82.60 86.12 89.84 
-#> 
-#> $`2`
-#>    0%   10%   20%   30%   40%   50%   60%   70%   80%   90%  100% 
-#> 52.67 64.15 67.38 70.51 72.62 73.90 75.93 79.59 82.16 84.41 89.76
-subset(prt, status > 0 & zyg == "DZ" & country == "Finland" & time < delta) |> 
-  with(tapply(time, status, quantile, probs = seq(0, 1, length.out = 11)))
-#> $`1`
-#>    0%   10%   20%   30%   40%   50%   60%   70%   80%   90%  100% 
-#> 15.83 49.95 57.50 62.47 66.60 70.01 73.62 77.33 81.45 85.25 89.96 
-#> 
-#> $`2`
-#>    0%   10%   20%   30%   40%   50%   60%   70%   80%   90%  100% 
-#> 51.95 62.99 68.20 70.02 72.44 76.72 79.71 81.49 83.94 86.15 89.24
+dat <- sim_dat(40000L, 4L)
 
 # compare the cumulative incidence functions
-plot_cif <- \(data, cause, cens.code){
+library(mets)
+data(prt)
+plot_cif <- \(data, cause, cens.code, ylim){
   cif(Event(time, status) ~ strata(country), data = data,
               cause = cause, cens.code = cens.code) |>
-    bplot(se = TRUE, ylim = c(0, 1), bty = "l", yaxs = "i", xaxs = "i",
+    bplot(se = TRUE, ylim = ylim, bty = "l", yaxs = "i", xaxs = "i",
           xlim = range(data$time, delta))
-  grid(ny = 10)
+  grid()
 }
 par(mar = c(5, 5, 1, 1), mfcol = c(1, 2))
 transform(dat, status = cause) |> 
-  plot_cif(1, 3)
+  plot_cif(1, 3, c(0, .7))
 transform(prt, status = ifelse(time > delta, 0, status), 
           time = pmin(time, delta)) |> 
-  plot_cif(1, 0)
+  plot_cif(1, 0, c(0, .7))
 ```
 
 <img src="figures/prostate/sims-show_example-1.png" width="100%" />
 
 ``` r
 transform(dat, status = cause) |> 
-  plot_cif(2, 3)
+  plot_cif(2, 3, c(0, .2))
 transform(prt, status = ifelse(time > delta, 0, status), 
           time = pmin(time, delta)) |> 
-  plot_cif(2, 0)
+  plot_cif(2, 0, c(0, .2))
 ```
 
 <img src="figures/prostate/sims-show_example-2.png" width="100%" />
@@ -249,9 +195,9 @@ transform(prt, status = ifelse(time > delta, 0, status),
 xtabs(~ cause + country, dat)
 #>      country
 #> cause Denmark Finland Norway Sweden
-#>     1    3442    3188   3081   2972
-#>     2     209     512    513    571
-#>     3    2418    2401   2923   2800
+#>     1   14117   12645  11861  11664
+#>     2    1027    2169   1875   2353
+#>     3   10109    9806  11246  10932
 
 # compare with the real data
 xtabs(~ status + country, prt, zyg == "DZ")
@@ -260,14 +206,16 @@ xtabs(~ status + country, prt, zyg == "DZ")
 #>      0    4580    1832   1775   4587
 #>      1    1519     871    542   1702
 #>      2      92     130     76    285
+
+rm(dat)
 ```
 
-The censoring distribution in the two data set is deliberately
-different.
+## Run Simulations
 
-Run the simulation study.
+The simulation study is run below.
 
 ``` r
+# the seeds we will use
 seeds <- c(
   3801443L, 5075715L, 90654298L, 69953569L, 24145488L, 37395236L, 3397298L, 29556452L, 11902732L, 83659145L, 79020848L, 6873483L, 52104313L, 82575228L, 39854843L, 27659320L, 21545556L, 99303315L, 30514827L, 97314625L, 66681319L, 7554587L, 10601023L, 98955744L, 7973414L, 27137806L, 97086805L, 10849812L, 56811865L, 40591357L, 27622323L, 20704367L, 26129989L, 59664086L, 20394834L, 31041096L, 69241317L, 98143755L, 69747552L, 95522767L, 20988881L, 92765370L, 92007002L, 38995781L, 61844563L, 37767715L, 6892297L, 44823300L, 90427433L, 16652226L, 19238582L, 18868020L, 45371242L, 34896848L, 3147855L, 19145988L, 6956189L, 26394416L, 90119619L, 70061324L, 34856298L, 6480659L, 470084L, 99164168L, 54598713L, 56242522L, 946619L, 71842730L, 78916610L, 43197670L, 40785255L, 68430049L, 7316996L, 88007217L, 97779949L, 18204348L, 42580794L, 48043274L, 49422563L, 23384843L, 48119653L, 40024064L, 82241542L, 23945157L, 7348966L, 31308406L, 50655843L, 5511073L, 86409696L, 17254829L, 86625590L, 39016554L, 254960L, 72325897L, 81907993L, 43767460L, 9813746L, 67163411L, 34771638L, 14458784L,
   6107389L, 99222470L, 74541671L, 4427521L, 31324739L, 87909863L, 5363954L, 7972436L, 89091551L, 82522565L, 38322145L, 80853692L, 4635947L, 14226266L, 57255540L, 47917984L, 15134599L, 41074789L, 34747341L, 37713337L, 73576213L, 22896151L, 19294728L, 11903703L, 81652663L, 65628379L, 7759554L, 38085849L, 77988326L, 2711476L, 42699072L, 13939535L, 13309636L, 40783840L, 66953812L, 44937860L, 56848683L, 38494023L, 34446891L, 56212562L, 12159007L, 78524592L, 77158965L, 60902768L, 26391744L, 20759428L, 5142151L, 49822423L, 34755341L, 2343101L, 89647424L, 54335676L, 53949934L, 25553437L, 95464965L, 33724618L, 44759763L, 43170713L, 21473251L, 95385587L, 73469462L, 75583390L, 62325031L, 36708220L, 74462145L, 1531695L, 97162075L, 2238573L, 93241786L, 86012090L, 32512791L, 98512628L, 10785328L, 69070455L, 65335558L, 79956047L, 79786019L, 75611428L, 43037890L, 77173274L, 80088784L, 98780063L, 22158404L, 26285879L, 20173650L, 93837891L, 79077674L, 99777953L, 45511660L, 34988180L, 26270083L, 41748471L, 78623133L, 9851304L, 70926906L, 97440067L, 44231504L, 65209848L, 32477966L, 35286669L,
@@ -279,12 +227,15 @@ seeds <- c(
   20787201L, 30367152L, 75536710L, 68551423L, 8665297L, 91781144L, 80348201L, 22060772L, 40765203L, 40766134L, 13992389L, 35981917L, 30865917L, 30731345L, 55100790L, 36990304L, 70989289L, 47244669L, 39876055L, 27305114L, 76973517L, 22752098L, 61468441L, 80758524L, 13099548L, 11680836L, 63920731L, 47693384L, 82384941L, 62793409L, 37013092L, 96716531L, 26498684L, 1162412L, 29994025L, 94469373L, 50783806L, 32986659L, 70293143L, 38790113L, 72981559L, 25786532L, 60153699L, 44155527L, 66395941L, 91034886L, 39444285L, 26550722L, 99472137L, 37588010L, 14970462L, 84238442L, 18800267L, 77098635L, 15507875L, 71754511L, 40135748L, 7632798L, 51769683L, 46634356L, 97619400L, 99633704L, 71452716L, 11289578L, 65112392L, 1202104L, 28293157L, 51109736L, 21550928L, 17997165L, 43905869L, 8644433L, 39643940L, 72722404L, 56905337L, 49866604L, 30194987L, 26967720L, 75740552L, 48149225L, 96438500L, 51480213L, 64019784L, 47550674L, 7868588L, 20642195L, 82056435L, 86189871L, 76903409L, 85513353L, 40624355L, 57218131L, 90881719L, 88982246L, 6907566L, 49494285L, 2178330L, 11535786L, 24707388L, 20759569L,
   30904032L, 19714495L, 98914091L, 14286683L, 34246919L, 53454221L, 29909767L, 76107852L, 98287495L, 31848418L, 97332259L, 90237542L, 90407513L, 36601675L, 61379373L, 14962579L, 85751855L, 51097600L, 4579658L, 35037827L, 65983268L, 95664338L, 64445293L, 92847320L, 36427756L, 94972167L, 48536641L, 34634792L, 93686906L, 75625134L, 54411521L, 99683827L, 98285194L, 50851692L, 53173589L, 54339157L, 85982326L, 49578776L, 19055596L, 17845714L, 58172223L, 87776266L, 82451837L, 30963812L, 96550150L, 16789675L, 72405623L, 73280738L, 17882245L, 53674826L, 58421140L, 17657080L, 56357029L, 97279465L, 76339423L, 38655861L, 47795476L, 24127591L, 17003141L, 31529280L, 44795973L, 57192219L, 77011411L, 77082301L, 66809391L, 73628782L, 80618785L, 60290896L, 98816410L, 78459249L, 51015747L, 9339438L, 7735653L, 55137964L, 2649782L, 32094862L, 11054537L, 55026725L, 36501345L, 37160307L, 95290669L, 78105354L, 61896597L, 90529291L, 62058339L, 82587737L, 86434308L, 11314106L, 65585680L, 44631521L, 66707823L, 36945987L, 62771270L, 56041216L, 49407463L, 35064480L, 82935524L, 82926618L, 99011220L, 66551356L,
   57734420L, 87705847L, 68700642L, 94998529L, 40638205L, 17472862L, 9623244L, 41911377L, 90727630L, 20192974L, 51911714L, 72037717L, 29055347L, 79084121L, 42690442L, 57658800L, 32406854L, 11827378L, 71434903L, 6520224L, 40378081L, 82454413L, 49848684L, 99156729L, 43200689L, 45825970L, 56813057L, 66668227L, 15410386L, 45786940L, 11577290L, 96659464L, 27838101L, 89447174L, 94661063L, 43143144L, 92436466L, 28795868L, 88719708L, 58012414L, 83663820L, 92536227L, 6478836L, 75961355L, 93750181L, 40809923L, 40248631L, 24026365L, 76747845L, 39579657L, 22304528L, 25408144L, 98475143L, 91338826L, 9659112L, 9676169L, 97647129L, 75995932L, 21077602L, 14599886L, 14063561L, 87754142L, 49651428L, 93579175L, 16856482L, 62909222L, 28203791L, 82130229L, 10563540L, 29795807L, 74012489L, 51608268L, 36025923L, 49002154L, 44820329L, 32215766L, 37729563L, 46243684L, 93235654L, 70479327L, 48931268L, 75147153L, 18645143L, 63509016L, 19247702L, 88851527L, 38252804L, 8409059L, 29640815L, 48907451L, 29317158L, 37326621L, 29213441L, 81371490L, 7635543L, 29283495L, 37070578L, 36994816L, 19320871L, 75198921L)
-seeds <- head(seeds, 600)
+seeds <- head(seeds, 800)
 
+# configuration of the number of clusters, maximum family size and the number 
+# of quadrature nodes
 n_clusters <- 4000L
 max_cluster_size <- 4L
 n_quad_nodes <- 6L
 
+# run the simulation study
 library(mmcif)
 sim_res <- lapply(seeds, \(s){
   res_file <- file.path(
@@ -311,9 +262,12 @@ sim_res <- lapply(seeds, \(s){
     gr_max <- mmcif_logLik_grad(
       fit_obj, fit$par, n_threads = 4L, is_log_chol = TRUE)
     
+    n_binding <- sum(fit_obj$constraints$vcov_upper %*% fit$par < 1e-5)
+    
     list(start = start, fit = fit, sandwich = sandwich, gr_max = gr_max, 
          time = fit_time, vcov = tail(fit$par, 10) |> log_chol_inv(), 
-         fixef = head(fit$par, -10)) |> 
+         fixef = head(fit$par, -10), n_binding = n_binding, 
+         constraints = fit_obj$constraints) |> 
       saveRDS(res_file)
   }
   
@@ -330,7 +284,7 @@ sim_res <- lapply(seeds, \(s){
     capture.output(print(x, na.print = "")) |> paste0(collapse = "\n") |> 
       message()
 
-  message("\nEstimated fixed effects and z-stats")
+  message("\nEstimated fixed effects and  Z stats")
   SEs <- attr(out$sandwich, "res vcov") |> diag() |> sqrt()
   tab_fixef <- rbind(
     Estimates = out$fixef, 
@@ -341,7 +295,7 @@ sim_res <- lapply(seeds, \(s){
   stopifnot(all(names(out$fixef) == names(fixef_use)))
   out$tab_fixef <- tab_fixef
   
-  message("\nEstimated covariance matrix followed by SEs and z-stats")
+  message("\nEstimated covariance matrix followed by SEs and Z stats")
   
   SEs_mat <- matrix(NA, 4, 4)
   SEs_mat[upper.tri(SEs_mat, TRUE)] <- 
@@ -355,7 +309,58 @@ sim_res <- lapply(seeds, \(s){
 })
 ```
 
+## Simulation Results
+
+We show other metrics such as the statistics for the computation time
+and the number times that a boundary solution was found below.
+
 ``` r
+# statistics for the estimation time
+sapply(sim_res, \(x) x$time["elapsed"]) |> 
+  (\(x) 
+   c(Mean = mean(x), SD = sd(x), 
+     quantile(x, probs = seq(0, 1, length.out = 11))))()
+#>   Mean     SD     0%    10%    20%    30%    40%    50%    60%    70%    80% 
+#> 39.900  7.306 20.117 32.448 34.347 35.788 36.967 38.512 40.350 42.595 45.453 
+#>    90%   100% 
+#> 48.882 75.458
+
+# check convergence code
+sapply(sim_res, \(x) x$fit$convergence) |> table()
+#> 
+#>   0 
+#> 800
+
+# distribution of the gradient norm at the MLEs
+gradient_norms <- sapply(sim_res, \(x) sqrt(sum(x$gr_max^2)))
+quantile(gradient_norms, probs = seq(0, 1, length.out = 21))
+#>      0%      5%     10%     15%     20%     25%     30%     35%     40%     45% 
+#>  0.0278  0.1091  0.1262  0.1448  0.1598  0.1776  0.1993  0.2116  0.2330  0.2475 
+#>     50%     55%     60%     65%     70%     75%     80%     85%     90%     95% 
+#>  0.2659  0.2827  0.3165  0.3473  0.3920  0.4475  0.4953  0.5955  0.7896  5.6968 
+#>    100% 
+#> 63.5529
+
+# distribution of the number of binding constraints
+n_binding <- sapply(sim_res, \(x) x$n_binding)
+table(n_binding)
+#> n_binding
+#>   0   1 
+#> 743  57
+
+# statistics for the gradient norm by the number of binding constraints
+tapply(gradient_norms, n_binding, summary) |> 
+  do.call(what = rbind)
+#>     Min. 1st Qu.  Median    Mean 3rd Qu.   Max.
+#> 0 0.0278  0.1703  0.2573  0.3096  0.3865  1.599
+#> 1 0.4986  4.5088 12.3368 16.5221 22.8756 63.553
+```
+
+The bias estimates for the fixed effects and the random effect
+covariance matrix are shown below.
+
+``` r
+# we start with the random effect covariance matrix
 print_sym_mat <- \(x){
   x[lower.tri(x)] <- NA
   print(x, na.print = "")
@@ -363,30 +368,37 @@ print_sym_mat <- \(x){
 
 vcov_est <- sapply(sim_res, `[[`, "vcov", simplify = "array")
 
-# the bias estimates
+# the true values and the bias estimates for the covariance matrix
 vcov_bias <- apply(vcov_est - c(rng_vcov), 1:2, mean)
-print_sym_mat(vcov_bias) 
-#>          [,1]    [,2]      [,3]     [,4]
-#> [1,] 0.004786 0.01064  0.002234 0.020000
-#> [2,]          0.02025  0.005187 0.036900
-#> [3,]                  -0.001785 0.007265
-#> [4,]                            0.017131
+print_sym_mat(rng_vcov) # true values
+#>        [,1]   [,2]    [,3]    [,4]
+#> [1,] 0.4908 0.1642 -0.1750 -0.1981
+#> [2,]        1.3268 -0.1143 -0.4673
+#> [3,]                0.2147 -0.0068
+#> [4,]                        0.2731
+print_sym_mat(vcov_bias) # bias estimates
+#>         [,1]    [,2]       [,3]    [,4]
+#> [1,] 0.00862 0.01494  0.0003517 0.02187
+#> [2,]         0.01989  0.0010837 0.03061
+#> [3,]                 -0.0013149 0.00817
+#> [4,]                            0.03088
 # the standard errors of the bias estimates and Z stats
 vcov_SEs <- apply(vcov_est - c(rng_vcov), 1:2, sd) / sqrt(dim(vcov_est)[3]) 
-print_sym_mat(vcov_SEs)
+print_sym_mat(vcov_SEs) # standard errors
 #>          [,1]     [,2]     [,3]     [,4]
-#> [1,] 0.003726 0.004565 0.001470 0.003975
-#> [2,]          0.010605 0.002574 0.006666
-#> [3,]                   0.001274 0.002178
-#> [4,]                            0.007227
-print_sym_mat(vcov_bias / vcov_SEs)
-#>       [,1]  [,2]   [,3]  [,4]
-#> [1,] 1.285 2.331  1.519 5.032
-#> [2,]       1.910  2.015 5.535
-#> [3,]             -1.401 3.336
-#> [4,]                    2.371
+#> [1,] 0.003059 0.004026 0.001258 0.002915
+#> [2,]          0.008972 0.002371 0.004903
+#> [3,]                   0.001092 0.001778
+#> [4,]                            0.004659
+print_sym_mat(vcov_bias / vcov_SEs) # Z stats
+#>       [,1]  [,2]    [,3]  [,4]
+#> [1,] 2.818 3.711  0.2795 7.502
+#> [2,]       2.217  0.4572 6.242
+#> [3,]             -1.2039 4.595
+#> [4,]                     6.628
 
-# plot the errors
+# plot the errors. Two plots are shown with everything and without those that 
+# hit a boundary condition
 errs <- apply(vcov_est - c(rng_vcov), 3, \(x) x[upper.tri(x, TRUE)])
 par(mar = c(3, 5, 1, 1))
 boxplot(apply(errs, 1, \(x) x / sd(x)) |> t() |> c() ~ rep(1:10, NCOL(errs)),
@@ -394,14 +406,26 @@ boxplot(apply(errs, 1, \(x) x / sd(x)) |> t() |> c() ~ rep(1:10, NCOL(errs)),
 abline(h = 0, lty = 2)
 ```
 
-<img src="figures/prostate/sims-unnamed-chunk-1-1.png" width="100%" />
+<img src="figures/prostate/sims-bias_show_res-1.png" width="100%" />
 
 ``` r
-# the bias estimates, the standard errors and Z stats
+is_boundary <- n_binding > 0
+boxplot(
+  apply(errs[, !is_boundary], 1, \(x) x / sd(x)) |> t() |> c() ~ 
+    rep(1:10, sum(!is_boundary)),
+  xlab = "", ylab = "Standardized errors (w/o boundary)")
+abline(h = 0, lty = 2)
+```
+
+<img src="figures/prostate/sims-bias_show_res-2.png" width="100%" />
+
+``` r
+# then we turn the bias estimates for the fixed effects
 z_stats_fixef <- sapply(sim_res, `[[`, "tab_fixef", simplify = "array")
 errs <- z_stats_fixef["Estimates", , ] - fixef_use
 
-# box plots of the errors
+# box plots of the errors. Two plots are shown with everything and without 
+# those that hit a boundary condition
 par(mar = c(5, 5, 1, 1))
 boxplot(
   apply(errs, 1, \(x) x / sd(x)) |> t() |> c() ~ 
@@ -410,163 +434,213 @@ boxplot(
 abline(h = 0, lty = 2)
 ```
 
-<img src="figures/prostate/sims-unnamed-chunk-1-2.png" width="100%" />
+<img src="figures/prostate/sims-bias_show_res-3.png" width="100%" />
 
 ``` r
-fixef_table <- 
-  rbind(Bias = rowMeans(errs), 
-        SEs = sd(errs) / sqrt(NCOL(errs)),
-        `Z stat` = rowMeans(errs) / (sd(errs) / sqrt(NCOL(errs))))
-colnames(fixef_table) <- names(sim_res[[1]]$fit$par) |> head(-10)
-fixef_table
-#>        cause1:risk:countryDenmark cause1:risk:countryFinland
-#> Bias                     0.003211                  -0.002022
-#> SEs                      0.012453                   0.012453
-#> Z stat                   0.257815                  -0.162369
-#>        cause1:risk:countryNorway cause1:risk:countrySweden
-#> Bias                    0.002818                  0.006091
-#> SEs                     0.012453                  0.012453
-#> Z stat                  0.226326                  0.489116
-#>        cause2:risk:countryDenmark cause2:risk:countryFinland
-#> Bias                     -0.01326                   -0.01315
-#> SEs                       0.01245                    0.01245
-#> Z stat                   -1.06518                   -1.05607
-#>        cause2:risk:countryNorway cause2:risk:countrySweden
-#> Bias                   -0.003208                  0.004579
-#> SEs                     0.012453                  0.012453
-#> Z stat                 -0.257594                  0.367722
-#>        cause1:strataDenmark:spline1 cause1:strataDenmark:spline2
-#> Bias                      -0.008736                     -0.01199
-#> SEs                        0.012453                      0.01245
-#> Z stat                    -0.701490                     -0.96263
-#>        cause1:strataDenmark:spline3 cause1:strataDenmark:spline4
-#> Bias                      -0.007766                     -0.02097
-#> SEs                        0.012453                      0.01245
-#> Z stat                    -0.623640                     -1.68386
-#>        cause1:strataDenmark:spline5 cause1:strataFinland:spline1
-#> Bias                      -0.008438                    -0.005032
-#> SEs                        0.012453                     0.012453
-#> Z stat                    -0.677565                    -0.404058
-#>        cause1:strataFinland:spline2 cause1:strataFinland:spline3
-#> Bias                      -0.007707                   -0.0005551
-#> SEs                        0.012453                    0.0124531
-#> Z stat                    -0.618853                   -0.0445726
-#>        cause1:strataFinland:spline4 cause1:strataFinland:spline5
-#> Bias                       -0.01674                    -0.005181
-#> SEs                         0.01245                     0.012453
-#> Z stat                     -1.34414                    -0.416082
-#>        cause1:strataNorway:spline1 cause1:strataNorway:spline2
-#> Bias                      -0.01066                   -0.009492
-#> SEs                        0.01245                    0.012453
-#> Z stat                    -0.85578                   -0.762199
-#>        cause1:strataNorway:spline3 cause1:strataNorway:spline4
-#> Bias                      -0.00321                    -0.02582
-#> SEs                        0.01245                     0.01245
-#> Z stat                    -0.25778                    -2.07336
-#>        cause1:strataNorway:spline5 cause1:strataSweden:spline1
-#> Bias                     -0.006487                   -0.007563
-#> SEs                       0.012453                    0.012453
-#> Z stat                   -0.520913                   -0.607341
-#>        cause1:strataSweden:spline2 cause1:strataSweden:spline3
-#> Bias                      -0.01248                   -0.002707
-#> SEs                        0.01245                    0.012453
-#> Z stat                    -1.00226                   -0.217411
-#>        cause1:strataSweden:spline4 cause1:strataSweden:spline5
-#> Bias                      -0.02258                    -0.01084
-#> SEs                        0.01245                     0.01245
-#> Z stat                    -1.81318                    -0.87017
-#>        cause1:traject:countryDenmark cause1:traject:countryFinland
-#> Bias                         0.01011                      0.005115
-#> SEs                          0.01245                      0.012453
-#> Z stat                       0.81188                      0.410771
-#>        cause1:traject:countryNorway cause1:traject:countrySweden
-#> Bias                       0.009445                     0.008804
-#> SEs                        0.012453                     0.012453
-#> Z stat                     0.758438                     0.706991
-#>        cause2:strataDenmark:spline1 cause2:strataDenmark:spline2
-#> Bias                       -0.07608                     -0.11891
-#> SEs                         0.01245                      0.01245
-#> Z stat                     -6.10922                     -9.54836
-#>        cause2:strataDenmark:spline3 cause2:strataDenmark:spline4
-#> Bias                       -0.05554                     -0.26882
-#> SEs                         0.01245                      0.01245
-#> Z stat                     -4.45999                    -21.58694
-#>        cause2:strataDenmark:spline5 cause2:strataFinland:spline1
-#> Bias                       -0.20934                     -0.05674
-#> SEs                         0.01245                      0.01245
-#> Z stat                    -16.81059                     -4.55643
-#>        cause2:strataFinland:spline2 cause2:strataFinland:spline3
-#> Bias                       -0.07013                     -0.03582
-#> SEs                         0.01245                      0.01245
-#> Z stat                     -5.63153                     -2.87609
-#>        cause2:strataFinland:spline4 cause2:strataFinland:spline5
-#> Bias                       -0.16441                     -0.09411
-#> SEs                         0.01245                      0.01245
-#> Z stat                    -13.20271                     -7.55737
-#>        cause2:strataNorway:spline1 cause2:strataNorway:spline2
-#> Bias                      -0.10042                    -0.12019
-#> SEs                        0.01245                     0.01245
-#> Z stat                    -8.06367                    -9.65116
-#>        cause2:strataNorway:spline3 cause2:strataNorway:spline4
-#> Bias                      -0.06783                    -0.24741
-#> SEs                        0.01245                     0.01245
-#> Z stat                    -5.44668                   -19.86729
-#>        cause2:strataNorway:spline5 cause2:strataSweden:spline1
-#> Bias                      -0.11829                    -0.05855
-#> SEs                        0.01245                     0.01245
-#> Z stat                    -9.49858                    -4.70129
-#>        cause2:strataSweden:spline2 cause2:strataSweden:spline3
-#> Bias                      -0.06707                    -0.03342
-#> SEs                        0.01245                     0.01245
-#> Z stat                    -5.38558                    -2.68354
-#>        cause2:strataSweden:spline4 cause2:strataSweden:spline5
-#> Bias                      -0.12507                    -0.06119
-#> SEs                        0.01245                     0.01245
-#> Z stat                   -10.04319                    -4.91335
-#>        cause2:traject:countryDenmark cause2:traject:countryFinland
-#> Bias                         0.07114                       0.05633
-#> SEs                          0.01245                       0.01245
-#> Z stat                       5.71286                       4.52322
-#>        cause2:traject:countryNorway cause2:traject:countrySweden
-#> Bias                        0.09335                      0.04102
-#> SEs                         0.01245                      0.01245
-#> Z stat                      7.49628                      3.29377
+boxplot(
+  apply(errs[, !is_boundary], 1, \(x) x / sd(x)) |> t() |> c() ~ 
+    rep(rownames(errs), sum(!is_boundary)), xlab = "", 
+  ylab = "Standardized errors (w/o boundary)", las = 2)
+abline(h = 0, lty = 2)
+```
 
-# check the coverage
+<img src="figures/prostate/sims-bias_show_res-4.png" width="100%" />
+
+``` r
+# the true values, bias estimates, standard errors and Z stats
+rbind(Truth = fixef_use,
+      Bias = rowMeans(errs), 
+      SEs = sd(errs) / sqrt(NCOL(errs)),
+      `Z stat` = rowMeans(errs) / (sd(errs) / sqrt(NCOL(errs))))
+#>        cause1:risk:countryDenmark cause1:risk:countryFinland
+#> Truth                     0.72480                    0.63770
+#> Bias                     -0.00212                    0.00173
+#> SEs                       0.01050                    0.01050
+#> Z stat                   -0.20199                    0.16486
+#>        cause1:risk:countryNorway cause1:risk:countrySweden
+#> Truth                   0.426300                  0.433700
+#> Bias                    0.005712                  0.001303
+#> SEs                     0.010497                  0.010497
+#> Z stat                  0.544203                  0.124137
+#>        cause2:risk:countryDenmark cause2:risk:countryFinland
+#> Truth                   -2.477500                  -1.497600
+#> Bias                    -0.007912                  -0.007163
+#> SEs                      0.010497                   0.010497
+#> Z stat                  -0.753721                  -0.682416
+#>        cause2:risk:countryNorway cause2:risk:countrySweden
+#> Truth                  -1.898300                  -1.58890
+#> Bias                    0.001862                   0.00324
+#> SEs                     0.010497                   0.01050
+#> Z stat                  0.177429                   0.30871
+#>        cause1:strataDenmark:spline1 cause1:strataDenmark:spline2
+#> Truth                     -1.753100                    -2.343600
+#> Bias                      -0.009539                    -0.009994
+#> SEs                        0.010497                     0.010497
+#> Z stat                    -0.908785                    -0.952120
+#>        cause1:strataDenmark:spline3 cause1:strataDenmark:spline4
+#> Truth                     -3.109400                     -4.79100
+#> Bias                      -0.007503                     -0.02312
+#> SEs                        0.010497                      0.01050
+#> Z stat                    -0.714827                     -2.20227
+#>        cause1:strataDenmark:spline5 cause1:strataFinland:spline1
+#> Truth                      -3.96740                     -1.94000
+#> Bias                       -0.01077                     -0.01029
+#> SEs                         0.01050                      0.01050
+#> Z stat                     -1.02582                     -0.98062
+#>        cause1:strataFinland:spline2 cause1:strataFinland:spline3
+#> Truth                     -2.543900                    -3.111900
+#> Bias                      -0.009284                    -0.007157
+#> SEs                        0.010497                     0.010497
+#> Z stat                    -0.884486                    -0.681810
+#>        cause1:strataFinland:spline4 cause1:strataFinland:spline5
+#> Truth                      -5.04570                     -3.98130
+#> Bias                       -0.02091                     -0.01072
+#> SEs                         0.01050                      0.01050
+#> Z stat                     -1.99212                     -1.02083
+#>        cause1:strataNorway:spline1 cause1:strataNorway:spline2
+#> Truth                    -1.652500                    -2.26000
+#> Bias                     -0.009437                    -0.01059
+#> SEs                       0.010497                     0.01050
+#> Z stat                   -0.899009                    -1.00868
+#>        cause1:strataNorway:spline3 cause1:strataNorway:spline4
+#> Truth                    -2.928100                    -4.67720
+#> Bias                     -0.005612                    -0.02836
+#> SEs                       0.010497                     0.01050
+#> Z stat                   -0.534644                    -2.70138
+#>        cause1:strataNorway:spline5 cause1:strataSweden:spline1
+#> Truth                     -3.77940                    -1.92380
+#> Bias                      -0.01158                    -0.02361
+#> SEs                        0.01050                     0.01050
+#> Z stat                    -1.10290                    -2.24921
+#>        cause1:strataSweden:spline2 cause1:strataSweden:spline3
+#> Truth                     -2.57940                    -3.20450
+#> Bias                      -0.02657                    -0.01152
+#> SEs                        0.01050                     0.01050
+#> Z stat                    -2.53158                    -1.09775
+#>        cause1:strataSweden:spline4 cause1:strataSweden:spline5
+#> Truth                      -5.0561                    -4.02990
+#> Bias                       -0.0532                    -0.01353
+#> SEs                         0.0105                     0.01050
+#> Z stat                     -5.0681                    -1.28892
+#>        cause1:traject:countryDenmark cause1:traject:countryFinland
+#> Truth                       2.468400                       2.65900
+#> Bias                        0.008849                       0.01015
+#> SEs                         0.010497                       0.01050
+#> Z stat                      0.843043                       0.96725
+#>        cause1:traject:countryNorway cause1:traject:countrySweden
+#> Truth                       2.55760                      2.91810
+#> Bias                        0.01143                      0.02428
+#> SEs                         0.01050                      0.01050
+#> Z stat                      1.08882                      2.31282
+#>        cause2:strataDenmark:spline1 cause2:strataDenmark:spline2
+#> Truth                       -2.0057                      -2.8358
+#> Bias                        -0.1364                      -0.1813
+#> SEs                          0.0105                       0.0105
+#> Z stat                     -12.9929                     -17.2722
+#>        cause2:strataDenmark:spline3 cause2:strataDenmark:spline4
+#> Truth                      -3.04880                      -5.5071
+#> Bias                       -0.09731                      -0.3988
+#> SEs                         0.01050                       0.0105
+#> Z stat                     -9.27087                     -37.9952
+#>        cause2:strataDenmark:spline5 cause2:strataFinland:spline1
+#> Truth                       -4.1739                     -1.79500
+#> Bias                        -0.2445                     -0.06866
+#> SEs                          0.0105                      0.01050
+#> Z stat                     -23.2884                     -6.54099
+#>        cause2:strataFinland:spline2 cause2:strataFinland:spline3
+#> Truth                      -2.03360                     -2.93600
+#> Bias                       -0.07991                     -0.05182
+#> SEs                         0.01050                      0.01050
+#> Z stat                     -7.61273                     -4.93687
+#>        cause2:strataFinland:spline4 cause2:strataFinland:spline5
+#> Truth                       -4.8131                      -3.9967
+#> Bias                        -0.1853                      -0.1052
+#> SEs                          0.0105                       0.0105
+#> Z stat                     -17.6515                     -10.0205
+#>        cause2:strataNorway:spline1 cause2:strataNorway:spline2
+#> Truth                      -2.2498                     -2.5397
+#> Bias                       -0.1234                     -0.1404
+#> SEs                         0.0105                      0.0105
+#> Z stat                    -11.7577                    -13.3772
+#>        cause2:strataNorway:spline3 cause2:strataNorway:spline4
+#> Truth                     -3.38970                     -4.9405
+#> Bias                      -0.09222                     -0.2906
+#> SEs                        0.01050                      0.0105
+#> Z stat                    -8.78561                    -27.6850
+#>        cause2:strataNorway:spline5 cause2:strataSweden:spline1
+#> Truth                      -3.8549                    -1.93650
+#> Bias                       -0.1353                    -0.06114
+#> SEs                         0.0105                     0.01050
+#> Z stat                    -12.8859                    -5.82438
+#>        cause2:strataSweden:spline2 cause2:strataSweden:spline3
+#> Truth                     -2.52220                    -3.04440
+#> Bias                      -0.07786                    -0.06182
+#> SEs                        0.01050                     0.01050
+#> Z stat                    -7.41764                    -5.88980
+#>        cause2:strataSweden:spline4 cause2:strataSweden:spline5
+#> Truth                      -5.0647                    -3.64860
+#> Bias                       -0.1678                    -0.09837
+#> SEs                         0.0105                     0.01050
+#> Z stat                    -15.9835                    -9.37100
+#>        cause2:traject:countryDenmark cause2:traject:countryFinland
+#> Truth                         2.8649                       2.69870
+#> Bias                          0.1517                       0.07084
+#> SEs                           0.0105                       0.01050
+#> Z stat                       14.4531                       6.74859
+#>        cause2:traject:countryNorway cause2:traject:countrySweden
+#> Truth                        2.8229                      2.86570
+#> Bias                         0.1181                      0.06017
+#> SEs                          0.0105                      0.01050
+#> Z stat                      11.2488                      5.73204
+```
+
+Then we look at the coverage.
+
+``` r
+# check the coverage with a 95% confidence interval
 z_stats_vcov <- sapply(sim_res, `[[`, "vcov_err_mat", simplify = "array")
 apply(abs(z_stats_vcov) < qnorm(.975), 1:2, mean) |> print_sym_mat()
-#>        [,1]   [,2]   [,3]   [,4]
-#> [1,] 0.9283 1.0000 0.9983 0.9967
-#> [2,]        0.9367 0.9983 0.9883
-#> [3,]               0.9433 1.0000
-#> [4,]                      0.8983
+#>        [,1]  [,2]   [,3]   [,4]
+#> [1,] 0.9575 0.955 0.9563 0.9437
+#> [2,]        0.950 0.9363 0.9313
+#> [3,]              0.9513 0.9437
+#> [4,]                     0.9387
 rowMeans(abs(z_stats_fixef["Z stats", ,]) < qnorm(.975))
 #> cs1:rs:D cs1:rs:F cs1:rs:N cs1:rs:S cs2:rs:D cs2:rs:F cs2:rs:N cs2:rs:S 
-#>   0.9400   0.9483   0.9500   0.9483   0.9417   0.9500   0.9483   0.9567 
+#>   0.9500   0.9487   0.9613   0.9500   0.9500   0.9463   0.9563   0.9337 
 #> cs1:sD:1 cs1:sD:2 cs1:sD:3 cs1:sD:4 cs1:sD:5 cs1:sF:1 cs1:sF:2 cs1:sF:3 
-#>   0.9267   0.9133   0.9250   0.9200   0.9483   0.9283   0.9350   0.9550 
+#>   0.9325   0.9450   0.9450   0.9300   0.9375   0.9463   0.9425   0.9425 
 #> cs1:sF:4 cs1:sF:5 cs1:sN:1 cs1:sN:2 cs1:sN:3 cs1:sN:4 cs1:sN:5 cs1:sS:1 
-#>   0.9333   0.9467   0.9450   0.9383   0.9517   0.9300   0.9583   0.9317 
+#>   0.9387   0.9587   0.9437   0.9563   0.9525   0.9313   0.9500   0.9337 
 #> cs1:sS:2 cs1:sS:3 cs1:sS:4 cs1:sS:5 cs1:tr:D cs1:tr:F cs1:tr:N cs1:tr:S 
-#>   0.9267   0.9267   0.9333   0.9433   0.9267   0.9367   0.9500   0.9217 
+#>   0.9350   0.9413   0.9325   0.9387   0.9263   0.9450   0.9537   0.9237 
 #> cs2:sD:1 cs2:sD:2 cs2:sD:3 cs2:sD:4 cs2:sD:5 cs2:sF:1 cs2:sF:2 cs2:sF:3 
-#>   0.9150   0.9167   0.9450   0.9133   0.8967   0.9317   0.9083   0.9167 
+#>   0.8962   0.9038   0.9375   0.9025   0.9087   0.9275   0.9125   0.9513 
 #> cs2:sF:4 cs2:sF:5 cs2:sN:1 cs2:sN:2 cs2:sN:3 cs2:sN:4 cs2:sN:5 cs2:sS:1 
-#>   0.9083   0.9233   0.9167   0.9083   0.9283   0.8717   0.9150   0.9083 
+#>   0.9163   0.9375   0.9025   0.9050   0.9325   0.8800   0.9263   0.9363 
 #> cs2:sS:2 cs2:sS:3 cs2:sS:4 cs2:sS:5 cs2:tr:D cs2:tr:F cs2:tr:N cs2:tr:S 
-#>   0.9300   0.9217   0.9133   0.9033   0.9100   0.9133   0.8867   0.9000
+#>   0.9363   0.9500   0.9300   0.9375   0.9062   0.9375   0.9025   0.9237
 
-# check convergence code
-table(sapply(sim_res, \(x) x$fit$convergence))
-#> 
-#>   0 
-#> 600
-
-# distribution of the gradient norm at the MLEs
-sapply(sim_res, \(x) sqrt(sum(x$gr_max^2))) |>  
-  quantile(probs = seq(0, 1, length.out = 11))
-#>       0%      10%      20%      30%      40%      50%      60%      70% 
-#>   0.5109   0.8535   0.9178   0.9780   1.0295   1.0773   1.1323   1.2019 
-#>      80%      90%     100% 
-#>   1.2879   1.4516 182.9147
+# check the coverage with a 99% confidence interval
+apply(abs(z_stats_vcov) < qnorm(.995), 1:2, mean) |> print_sym_mat()
+#>        [,1]   [,2]   [,3]   [,4]
+#> [1,] 0.9925 0.9925 0.9938 0.9850
+#> [2,]        0.9875 0.9838 0.9762
+#> [3,]               0.9850 0.9838
+#> [4,]                      0.9788
+rowMeans(abs(z_stats_fixef["Z stats", ,]) < qnorm(.995))
+#> cs1:rs:D cs1:rs:F cs1:rs:N cs1:rs:S cs2:rs:D cs2:rs:F cs2:rs:N cs2:rs:S 
+#>   0.9925   0.9900   0.9888   0.9888   0.9925   0.9862   0.9862   0.9900 
+#> cs1:sD:1 cs1:sD:2 cs1:sD:3 cs1:sD:4 cs1:sD:5 cs1:sF:1 cs1:sF:2 cs1:sF:3 
+#>   0.9888   0.9912   0.9862   0.9838   0.9825   0.9900   0.9838   0.9888 
+#> cs1:sF:4 cs1:sF:5 cs1:sN:1 cs1:sN:2 cs1:sN:3 cs1:sN:4 cs1:sN:5 cs1:sS:1 
+#>   0.9812   0.9875   0.9812   0.9875   0.9900   0.9825   0.9862   0.9788 
+#> cs1:sS:2 cs1:sS:3 cs1:sS:4 cs1:sS:5 cs1:tr:D cs1:tr:F cs1:tr:N cs1:tr:S 
+#>   0.9788   0.9912   0.9788   0.9850   0.9825   0.9850   0.9850   0.9775 
+#> cs2:sD:1 cs2:sD:2 cs2:sD:3 cs2:sD:4 cs2:sD:5 cs2:sF:1 cs2:sF:2 cs2:sF:3 
+#>   0.9700   0.9750   0.9812   0.9700   0.9788   0.9812   0.9825   0.9912 
+#> cs2:sF:4 cs2:sF:5 cs2:sN:1 cs2:sN:2 cs2:sN:3 cs2:sN:4 cs2:sN:5 cs2:sS:1 
+#>   0.9850   0.9862   0.9663   0.9700   0.9800   0.9587   0.9788   0.9850 
+#> cs2:sS:2 cs2:sS:3 cs2:sS:4 cs2:sS:5 cs2:tr:D cs2:tr:F cs2:tr:N cs2:tr:S 
+#>   0.9750   0.9888   0.9762   0.9862   0.9700   0.9838   0.9712   0.9812
 ```

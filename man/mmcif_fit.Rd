@@ -8,8 +8,9 @@ mmcif_fit(
   par,
   object,
   n_threads = 1L,
-  control = list(maxit = 10000L),
+  control = list(maxit = 10000L, reltol = 1e-10),
   method = "BFGS",
+  outer.eps = 1e-07,
   ...
 )
 }
@@ -21,7 +22,8 @@ Cholesky decomposition for the covariance matrix.}
 
 \item{n_threads}{the number of threads to use.}
 
-\item{control, method, ...}{arguments passed to \code{\link{constrOptim}}.}
+\item{control, method, outer.eps, ...}{arguments passed to
+\code{\link{constrOptim}}.}
 }
 \description{
 Fits a Mixed Competing Risk Model

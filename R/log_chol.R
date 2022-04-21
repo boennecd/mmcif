@@ -41,6 +41,5 @@ jac_log_chol_inv <- function(x){
   }
 
   res <- res[, upper.tri(z, TRUE)] * rep(mult, each = NROW(res))
-  res[upper.tri(z), ] <- 2 * res[upper.tri(z), ]
   res[upper.tri(z, TRUE), ]
 }

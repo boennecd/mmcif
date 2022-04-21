@@ -537,7 +537,8 @@ mmcif_start_values <- function(object, n_threads = 1L, vcov_start = NULL){
 #' @inheritParams mmcif_logLik
 #' @param par numeric vector with parameters. This is using a log
 #' Cholesky decomposition for the covariance matrix.
-#' @param control,method,... arguments passed to \code{\link{constrOptim}}.
+#' @param control,method,outer.eps,... arguments passed to
+#' \code{\link{constrOptim}}.
 #'
 #' @seealso
 #' \code{\link{mmcif_data}}, \code{\link{mmcif_start_values}} and
@@ -546,8 +547,8 @@ mmcif_start_values <- function(object, n_threads = 1L, vcov_start = NULL){
 #' @importFrom stats constrOptim setNames
 #' @export
 mmcif_fit <- function(
-  par, object, n_threads = 1L, control = list(maxit = 10000L), method = "BFGS",
-  ...){
+  par, object, n_threads = 1L, control = list(maxit = 10000L, reltol = 1e-10),
+  method = "BFGS", outer.eps = 1e-7, ...){
   stopifnot(inherits(object, "mmcif"))
   constraints <- object$constraints$vcov_upper
   if(is.null(control$fnscale))
@@ -560,7 +561,7 @@ mmcif_fit <- function(
       object, par, n_threads = n_threads, is_log_chol = TRUE),
     method = method, ui = constraints,
     ci = rep(1e-8, NROW(constraints)),
-    control = control, ...)
+    control = control, outer.eps = outer.eps, ...)
   out$par <- setNames(out$par, object$param_names$upper)
   out
 }
