@@ -26,11 +26,11 @@
 #' @param left_trunc numeric vector with left-truncation times. \code{NULL}
 #' implies that there is not any individuals with left-truncation.
 #' @param ghq_data the default Gauss-Hermite quadrature nodes and weights to
-#' use. It should be stored as a list with two elements called \code{"node"}
+#' use. It should be a list with two elements called \code{"node"}
 #' and \code{"weight"}. A default is provided if \code{NULL} is passed.
 #' @param strata an integer vector or a factor vector with the strata of each
 #' individual. \code{NULL} implies that there are no strata.
-#' @param knots A list of lists with knots for the splines. The innner lists
+#' @param knots A list of lists with knots for the splines. The inner lists
 #'  needs to have elements called \code{"knots"} and
 #' \code{"boundary_knots"} which are passed to a function like \code{\link{ns}}.
 #' \code{NULL} yields defaults based on the quantiles of the observed event
@@ -363,7 +363,7 @@ mmcif_data <- function(formula, data, cause, time, cluster_id, max_time,
 #' @param par numeric vector with parameters. This is either using a log
 #' Cholesky decomposition for the covariance matrix or the covariance matrix.
 #' @param ghq_data the Gauss-Hermite quadrature nodes and weights to
-#' use. It should be stored as a list with two elements called \code{"node"}
+#' use. It should be a list with two elements called \code{"node"}
 #' and \code{"weight"}. A default is provided if \code{NULL} is passed.
 #' @param is_log_chol logical for whether a log Cholesky decomposition is used
 #' for the covariance matrix or the full covariance matrix.
@@ -537,6 +537,11 @@ mmcif_start_values <- function(object, n_threads = 1L, vcov_start = NULL){
 #' @inheritParams mmcif_logLik
 #' @param par numeric vector with parameters. This is using a log
 #' Cholesky decomposition for the covariance matrix.
+#' @param ghq_data the Gauss-Hermite quadrature nodes and weights to use.
+#' It should be a list with two elements called \code{"node"}. The argument
+#' can also be a list with different number of quadrature nodes. In this case,
+#' fits are successively using the previous fit. This may reduce the computation
+#' time by starting with fewer quadrature nodes.
 #' @param control,method,outer.eps,... arguments passed to
 #' \code{\link{constrOptim}}.
 #'
@@ -548,17 +553,37 @@ mmcif_start_values <- function(object, n_threads = 1L, vcov_start = NULL){
 #' @export
 mmcif_fit <- function(
   par, object, n_threads = 1L, control = list(maxit = 10000L, reltol = 1e-10),
-  method = "BFGS", outer.eps = 1e-7, ...){
+  method = "BFGS", outer.eps = 1e-7, ghq_data = object$ghq_data, ...){
   stopifnot(inherits(object, "mmcif"))
+  if(is.null(ghq_data$node)){
+    stopifnot(is.list(ghq_data), length(ghq_data) > 0)
+    for(nodes in ghq_data)
+      stopifnot(!is.null(nodes$node), !is.null(nodes$weight))
+
+    n_ghq_data <- length(ghq_data)
+    out <- vector("list", n_ghq_data)
+    cl <- match.call()
+    cl$ghq_data <- ghq_data[[1]]
+    out[[1]] <- eval(cl, parent.frame())
+
+    for(i in seq_len(n_ghq_data - 1L) + 1L){
+      cl$par <- out[[i - 1L]]$par
+      cl$ghq_data <- ghq_data[[i]]
+      out[[i]] <- eval(cl, parent.frame())
+    }
+
+    return(setNames(out, names(n_ghq_data)))
+  }
+
   constraints <- object$constraints$vcov_upper
-  if(is.null(control$fnscale))
-    control$fnscale <- mmcif_n_terms(object$comp_obj)
 
   out <- constrOptim(
     par, function(par) -mmcif_logLik(
-      object, par, n_threads = n_threads, is_log_chol = TRUE),
+      object, par, n_threads = n_threads, is_log_chol = TRUE,
+      ghq_data = ghq_data),
     grad = function(par) -mmcif_logLik_grad(
-      object, par, n_threads = n_threads, is_log_chol = TRUE),
+      object, par, n_threads = n_threads, is_log_chol = TRUE,
+      ghq_data = ghq_data),
     method = method, ui = constraints,
     ci = rep(1e-8, NROW(constraints)),
     control = control, outer.eps = outer.eps, ...)

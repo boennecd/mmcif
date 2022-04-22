@@ -140,29 +140,29 @@ fit_mz$fit$convergence
 #> [1] 0
 fit_dz$fit$counts
 #> function gradient 
-#>      659      657
+#>      343       92
 fit_mz$fit$counts
 #> function gradient 
-#>      815      790
+#>      317       81
 
 sqrt(sum(fit_dz$gr_mle^2)) # L2 norm of the gradient at the MLE
-#> [1] 0.087731
+#> [1] 0.45267
 sqrt(sum(fit_mz$gr_mle^2)) # L2 norm of the gradient at the MLE
-#> [1] 0.26188
+#> [1] 0.081017
 
 # the maximum log composite likelihood
 print(-fit_dz$fit$value, digits = 10)
-#> [1] -23833.42907
+#> [1] -23833.41825
 print(-fit_mz$fit$value, digits = 10)
-#> [1] -12299.93411
+#> [1] -12296.74168
 
 # the time to estimate the model and to compute the sandwich estimator
 with(fit_dz$time, start + fit + sandwich)
-#>     user   system  elapsed 
-#> 2309.747    0.091  579.794
+#>    user  system elapsed 
+#> 767.594   0.063 192.004
 with(fit_mz$time, start + fit + sandwich)
-#>     user   system  elapsed 
-#> 2041.195    0.248  511.015
+#>    user  system elapsed 
+#>  531.88    0.06  133.49
 
 # the parameter estimates along with standard errors
 rbind(`DZ estimate` = fit_dz$fit$par,
@@ -170,191 +170,191 @@ rbind(`DZ estimate` = fit_dz$fit$par,
       `MZ estimate` = fit_mz$fit$par,
       `MZ SE` = diag(fit_mz$sandwich_est) |> sqrt())
 #>             cause1:risk:countryDenmark cause1:risk:countryFinland
-#> DZ estimate                   0.724843                   0.637673
-#> DZ SE                         0.068237                   0.091622
-#> MZ estimate                   0.660979                   0.644025
-#> MZ SE                         0.116715                   0.170183
+#> DZ estimate                   0.724400                    0.63697
+#> DZ SE                         0.067749                    0.09077
+#> MZ estimate                   0.685783                    0.65964
+#> MZ SE                         0.119999                    0.17455
 #>             cause1:risk:countryNorway cause1:risk:countrySweden
-#> DZ estimate                   0.42625                  0.433724
-#> DZ SE                         0.10121                  0.057797
-#> MZ estimate                   0.35726                  0.236986
-#> MZ SE                         0.15380                  0.096953
+#> DZ estimate                   0.42549                  0.433040
+#> DZ SE                         0.10059                  0.056568
+#> MZ estimate                   0.37945                  0.249221
+#> MZ SE                         0.15769                  0.092618
 #>             cause2:risk:countryDenmark cause2:risk:countryFinland
-#> DZ estimate                   -2.47755                   -1.49759
-#> DZ SE                          0.20252                    0.18404
-#> MZ estimate                   -3.00505                   -2.29820
-#> MZ SE                          0.36858                    0.39040
+#> DZ estimate                   -2.48115                   -1.50048
+#> DZ SE                          0.19833                    0.18278
+#> MZ estimate                   -2.95140                   -2.25141
+#> MZ SE                          0.36792                    0.39006
 #>             cause2:risk:countryNorway cause2:risk:countrySweden
-#> DZ estimate                  -1.89833                  -1.58886
-#> DZ SE                         0.21030                   0.14789
-#> MZ estimate                  -2.60269                  -2.17919
-#> MZ SE                         0.37918                   0.27582
+#> DZ estimate                  -1.90157                  -1.59166
+#> DZ SE                         0.20856                   0.14410
+#> MZ estimate                  -2.55451                  -2.13919
+#> MZ SE                         0.38122                   0.27475
 #>             cause1:strataDenmark:spline1 cause1:strataDenmark:spline2
-#> DZ estimate                    -1.753065                    -2.343591
-#> DZ SE                           0.067376                     0.076701
-#> MZ estimate                    -1.757339                    -2.276793
-#> MZ SE                           0.100200                     0.109660
+#> DZ estimate                    -1.752470                    -2.342841
+#> DZ SE                           0.067474                     0.076842
+#> MZ estimate                    -1.829401                    -2.372782
+#> MZ SE                           0.107277                     0.118825
 #>             cause1:strataDenmark:spline3 cause1:strataDenmark:spline4
-#> DZ estimate                    -3.109425                     -4.79099
-#> DZ SE                           0.095186                      0.13491
-#> MZ estimate                    -3.167256                     -4.61107
-#> MZ SE                           0.135462                      0.18299
+#> DZ estimate                    -3.108522                     -4.78941
+#> DZ SE                           0.095413                      0.13529
+#> MZ estimate                    -3.304490                     -4.80096
+#> MZ SE                           0.148451                      0.20275
 #>             cause1:strataDenmark:spline5 cause1:strataFinland:spline1
-#> DZ estimate                     -3.96744                     -1.93999
-#> DZ SE                            0.11904                      0.09887
-#> MZ estimate                     -3.71391                     -2.08626
-#> MZ SE                            0.14483                      0.15740
+#> DZ estimate                     -3.96622                     -1.93934
+#> DZ SE                            0.11935                      0.09892
+#> MZ estimate                     -3.87313                     -2.17188
+#> MZ SE                            0.16133                      0.16590
 #>             cause1:strataFinland:spline2 cause1:strataFinland:spline3
-#> DZ estimate                     -2.54388                     -3.11192
-#> DZ SE                            0.11054                      0.12042
-#> MZ estimate                     -2.60385                     -3.08892
-#> MZ SE                            0.17197                      0.19312
+#> DZ estimate                     -2.54312                     -3.11108
+#> DZ SE                            0.11063                      0.12057
+#> MZ estimate                     -2.71277                     -3.21986
+#> MZ SE                            0.18208                      0.20497
 #>             cause1:strataFinland:spline4 cause1:strataFinland:spline5
-#> DZ estimate                     -5.04574                     -3.98129
-#> DZ SE                            0.20826                      0.16389
-#> MZ estimate                     -5.23771                     -4.10505
-#> MZ SE                            0.31732                      0.19645
+#> DZ estimate                     -5.04416                     -3.98032
+#> DZ SE                            0.20842                      0.16400
+#> MZ estimate                     -5.45944                     -4.28425
+#> MZ SE                            0.33698                      0.20913
 #>             cause1:strataNorway:spline1 cause1:strataNorway:spline2
-#> DZ estimate                   -1.652542                    -2.26003
-#> DZ SE                          0.096453                     0.10524
-#> MZ estimate                   -1.977526                    -2.54615
-#> MZ SE                          0.149576                     0.16522
+#> DZ estimate                   -1.651777                    -2.25915
+#> DZ SE                          0.096486                     0.10532
+#> MZ estimate                   -2.057127                    -2.64811
+#> MZ SE                          0.156700                     0.17350
 #>             cause1:strataNorway:spline3 cause1:strataNorway:spline4
-#> DZ estimate                    -2.92812                    -4.67719
-#> DZ SE                           0.13291                     0.17465
-#> MZ estimate                    -3.18134                    -5.37444
-#> MZ SE                           0.18100                     0.30403
+#> DZ estimate                    -2.92728                    -4.67547
+#> DZ SE                           0.13303                     0.17485
+#> MZ estimate                    -3.32303                    -5.59878
+#> MZ SE                           0.19666                     0.32495
 #>             cause1:strataNorway:spline5 cause1:strataSweden:spline1
-#> DZ estimate                    -3.77936                   -1.923810
-#> DZ SE                           0.14614                    0.086231
-#> MZ estimate                    -4.39523                   -2.006642
-#> MZ SE                           0.21357                    0.123061
+#> DZ estimate                    -3.77842                   -1.923035
+#> DZ SE                           0.14634                    0.086307
+#> MZ estimate                    -4.58091                   -2.089512
+#> MZ SE                           0.23459                    0.131761
 #>             cause1:strataSweden:spline2 cause1:strataSweden:spline3
-#> DZ estimate                   -2.579416                   -3.204515
-#> DZ SE                          0.094813                    0.097127
-#> MZ estimate                   -2.694445                   -3.354998
-#> MZ SE                          0.133619                    0.133474
+#> DZ estimate                   -2.578540                   -3.203418
+#> DZ SE                          0.094924                    0.097343
+#> MZ estimate                   -2.810338                   -3.501059
+#> MZ SE                          0.145550                    0.148282
 #>             cause1:strataSweden:spline4 cause1:strataSweden:spline5
-#> DZ estimate                    -5.05609                    -4.02992
-#> DZ SE                           0.17188                     0.10731
-#> MZ estimate                    -5.16856                    -4.14860
-#> MZ SE                           0.24646                     0.15127
+#> DZ estimate                    -5.05430                    -4.02874
+#> DZ SE                           0.17214                     0.10758
+#> MZ estimate                    -5.38154                    -4.32726
+#> MZ SE                           0.26773                     0.16854
 #>             cause1:traject:countryDenmark cause1:traject:countryFinland
-#> DZ estimate                      2.468410                       2.65896
-#> DZ SE                            0.066602                       0.10017
-#> MZ estimate                      2.650570                       2.78071
-#> MZ SE                            0.107355                       0.16102
+#> DZ estimate                      2.468093                       2.65846
+#> DZ SE                            0.066478                       0.10006
+#> MZ estimate                      2.689637                       2.82386
+#> MZ SE                            0.106103                       0.16395
 #>             cause1:traject:countryNorway cause1:traject:countrySweden
-#> DZ estimate                     2.557636                     2.918105
-#> DZ SE                           0.089394                     0.089729
-#> MZ estimate                     3.040609                     3.122142
-#> MZ SE                           0.158449                     0.138853
+#> DZ estimate                     2.557015                     2.917351
+#> DZ SE                           0.089194                     0.089433
+#> MZ estimate                     3.089889                     3.171561
+#> MZ SE                           0.159637                     0.138606
 #>             cause2:strataDenmark:spline1 cause2:strataDenmark:spline2
-#> DZ estimate                     -2.00570                     -2.83584
-#> DZ SE                            0.26829                      0.31849
-#> MZ estimate                     -3.10799                     -3.59102
-#> MZ SE                            0.51976                      0.51078
+#> DZ estimate                     -1.99352                     -2.81915
+#> DZ SE                            0.26387                      0.31258
+#> MZ estimate                     -3.17002                     -3.66146
+#> MZ SE                            0.53644                      0.52796
 #>             cause2:strataDenmark:spline3 cause2:strataDenmark:spline4
-#> DZ estimate                     -3.04877                     -5.50706
-#> DZ SE                            0.36258                      0.54860
-#> MZ estimate                     -4.33119                     -6.79958
-#> MZ SE                            0.64098                      0.82446
+#> DZ estimate                     -3.03195                     -5.47472
+#> DZ SE                            0.35537                      0.53575
+#> MZ estimate                     -4.40897                     -6.93548
+#> MZ SE                            0.66275                      0.85695
 #>             cause2:strataDenmark:spline5 cause2:strataFinland:spline1
-#> DZ estimate                     -4.17395                     -1.79497
-#> DZ SE                            0.42959                      0.23083
-#> MZ estimate                     -5.92990                     -2.72471
-#> MZ SE                            0.82164                      0.47389
+#> DZ estimate                     -4.15061                     -1.78524
+#> DZ SE                            0.42267                      0.22788
+#> MZ estimate                     -6.03736                     -2.78402
+#> MZ SE                            0.84812                      0.48525
 #>             cause2:strataFinland:spline2 cause2:strataFinland:spline3
-#> DZ estimate                     -2.03362                     -2.93599
-#> DZ SE                            0.24308                      0.34395
-#> MZ estimate                     -3.18184                     -4.46812
-#> MZ SE                            0.47399                      0.69657
+#> DZ estimate                     -2.02312                     -2.91921
+#> DZ SE                            0.23913                      0.33898
+#> MZ estimate                     -3.25281                     -4.57041
+#> MZ SE                            0.48434                      0.71851
 #>             cause2:strataFinland:spline4 cause2:strataFinland:spline5
-#> DZ estimate                     -4.81308                     -3.99673
-#> DZ SE                            0.46961                      0.40678
-#> MZ estimate                     -7.00528                     -4.67909
-#> MZ SE                            0.95679                      0.65856
+#> DZ estimate                     -4.78622                     -3.97522
+#> DZ SE                            0.45769                      0.39523
+#> MZ estimate                     -7.17536                     -4.77733
+#> MZ SE                            0.98849                      0.68029
 #>             cause2:strataNorway:spline1 cause2:strataNorway:spline2
-#> DZ estimate                    -2.24983                    -2.53974
-#> DZ SE                           0.29842                     0.30499
-#> MZ estimate                    -3.21152                    -3.38075
-#> MZ SE                           0.60099                     0.61389
+#> DZ estimate                    -2.23706                    -2.52495
+#> DZ SE                           0.29518                     0.29968
+#> MZ estimate                    -3.32173                    -3.49378
+#> MZ SE                           0.65492                     0.66932
 #>             cause2:strataNorway:spline3 cause2:strataNorway:spline4
-#> DZ estimate                    -3.38967                    -4.94046
-#> DZ SE                           0.39273                     0.50166
-#> MZ estimate                    -4.72648                    -7.16877
-#> MZ SE                           0.66761                     1.18818
+#> DZ estimate                    -3.37091                     -4.9119
+#> DZ SE                           0.38831                      0.4927
+#> MZ estimate                    -4.83246                     -7.4172
+#> MZ SE                           0.70597                      1.3010
 #>             cause2:strataNorway:spline5 cause2:strataSweden:spline1
-#> DZ estimate                    -3.85490                    -1.93650
-#> DZ SE                           0.42199                     0.19048
-#> MZ estimate                    -5.77992                    -2.54150
-#> MZ SE                           0.85752                     0.29768
+#> DZ estimate                    -3.83331                    -1.92436
+#> DZ SE                           0.41582                     0.18546
+#> MZ estimate                    -5.92185                    -2.58319
+#> MZ SE                           0.89807                     0.30562
 #>             cause2:strataSweden:spline2 cause2:strataSweden:spline3
-#> DZ estimate                    -2.52216                    -3.04438
-#> DZ SE                           0.21940                     0.26701
-#> MZ estimate                    -3.17232                    -3.81595
-#> MZ SE                           0.34038                     0.40524
+#> DZ estimate                    -2.50707                    -3.02631
+#> DZ SE                           0.21294                     0.26125
+#> MZ estimate                    -3.22461                    -3.88183
+#> MZ SE                           0.35027                     0.41771
 #>             cause2:strataSweden:spline4 cause2:strataSweden:spline5
-#> DZ estimate                    -5.06469                    -3.64861
-#> DZ SE                           0.42761                     0.31946
-#> MZ estimate                    -6.40343                    -4.86401
-#> MZ SE                           0.63474                     0.52031
+#> DZ estimate                    -5.03363                    -3.62817
+#> DZ SE                           0.41474                     0.30994
+#> MZ estimate                    -6.51132                    -4.95142
+#> MZ SE                           0.65321                     0.53683
 #>             cause2:traject:countryDenmark cause2:traject:countryFinland
-#> DZ estimate                       2.86485                       2.69866
-#> DZ SE                             0.32375                       0.29799
-#> MZ estimate                       4.85647                       4.62852
-#> MZ SE                             0.60668                       0.55911
+#> DZ estimate                       2.85244                       2.68755
+#> DZ SE                             0.32044                       0.29463
+#> MZ estimate                       4.94330                       4.71807
+#> MZ SE                             0.62497                       0.57611
 #>             cause2:traject:countryNorway cause2:traject:countrySweden
-#> DZ estimate                      2.82290                      2.86566
-#> DZ SE                            0.32192                      0.27108
-#> MZ estimate                      5.01252                      4.35518
-#> MZ SE                            0.66260                      0.44357
+#> DZ estimate                      2.81038                      2.85184
+#> DZ SE                            0.31895                      0.26757
+#> MZ estimate                      5.15539                      4.42619
+#> MZ SE                            0.72057                      0.45608
 #>             vcov:risk1:risk1 vcov:risk1:risk2 vcov:risk2:risk2
-#> DZ estimate         -0.35589          0.23443          0.12023
-#> DZ SE                0.14527          0.28126          0.14895
-#> MZ estimate          0.20185          0.67922          0.70662
-#> MZ SE                0.11637          0.53492          0.12816
+#> DZ estimate        -0.358132          0.22573          0.12201
+#> DZ SE               0.144184          0.23998          0.12901
+#> MZ estimate         0.290440          0.81140          0.70100
+#> MZ SE               0.099582          0.34844          0.12710
 #>             vcov:risk1:traject1 vcov:risk2:traject1 vcov:traject1:traject1
-#> DZ estimate           -0.249749           -0.049394                -0.9488
-#> DZ SE                  0.086135            0.113239                 0.2252
-#> MZ estimate           -0.527129           -0.067804                -4.3329
-#> MZ SE                  0.071186            0.256263                 1.4000
+#> DZ estimate           -0.251830           -0.052896               -0.95584
+#> DZ SE                  0.087342            0.092795                0.23075
+#> MZ estimate           -0.333877           -0.033831               -0.70002
+#> MZ SE                  0.097251            0.119333                0.19590
 #>             vcov:risk1:traject2 vcov:risk2:traject2 vcov:traject1:traject2
-#> DZ estimate            -0.28278            -0.35555               -0.24542
-#> DZ SE                   0.18897             0.16151                0.22180
-#> MZ estimate            -0.14784            -0.91285               -0.80571
-#> MZ SE                   0.33947             0.24349                0.28907
+#> DZ estimate            -0.27244            -0.35688              -0.241838
+#> DZ SE                   0.12924             0.15425               0.214553
+#> MZ estimate            -0.22806            -0.92362              -0.082922
+#> MZ SE                   0.33122             0.24957               0.507877
 #>             vcov:traject2:traject2
-#> DZ estimate               -2.52041
-#> DZ SE                      0.68679
-#> MZ estimate               -2.35689
-#> MZ SE                      2.27580
+#> DZ estimate              -12.91176
+#> DZ SE                    469.90422
+#> MZ estimate               -0.18234
+#> MZ SE                      0.36803
 
 # the estimated covariance matrices along with standard errors
 fit_dz$vcov_est # the estimates for DZ
 #>         [,1]    [,2]     [,3]       [,4]
-#> [1,] 0.49077 0.16423 -0.17496 -0.1980980
-#> [2,]      NA 1.32679 -0.11425 -0.4672686
-#> [3,]      NA      NA  0.21474 -0.0068421
-#> [4,]      NA      NA       NA  0.2730783
+#> [1,] 0.48857 0.15778 -0.17602 -0.1904275
+#> [2,]      NA 1.32734 -0.11661 -0.4646929
+#> [3,]      NA      NA  0.21405 -0.0054996
+#> [4,]      NA      NA       NA  0.2600719
 fit_dz$vcov_SE # the SEs
 #>         [,1]    [,2]     [,3]     [,4]
-#> [1,] 0.14258 0.20441 0.055565 0.137138
-#> [2,]      NA 0.42385 0.105609 0.182604
-#> [3,]      NA      NA 0.047271 0.084765
-#> [4,]      NA      NA       NA 0.194869
+#> [1,] 0.14089 0.17266 0.055817 0.094265
+#> [2,]      NA 0.33726 0.099333 0.174409
+#> [3,]      NA      NA 0.047439 0.080576
+#> [4,]      NA      NA       NA 0.187550
 fit_mz$vcov_est # the estimates for MZ
-#>        [,1]    [,2]     [,3]     [,4]
-#> [1,] 1.4974 0.83114 -0.64503 -0.18091
-#> [2,]     NA 4.57061 -0.49549 -1.95089
-#> [3,]     NA      NA  0.28264  0.12925
-#> [4,]     NA      NA       NA  1.51330
+#>        [,1]   [,2]     [,3]      [,4]
+#> [1,] 1.7876 1.0849 -0.44640 -0.304923
+#> [2,]     NA 4.7217 -0.33910 -2.046850
+#> [3,]     NA     NA  0.35921  0.066215
+#> [4,]     NA     NA       NA  1.606376
 fit_mz$vcov_SE # the SEs
-#>        [,1]   [,2]     [,3]    [,4]
-#> [1,] 0.3485 0.6695 0.088133 0.41438
-#> [2,]     NA 1.3781 0.311675 0.60304
-#> [3,]     NA     NA 0.073664 0.16610
-#> [4,]     NA     NA       NA 0.48133
+#>         [,1]    [,2]     [,3]    [,4]
+#> [1,] 0.35603 0.50366 0.123468 0.44242
+#> [2,]      NA 1.22342 0.237454 0.59387
+#> [3,]      NA      NA 0.076287 0.19321
+#> [4,]      NA      NA       NA 0.50954
 ```
 
 ``` r

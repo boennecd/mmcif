@@ -11,6 +11,7 @@ mmcif_fit(
   control = list(maxit = 10000L, reltol = 1e-10),
   method = "BFGS",
   outer.eps = 1e-07,
+  ghq_data = object$ghq_data,
   ...
 )
 }
@@ -24,6 +25,12 @@ Cholesky decomposition for the covariance matrix.}
 
 \item{control, method, outer.eps, ...}{arguments passed to
 \code{\link{constrOptim}}.}
+
+\item{ghq_data}{the Gauss-Hermite quadrature nodes and weights to use.
+It should be a list with two elements called \code{"node"}. The argument
+can also be a list with different number of quadrature nodes. In this case,
+fits are successively using the previous fit. This may reduce the computation
+time by starting with fewer quadrature nodes.}
 }
 \description{
 Fits a Mixed Competing Risk Model

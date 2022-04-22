@@ -22,7 +22,7 @@ mmcif_sandwich(
 estimator at.}
 
 \item{ghq_data}{the Gauss-Hermite quadrature nodes and weights to
-use. It should be stored as a list with two elements called \code{"node"}
+use. It should be a list with two elements called \code{"node"}
 and \code{"weight"}. A default is provided if \code{NULL} is passed.}
 
 \item{n_threads}{the number of threads to use.}

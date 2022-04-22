@@ -318,6 +318,30 @@ mmcif_logLik(comp_obj, start$upper, n_threads = 4L, is_log_chol = TRUE)
 -fit$value
 ```
 
+We may reduce the estimation time by using a different number of quadrature 
+nodes starting with fewer nodes successively updating the fits as shown below.
+
+```{r successive_fits, cache = 1}
+# the number of nodes we used
+length(comp_obj$ghq_data[[1]])
+
+# with successive updates
+ghq_lists <- lapply(
+  setNames(c(2L, 6L), c(2L, 6L)), 
+  \(n_nodes) 
+    fastGHQuad::gaussHermiteData(n_nodes) |> 
+      with(list(node = x, weight = w)))
+
+system.time(
+  fits <- mmcif_fit(
+    start$upper, comp_obj, n_threads = 4L, ghq_data = ghq_lists))
+
+# compare the estimates
+rbind(sapply(fits, `[[`, "par") |> t(), 
+      `Previous` = fit$par)
+```
+
+
 Then we compute the sandwich estimator. The Hessian is currently computed with 
 numerical differentiation which is why it takes a while.
 

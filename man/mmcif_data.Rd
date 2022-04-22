@@ -41,13 +41,13 @@ cumulative incidence functions.}
 implies that there is not any individuals with left-truncation.}
 
 \item{ghq_data}{the default Gauss-Hermite quadrature nodes and weights to
-use. It should be stored as a list with two elements called \code{"node"}
+use. It should be a list with two elements called \code{"node"}
 and \code{"weight"}. A default is provided if \code{NULL} is passed.}
 
 \item{strata}{an integer vector or a factor vector with the strata of each
 individual. \code{NULL} implies that there are no strata.}
 
-\item{knots}{A list of lists with knots for the splines. The innner lists
+\item{knots}{A list of lists with knots for the splines. The inner lists
  needs to have elements called \code{"knots"} and
 \code{"boundary_knots"} which are passed to a function like \code{\link{ns}}.
 \code{NULL} yields defaults based on the quantiles of the observed event
