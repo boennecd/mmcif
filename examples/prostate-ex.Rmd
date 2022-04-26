@@ -55,22 +55,26 @@ fit_model <- function(data, res_name){
   res_name <- file.path("cache", res_name)
   
   if(!file.exists(res_name)){
+    ghq_list <- lapply(
+      c(4, 10), \(n_nodes)
+        fastGHQuad::gaussHermiteData(n_nodes) |> 
+          with(list(node = x, weight = w)))
+    
     get_comp_obj <- function(dat = data){
-      ghq_data <- fastGHQuad::gaussHermiteData(10) |> 
-        with(list(node = x, weight = w))
-      
       mmcif_data(
         formula = ~ country - 1, data, cause = status, time = time, 
         cluster_id = id, max_time = max_time, spline_df = 5L, 
-        strata = country, ghq_data = ghq_data)
+        strata = country, ghq_data = ghq_list[[length(ghq_list)]])
     }
     comp_obj <- get_comp_obj()
     
     start_time <- 
       system.time(start_vals <- mmcif_start_values(comp_obj, n_threads = 4L))
     
-    fit_time <- system.time(fit <- mmcif_fit(
-      start_vals$upper, object = comp_obj, n_threads = 4L))
+    fit_time <- system.time(fits <- mmcif_fit(
+      start_vals$upper, object = comp_obj, n_threads = 4L, ghq_data = ghq_list))
+    
+    fit <- fits[[length(fits)]]
     
     ll_start <- mmcif_logLik(
       comp_obj, start_vals$upper, n_threads = 4L, is_log_chol = TRUE)
@@ -89,7 +93,7 @@ fit_model <- function(data, res_name){
         comp_obj$indices$vcov_upper]
     
     list(
-      fit = fit, start = start_vals, ll_start = ll_start, 
+      fit = fit, fits = fits, start = start_vals, ll_start = ll_start, 
       sandwich_est = sandwich_est, get_comp_obj = get_comp_obj, 
       time = list(start = start_time, fit = fit_time, 
                   sandwich = sandwich_time), 
@@ -105,45 +109,7 @@ fit_dz <- fit_model(prt_dz, "fit_dz.RDS")
 fit_mz <- fit_model(prt_mz, "fit_mz.RDS")
 ```
 
-```{r, eval = FALSE, echo = FALSE}
-library(nloptr)
-object <- fit_mz$get_comp_obj()
-
-gr <- mmcif_logLik_grad(object, fit_mz$fit$par, is_log_chol = TRUE, 
-                        n_threads = 6L)
-num_gr <- numDeriv::grad(
-  \(x) mmcif_logLik(object, x, is_log_chol = TRUE, 
-                    n_threads = 6L),
-  fit_mz$fit$par)
-rbind(gr, num_gr)
-
-par <- fit_mz$fit$par
-n_threads <- 6L
-fit <- auglag(
-  par, 
-  fn = function(par) {
-    out <- try(mmcif_logLik(
-      object, par, n_threads = n_threads, is_log_chol = TRUE), silent = TRUE)
-    if(inherits(out, "try-errir"))
-      return(NA_real_)
-    print(out, digits = 10)
-    -out
-  },
-  gr = function(par){
-    out <- try(mmcif_logLik_grad(
-      object, par, n_threads = n_threads, is_log_chol = TRUE), silent = TRUE)
-    if(inherits(out, "try-error"))
-      return(rep(NA_real_, length(par)))
-    print(sum(out^2) |> sqrt(), digits = 10)
-    -out
-  },
-  hin = function(par) c(object$constraints$vcov_upper %*% par),
-  hinjac = function(par) object$constraints$vcov_upper,
-  nl.info = TRUE, localsolver = "SLSQP")
-```
-
 The results are summarized below.
-
 
 ```{r show_fit}
 # check convergence codes and counts

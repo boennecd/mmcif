@@ -8,9 +8,9 @@ mmcif_fit(
   par,
   object,
   n_threads = 1L,
-  control = list(maxit = 10000L, reltol = 1e-10),
-  method = "BFGS",
-  outer.eps = 1e-07,
+  control.outer = list(itmax = 100L, method = "nlminb", kkt2.check = FALSE, trace =
+    FALSE),
+  control.optim = list(eval.max = 10000L, iter.max = 10000L),
   ghq_data = object$ghq_data,
   ...
 )
@@ -23,8 +23,8 @@ Cholesky decomposition for the covariance matrix.}
 
 \item{n_threads}{the number of threads to use.}
 
-\item{control, method, outer.eps, ...}{arguments passed to
-\code{\link{constrOptim}}.}
+\item{control.outer, control.optim, ...}{arguments passed to
+\code{\link[alabama]{auglag}}.}
 
 \item{ghq_data}{the Gauss-Hermite quadrature nodes and weights to use.
 It should be a list with two elements called \code{"node"}. The argument

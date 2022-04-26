@@ -339,6 +339,9 @@ system.time(
 # compare the estimates
 rbind(sapply(fits, `[[`, "par") |> t(), 
       `Previous` = fit$par)
+
+print(fits[[length(fits)]]$value, digits = 10)
+print(fit                 $value, digits = 10)
 ```
 
 

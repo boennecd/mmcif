@@ -542,19 +542,24 @@ mmcif_start_values <- function(object, n_threads = 1L, vcov_start = NULL){
 #' can also be a list with different number of quadrature nodes. In this case,
 #' fits are successively using the previous fit. This may reduce the computation
 #' time by starting with fewer quadrature nodes.
-#' @param control,method,outer.eps,... arguments passed to
-#' \code{\link{constrOptim}}.
+#' @param control.outer,control.optim,... arguments passed to
+#' \code{\link[alabama]{auglag}}.
 #'
 #' @seealso
 #' \code{\link{mmcif_data}}, \code{\link{mmcif_start_values}} and
 #' \code{\link{mmcif_sandwich}}.
 #'
-#' @importFrom stats constrOptim setNames
+#' @importFrom alabama auglag
+#' @importFrom stats setNames
 #' @export
 mmcif_fit <- function(
-  par, object, n_threads = 1L, control = list(maxit = 10000L, reltol = 1e-10),
-  method = "BFGS", outer.eps = 1e-7, ghq_data = object$ghq_data, ...){
+  par, object, n_threads = 1L,
+  control.outer = list(itmax = 100L, method = "nlminb", kkt2.check = FALSE,
+                       trace = FALSE),
+  control.optim = list(eval.max = 10000L, iter.max = 10000L),
+  ghq_data = object$ghq_data, ...){
   stopifnot(inherits(object, "mmcif"))
+
   if(is.null(ghq_data$node)){
     stopifnot(is.list(ghq_data), length(ghq_data) > 0)
     for(nodes in ghq_data)
@@ -577,16 +582,29 @@ mmcif_fit <- function(
 
   constraints <- object$constraints$vcov_upper
 
-  out <- constrOptim(
-    par, function(par) -mmcif_logLik(
+  fn <- function(par){
+    out <- try(mmcif_logLik(
       object, par, n_threads = n_threads, is_log_chol = TRUE,
-      ghq_data = ghq_data),
-    grad = function(par) -mmcif_logLik_grad(
+      ghq_data = ghq_data), silent = TRUE)
+    if(inherits(out, "try-error"))
+      return(NA_real_)
+    -out
+  }
+  gr <- function(par) {
+    out <- try(mmcif_logLik_grad(
       object, par, n_threads = n_threads, is_log_chol = TRUE,
-      ghq_data = ghq_data),
-    method = method, ui = constraints,
-    ci = rep(1e-8, NROW(constraints)),
-    control = control, outer.eps = outer.eps, ...)
+      ghq_data = ghq_data), silent = TRUE)
+    if(inherits(out, "try-error"))
+      return(rep(NA_real_, length(par)))
+    -out
+  }
+  hin <- function(par) drop(constraints %*% par)
+  hinjac <- function(...) constraints
+
+  out <- auglag(
+    par = par, fn = fn, gr = gr, hin = hin, hin.jac = hinjac,
+    control.outer = control.outer, control.optim = control.optim, ...)
+
   out$par <- setNames(out$par, object$param_names$upper)
   out
 }

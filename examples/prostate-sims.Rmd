@@ -229,41 +229,54 @@ seeds <- head(seeds, 800)
 # of quadrature nodes
 n_clusters <- 4000L
 max_cluster_size <- 4L
-n_quad_nodes <- 6L
+n_quad_nodes_small <- 3L
+n_quad_nodes_large <- 8L
 
 # run the simulation study
 library(mmcif)
 sim_res <- lapply(seeds, \(s){
   res_file <- file.path(
     "cache", "prostate-dz-sims", sprintf(
-      "%d-%d-%d-%d.RDS", n_clusters, max_cluster_size, n_quad_nodes, s))
+      "%d-%d-%d-%d-%d.RDS", n_clusters, max_cluster_size, n_quad_nodes_small, 
+      n_quad_nodes_large, s))
   
   if(!file.exists(res_file)){
     set.seed(s)
     data <- sim_dat(n_clusters, max_cluster_size)
     
-    ghq_data <- fastGHQuad::gaussHermiteData(n_quad_nodes) |> 
-        with(list(node = x, weight = w))
+    ghq_list <- lapply(
+      c(n_quad_nodes_small, n_quad_nodes_large), 
+      \(n_nodes) 
+        fastGHQuad::gaussHermiteData(n_nodes) |> 
+          with(list(node = x, weight = w)))
     
     fit_obj <- mmcif_data(
       ~ country - 1, data, cause = cause, time = time, cluster_id = cluster_id,
-      max_time = delta, ghq_data = ghq_data, knots = knots, strata = country)
+      max_time = delta, knots = knots, strata = country, 
+      ghq_data = ghq_list[[length(ghq_list)]])
     
     fit_time <- system.time({
       start <- mmcif_start_values(fit_obj, n_threads = 4L)
-      fit <- mmcif_fit(start$upper, fit_obj, n_threads = 4L)
+      fits <- mmcif_fit(
+        start$upper, fit_obj, n_threads = 4L, ghq_data = ghq_list)
+      fit <- fits[[length(fits)]]
       sandwich <- mmcif_sandwich(fit_obj, fit$par, n_threads = 4L, order = 1L)
     })
     
     gr_max <- mmcif_logLik_grad(
       fit_obj, fit$par, n_threads = 4L, is_log_chol = TRUE)
+    # num_gr <- numDeriv::grad(
+    #   mmcif_logLik, fit$par, method.args = list(r = 2), object = fit_obj,
+    #   n_threads = 4L, is_log_chol = TRUE)
     
     n_binding <- sum(fit_obj$constraints$vcov_upper %*% fit$par < 1e-5)
     
-    list(start = start, fit = fit, sandwich = sandwich, gr_max = gr_max, 
-         time = fit_time, vcov = tail(fit$par, 10) |> log_chol_inv(), 
-         fixef = head(fit$par, -10), n_binding = n_binding, 
-         constraints = fit_obj$constraints) |> 
+    list(
+      start = start, fit = fit, fits = fits, sandwich = sandwich, 
+      gr_max = gr_max, time = fit_time, 
+      vcov = tail(fit$par, 10) |> log_chol_inv(), 
+      fixef = head(fit$par, -10), n_binding = n_binding, 
+      constraints = fit_obj$constraints) |> 
       saveRDS(res_file)
   }
   
@@ -272,13 +285,17 @@ sim_res <- lapply(seeds, \(s){
           -out$fit$value, sum(out$gr_max^2) |> sqrt(), out$time["elapsed"]) |> 
     message()
   
+  print_message <- \(x)
+    capture.output(print(x, na.print = "")) |> paste0(collapse = "\n") |> 
+      message()
+  message("\nFunction/gradients counts")
+  lapply(out$fits, `[[`, "counts") |> 
+    do.call(what = rbind) |> print_message()
+  
   remove_lower <- \(x){
     x[lower.tri(x)] <- NA
     x
   }
-  print_message <- \(x)
-    capture.output(print(x, na.print = "")) |> paste0(collapse = "\n") |> 
-      message()
 
   message("\nEstimated fixed effects and  Z stats")
   SEs <- attr(out$sandwich, "res vcov") |> diag() |> sqrt()

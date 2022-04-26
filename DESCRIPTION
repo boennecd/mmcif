@@ -30,7 +30,8 @@ LinkingTo:
     psqn
 Imports: 
     Rcpp,
-    stats
+    stats,
+    alabama
 Suggests: 
     testthat (>= 3.0.0),
     xml2, 
