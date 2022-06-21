@@ -15,7 +15,8 @@ mmcif_data(
   left_trunc = NULL,
   ghq_data = NULL,
   strata = NULL,
-  knots = NULL
+  knots = NULL,
+  boundary_quantiles = c(0.025, 0.975)
 )
 }
 \arguments{
@@ -32,13 +33,13 @@ mmcif_data(
 \item{cluster_id}{an integer vector with the cluster id of each individual.}
 
 \item{max_time}{the maximum time after which there are no observed events. It
-is denoted by \eqn{\delta} in the original article.}
+is denoted by \eqn{\tau} in the original article (Cederkvist et al., 2019).}
 
 \item{spline_df}{degrees of freedom to use for each spline in the
 cumulative incidence functions.}
 
 \item{left_trunc}{numeric vector with left-truncation times. \code{NULL}
-implies that there is not any individuals with left-truncation.}
+implies that there are not any individuals with left-truncation.}
 
 \item{ghq_data}{the default Gauss-Hermite quadrature nodes and weights to
 use. It should be a list with two elements called \code{"node"}
@@ -53,9 +54,54 @@ individual. \code{NULL} implies that there are no strata.}
 \code{NULL} yields defaults based on the quantiles of the observed event
 times. Note that the knots needs to be on the
 \code{atanh((time - max_time / 2) / (max_time / 2))} scale.}
+
+\item{boundary_quantiles}{two dimensional numerical vector with boundary
+quantile probabilities after which the natural cubic splines for the time
+transformations are restricted to be linear. Only relevant if \code{knots} is
+not \code{NULL}.}
+}
+\value{
+An object of class mmcif which is needed for the other functions in the
+package.
 }
 \description{
-Setup Object to Compute the Log Composite Likelihood
+Sets up the R and C++ objects that are needed to evaluate the log composite
+likelihood. This reduces to a log likelihood when only clusters of size one
+or two are used.
+}
+\examples{
+if(require(mets)){
+  # prepare the data
+  data(prt)
+
+  # truncate the time
+  max_time <- 90
+  prt <- within(prt, {
+    status[time >= max_time] <- 0
+    time <- pmin(time, max_time)
+  })
+
+  # select the DZ twins and re-code the status
+  prt_use <- subset(prt, zyg == "DZ") |>
+    transform(status = ifelse(status == 0, 3L, status))
+
+  # randomly sub-sample
+  set.seed(1)
+  prt_use <- subset(
+    prt_use, id \%in\% sample(unique(id), length(unique(id)) \%/\% 10L))
+
+  mmcif_obj <- mmcif_data(
+    ~ country - 1, prt_use, status, time, id, max_time,
+    2L, strata = country)
+}
+
+}
+\references{
+Cederkvist, L., Holst, K. K., Andersen, K. K., &
+Scheike, T. H. (2019).
+\emph{Modeling the cumulative incidence function of multivariate competing
+risks data allowing for within-cluster dependence of risk and timing}.
+Biostatistics, Apr 1, 20(2), 199-217.
 }
 \seealso{
 \code{\link{mmcif_fit}}, \code{\link{mmcif_start_values}} and

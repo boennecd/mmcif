@@ -1,7 +1,15 @@
 #' Computes the Log Cholesky Decomposition and the Inverse
 #'
+#' Computes the log Cholesky decomposition and the inverse of it. The functions
+#' are provided as the log Cholesky decomposition is used in the
+#' parameterization of the covariance matrix.
+#'
 #' @param x A positive definite matrix or a vector with a log Cholesky
 #' decomposition.
+#'
+#' @return
+#' A numeric vector with the log Cholesky decomposition or a matrix with the
+#' inverse.
 #'
 #' @examples
 #' set.seed(1)

@@ -1,12 +1,19 @@
 #' @importFrom stats quantile
 #' @importFrom splines splineDesign
 #' @importFrom utils head tail
-monotone_ns <- function(times, df, knots = NULL, boundary_knots = NULL){
+monotone_ns <- function(times, df, knots = NULL, boundary_knots = NULL,
+                        boundary_quantiles = c(.025, .975)){
   stopifnot(is.numeric(times), all(is.finite(times)),
-            length(df) == 1, is.finite(df), df > 0)
+            length(df) == 1, is.finite(df), df > 0,
+            length(boundary_quantiles) == 2,
+            is.numeric(boundary_quantiles), boundary_quantiles[1] >= 0,
+            boundary_quantiles[2] <= 1, diff(boundary_quantiles) > 0)
 
   if(is.null(knots) || is.null(boundary_knots)){
-    qs <- quantile(times, probs = seq(.025, .975, length.out = df + 1))
+    qs <- quantile(
+      times,
+      probs = seq(boundary_quantiles[1], boundary_quantiles[2],
+                  length.out = df + 1))
 
     if(is.null(boundary_knots))
       boundary_knots <- c(qs[1], tail(qs, 1))

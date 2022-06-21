@@ -9,6 +9,7 @@ knitr::opts_chunk$set(
   fig.path = "man/figures/README-",
   out.width = "100%",
   cache.path = "cache/README-")
+options(digits = 4)
 ```
 
 # MMCIF: Mixed Multivariate Cumulative Incidence Functions
@@ -27,7 +28,6 @@ The package can be installed from Github by calling
 ```{r how_to_install, eval = FALSE}
 library(remotes)
 install_github("boennecd/mmcif", build_vignettes = TRUE)
-options(digits = 4)
 ```
 
 The code benefits from being build with automatic vectorization so having e.g. 

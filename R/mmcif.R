@@ -12,6 +12,10 @@
 
 #' Setup Object to Compute the Log Composite Likelihood
 #'
+#' Sets up the R and C++ objects that are needed to evaluate the log composite
+#' likelihood. This reduces to a log likelihood when only clusters of size one
+#' or two are used.
+#'
 #' @param formula \code{formula} for covariates in the risk and trajectories.
 #' @param data \code{data.frame} with the covariate and outcome information.
 #' @param cause an integer vector with the cause of each outcome. If there are
@@ -20,11 +24,11 @@
 #' @param time a numeric vector with the observed times.
 #' @param cluster_id an integer vector with the cluster id of each individual.
 #' @param max_time the maximum time after which there are no observed events. It
-#' is denoted by \eqn{\delta} in the original article.
+#' is denoted by \eqn{\tau} in the original article (Cederkvist et al., 2019).
 #' @param spline_df degrees of freedom to use for each spline in the
 #' cumulative incidence functions.
 #' @param left_trunc numeric vector with left-truncation times. \code{NULL}
-#' implies that there is not any individuals with left-truncation.
+#' implies that there are not any individuals with left-truncation.
 #' @param ghq_data the default Gauss-Hermite quadrature nodes and weights to
 #' use. It should be a list with two elements called \code{"node"}
 #' and \code{"weight"}. A default is provided if \code{NULL} is passed.
@@ -36,16 +40,58 @@
 #' \code{NULL} yields defaults based on the quantiles of the observed event
 #' times. Note that the knots needs to be on the
 #' \code{atanh((time - max_time / 2) / (max_time / 2))} scale.
+#' @param boundary_quantiles two dimensional numerical vector with boundary
+#' quantile probabilities after which the natural cubic splines for the time
+#' transformations are restricted to be linear. Only relevant if \code{knots} is
+#' not \code{NULL}.
 #'
 #' @seealso
 #' \code{\link{mmcif_fit}}, \code{\link{mmcif_start_values}} and
 #' \code{\link{mmcif_sandwich}}.
 #'
+#' @references
+#' Cederkvist, L., Holst, K. K., Andersen, K. K., &
+#' Scheike, T. H. (2019).
+#' \emph{Modeling the cumulative incidence function of multivariate competing
+#' risks data allowing for within-cluster dependence of risk and timing}.
+#' Biostatistics, Apr 1, 20(2), 199-217.
+#'
+#' @return
+#' An object of class mmcif which is needed for the other functions in the
+#' package.
+#'
+#' @examples
+#' if(require(mets)){
+#'   # prepare the data
+#'   data(prt)
+#'
+#'   # truncate the time
+#'   max_time <- 90
+#'   prt <- within(prt, {
+#'     status[time >= max_time] <- 0
+#'     time <- pmin(time, max_time)
+#'   })
+#'
+#'   # select the DZ twins and re-code the status
+#'   prt_use <- subset(prt, zyg == "DZ") |>
+#'     transform(status = ifelse(status == 0, 3L, status))
+#'
+#'   # randomly sub-sample
+#'   set.seed(1)
+#'   prt_use <- subset(
+#'     prt_use, id %in% sample(unique(id), length(unique(id)) %/% 10L))
+#'
+#'   mmcif_obj <- mmcif_data(
+#'     ~ country - 1, prt_use, status, time, id, max_time,
+#'     2L, strata = country)
+#' }
+#'
 #' @importFrom stats model.frame model.matrix terms ave
 #' @export
 mmcif_data <- function(formula, data, cause, time, cluster_id, max_time,
                        spline_df = 3L, left_trunc = NULL, ghq_data = NULL,
-                       strata = NULL, knots = NULL){
+                       strata = NULL, knots = NULL,
+                       boundary_quantiles = c(.025, .975)){
   stopifnot(inherits(formula, "formula"),
             is.data.frame(data),
             length(spline_df) == 1, is.finite(spline_df), spline_df > 0)
@@ -134,7 +180,8 @@ mmcif_data <- function(formula, data, cause, time, cluster_id, max_time,
     function(time_observed_trans, knots)
       monotone_ns(
         time_observed_trans, df = spline_df,
-        knots = knots$knots, boundary_knots = knots$boundary_knots),
+        knots = knots$knots, boundary_knots = knots$boundary_knots,
+        boundary_quantiles = boundary_quantiles),
     split(time_observed_trans[is_observed], cause[is_observed]),
     knots = knots)
 
@@ -358,6 +405,9 @@ mmcif_data <- function(formula, data, cause, time, cluster_id, max_time,
 
 #' Evaluates the Log Composite Likelihood and its Gradient
 #'
+#' Evaluates the log composite likelihood and its gradient using adaptive
+#' Gauss-Hermite quadrature.
+#'
 #' @param object an object from \code{\link{mmcif_data}}.
 #' @param n_threads the number of threads to use.
 #' @param par numeric vector with parameters. This is either using a log
@@ -368,6 +418,48 @@ mmcif_data <- function(formula, data, cause, time, cluster_id, max_time,
 #' @param is_log_chol logical for whether a log Cholesky decomposition is used
 #' for the covariance matrix or the full covariance matrix.
 #'
+#' @return
+#' A numeric vector with either the log composite likelihood or the gradient of
+#' it.
+#'
+#' @examples
+#' if(require(mets)){
+#'   # prepare the data
+#'   data(prt)
+#'
+#'   # truncate the time
+#'   max_time <- 90
+#'   prt <- within(prt, {
+#'     status[time >= max_time] <- 0
+#'     time <- pmin(time, max_time)
+#'   })
+#'
+#'   # select the DZ twins and re-code the status
+#'   prt_use <- subset(prt, zyg == "DZ") |>
+#'     transform(status = ifelse(status == 0, 3L, status))
+#'
+#'   # randomly sub-sample
+#'   set.seed(1)
+#'   prt_use <- subset(
+#'     prt_use, id %in% sample(unique(id), length(unique(id)) %/% 10L))
+#'
+#'   n_threads <- 2L
+#'   mmcif_obj <- mmcif_data(
+#'     ~ country - 1, prt_use, status, time, id, max_time,
+#'     2L, strata = country)
+#'
+#'   # get the staring values
+#'   start_vals <- mmcif_start_values(mmcif_obj, n_threads = n_threads)
+#'
+#'   # compute the log composite likelihood and the gradient at the starting
+#'   # values
+#'   mmcif_logLik(
+#'     mmcif_obj, start_vals$upper, is_log_chol = TRUE, n_threads = n_threads) |>
+#'     print()
+#'   mmcif_logLik_grad(
+#'     mmcif_obj, start_vals$upper, is_log_chol = TRUE, n_threads = n_threads) |>
+#'     print()
+#' }
 #'
 #' @importFrom utils tail
 #' @export
@@ -423,9 +515,55 @@ mmcif_logLik_grad <- function(
 
 #' Finds Staring Values
 #'
+#' Fast heuristic for finding starting values for the mixed cumulative incidence
+#' functions model.
+#'
 #' @inheritParams mmcif_logLik
 #' @param vcov_start starting value for the covariance matrix of the random
 #' effects. \code{NULL} yields the identity matrix.
+#'
+#' @return
+#' A list with
+#' \itemize{
+#'   \item an element called \code{"full"} with the starting value where the
+#'   last components are the covariance matrix.
+#'   \item an element called \code{"upper"} the staring values where the
+#'   covariance matrix is stored as a log Cholesky decomposition. This is used
+#'   e.g. for optimization with \code{\link{mmcif_fit}}.
+#' }
+#'
+#' @examples
+#' if(require(mets)){
+#'   # prepare the data
+#'   data(prt)
+#'
+#'   # truncate the time
+#'   max_time <- 90
+#'   prt <- within(prt, {
+#'     status[time >= max_time] <- 0
+#'     time <- pmin(time, max_time)
+#'   })
+#'
+#'   # select the DZ twins and re-code the status
+#'   prt_use <- subset(prt, zyg == "DZ") |>
+#'     transform(status = ifelse(status == 0, 3L, status))
+#'
+#'   # randomly sub-sample
+#'   set.seed(1)
+#'   prt_use <- subset(
+#'     prt_use, id %in% sample(unique(id), length(unique(id)) %/% 10L))
+#'
+#'   n_threads <- 2L
+#'   mmcif_obj <- mmcif_data(
+#'     ~ country - 1, prt_use, status, time, id, max_time,
+#'     2L, strata = country)
+#'
+#'   # get the staring values
+#'   start_vals <- mmcif_start_values(mmcif_obj, n_threads = n_threads)
+#'
+#'   # the starting values
+#'   print(start_vals)
+#' }
 #'
 #' @importFrom stats lm.fit constrOptim na.omit sd
 #' @export
@@ -534,20 +672,74 @@ mmcif_start_values <- function(object, n_threads = 1L, vcov_start = NULL){
 
 #' Fits a Mixed Competing Risk Model
 #'
+#' Fits mixed cumulative incidence functions model by maximizing the log
+#' composite likelihood function.
+#'
 #' @inheritParams mmcif_logLik
 #' @param par numeric vector with parameters. This is using a log
 #' Cholesky decomposition for the covariance matrix.
 #' @param ghq_data the Gauss-Hermite quadrature nodes and weights to use.
-#' It should be a list with two elements called \code{"node"}. The argument
-#' can also be a list with different number of quadrature nodes. In this case,
-#' fits are successively using the previous fit. This may reduce the computation
-#' time by starting with fewer quadrature nodes.
+#' It should be a list with two elements called \code{"node"} and \code{"weight"}.
+#' The argument can also be a list with list with different sets of quadrature
+#' nodes. In this case, fits are successively using the previous fit. This may
+#' reduce the computation time by starting with fewer quadrature nodes.
 #' @param control.outer,control.optim,... arguments passed to
 #' \code{\link[alabama]{auglag}}.
 #'
 #' @seealso
 #' \code{\link{mmcif_data}}, \code{\link{mmcif_start_values}} and
 #' \code{\link{mmcif_sandwich}}.
+#'
+#' @references
+#' Cederkvist, L., Holst, K. K., Andersen, K. K., &
+#' Scheike, T. H. (2019).
+#' \emph{Modeling the cumulative incidence function of multivariate competing
+#' risks data allowing for within-cluster dependence of risk and timing}.
+#' Biostatistics, Apr 1, 20(2), 199-217.
+#'
+#' @return
+#' The output from \code{\link{auglag}}.
+#'
+#' @examples
+#' \donttest{if(require(mets)){
+#'   # prepare the data
+#'   data(prt)
+#'
+#'   # truncate the time
+#'   max_time <- 90
+#'   prt <- within(prt, {
+#'     status[time >= max_time] <- 0
+#'     time <- pmin(time, max_time)
+#'   })
+#'
+#'   # select the DZ twins and re-code the status
+#'   prt_use <- subset(prt, zyg == "DZ") |>
+#'     transform(status = ifelse(status == 0, 3L, status))
+#'
+#'   # randomly sub-sample
+#'   set.seed(1)
+#'   prt_use <- subset(
+#'     prt_use, id %in% sample(unique(id), length(unique(id)) %/% 10L))
+#'
+#'   n_threads <- 2L
+#'   mmcif_obj <- mmcif_data(
+#'     ~ country - 1, prt_use, status, time, id, max_time,
+#'     2L, strata = country)
+#'
+#'   # get the staring values
+#'   start_vals <- mmcif_start_values(mmcif_obj, n_threads = n_threads)
+#'
+#'   # estimate the parameters
+#'   ests <- mmcif_fit(start_vals$upper, mmcif_obj, n_threads = n_threads)
+#'
+#'   # show the estimated covariance matrix of the random effects
+#'   tail(ests$par, 10L) |> log_chol_inv() |> print()
+#'
+#'   # gradient is ~ zero
+#'   mmcif_logLik_grad(
+#'     mmcif_obj, ests$par, is_log_chol = TRUE, n_threads = n_threads) |>
+#'     print()
+#' }}
 #'
 #' @importFrom alabama auglag
 #' @importFrom stats setNames
@@ -620,19 +812,87 @@ mmcif_fit <- function(
 #' @param par numeric vector with the parameters to compute the sandwich
 #' estimator at.
 #' @param eps determines the step size in the numerical differentiation using
-#'  \code{max(eps^2, |par[i]| * eps)}.
-#' @param scale scaling factor in the Richardson extrapolation.
+#'  \code{max(eps^2, |par[i]| * eps)} for each parameter \code{i}.
+#' @param scale scaling factor in the Richardson extrapolation. Each step is
+#' smaller by a factor \code{scale}.
 #' @param tol relative convergence criteria in the extrapolation given
-#' by \code{max(tol, |g[j]| * tol)} with \code{g} being the gradient.
+#' by \code{max(tol, |g[i]| * tol)} with \code{g} being the gradient and for
+#' each parameter \code{i}.
 #' @param order maximum number of iteration of the Richardson extrapolation.
 #'
 #' @seealso
 #' \code{\link{mmcif_fit}} and \code{\link{mmcif_data}}.
 #'
+#' @return
+#' The sandwich estimator along attributes called
+#'
+#' \itemize{
+#'  \item \code{"meat"} for the "meat" of the sandwich estimator.
+#'  \item \code{"hessian"} for the Hessian of the log composite likelihood.
+#'  \item \code{"res vcov"} which is the sandwich estimator where the
+#' last elements are the upper triangle of the covariance matrix of the random
+#' effects rather than the log Cholesky decomposition of the matrix.
+#' }
+#'
+#' @references
+#' Cederkvist, L., Holst, K. K., Andersen, K. K., &
+#' Scheike, T. H. (2019).
+#' \emph{Modeling the cumulative incidence function of multivariate competing
+#' risks data allowing for within-cluster dependence of risk and timing}.
+#' Biostatistics, Apr 1, 20(2), 199-217.
+#'
+#' @examples
+#' \donttest{if(require(mets)){
+#'   # prepare the data
+#'   data(prt)
+#'
+#'   # truncate the time
+#'   max_time <- 90
+#'   prt <- within(prt, {
+#'     status[time >= max_time] <- 0
+#'     time <- pmin(time, max_time)
+#'   })
+#'
+#'   # select the DZ twins and re-code the status
+#'   prt_use <- subset(prt, zyg == "DZ") |>
+#'     transform(status = ifelse(status == 0, 3L, status))
+#'
+#'   # randomly sub-sample
+#'   set.seed(1)
+#'   prt_use <- subset(
+#'     prt_use, id %in% sample(unique(id), length(unique(id)) %/% 10L))
+#'
+#'   n_threads <- 2L
+#'   mmcif_obj <- mmcif_data(
+#'     ~ country - 1, prt_use, status, time, id, max_time,
+#'     2L, strata = country)
+#'
+#'   # get the staring values
+#'   start_vals <- mmcif_start_values(mmcif_obj, n_threads = n_threads)
+#'
+#'   # estimate the parameters
+#'   ests <- mmcif_fit(start_vals$upper, mmcif_obj, n_threads = n_threads)
+#'
+#'   # get the sandwich estimator
+#'   vcov_est <- mmcif_sandwich(
+#'     mmcif_obj, ests$par, n_threads = n_threads, order = 2L)
+#'
+#'   # show the parameter estimates along with the standard errors
+#'   rbind(Estimate = ests$par,
+#'         SE = sqrt(diag(vcov_est))) |>
+#'     print()
+#'
+#'   # show the upper triangle of the covariance matrix and the SEs
+#'   rbind(`Estimate (vcov)` = tail(ests$par, 10) |> log_chol_inv() |>
+#'           (\(x) x[upper.tri(x, TRUE)])() ,
+#'         SE = attr(vcov_est, "res vcov") |> diag() |> sqrt() |> tail(10)) |>
+#'     print()
+#' }}
+#'
 #' @export
 mmcif_sandwich <- function(
   object, par, ghq_data = object$ghq_data, n_threads = 1L, eps = .01,
-  scale = 2., tol = .00000001, order = 6L){
+  scale = 2., tol = .00000001, order = 3L){
   stopifnot(inherits(object, "mmcif"))
   .check_n_threads(n_threads)
   ghq_data <- .ghq_data_default_if_null(ghq_data)

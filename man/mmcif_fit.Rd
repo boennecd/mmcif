@@ -27,13 +27,66 @@ Cholesky decomposition for the covariance matrix.}
 \code{\link[alabama]{auglag}}.}
 
 \item{ghq_data}{the Gauss-Hermite quadrature nodes and weights to use.
-It should be a list with two elements called \code{"node"}. The argument
-can also be a list with different number of quadrature nodes. In this case,
-fits are successively using the previous fit. This may reduce the computation
-time by starting with fewer quadrature nodes.}
+It should be a list with two elements called \code{"node"} and \code{"weight"}.
+The argument can also be a list with list with different sets of quadrature
+nodes. In this case, fits are successively using the previous fit. This may
+reduce the computation time by starting with fewer quadrature nodes.}
+}
+\value{
+The output from \code{\link{auglag}}.
 }
 \description{
-Fits a Mixed Competing Risk Model
+Fits mixed cumulative incidence functions model by maximizing the log
+composite likelihood function.
+}
+\examples{
+\donttest{if(require(mets)){
+  # prepare the data
+  data(prt)
+
+  # truncate the time
+  max_time <- 90
+  prt <- within(prt, {
+    status[time >= max_time] <- 0
+    time <- pmin(time, max_time)
+  })
+
+  # select the DZ twins and re-code the status
+  prt_use <- subset(prt, zyg == "DZ") |>
+    transform(status = ifelse(status == 0, 3L, status))
+
+  # randomly sub-sample
+  set.seed(1)
+  prt_use <- subset(
+    prt_use, id \%in\% sample(unique(id), length(unique(id)) \%/\% 10L))
+
+  n_threads <- 2L
+  mmcif_obj <- mmcif_data(
+    ~ country - 1, prt_use, status, time, id, max_time,
+    2L, strata = country)
+
+  # get the staring values
+  start_vals <- mmcif_start_values(mmcif_obj, n_threads = n_threads)
+
+  # estimate the parameters
+  ests <- mmcif_fit(start_vals$upper, mmcif_obj, n_threads = n_threads)
+
+  # show the estimated covariance matrix of the random effects
+  tail(ests$par, 10L) |> log_chol_inv() |> print()
+
+  # gradient is ~ zero
+  mmcif_logLik_grad(
+    mmcif_obj, ests$par, is_log_chol = TRUE, n_threads = n_threads) |>
+    print()
+}}
+
+}
+\references{
+Cederkvist, L., Holst, K. K., Andersen, K. K., &
+Scheike, T. H. (2019).
+\emph{Modeling the cumulative incidence function of multivariate competing
+risks data allowing for within-cluster dependence of risk and timing}.
+Biostatistics, Apr 1, 20(2), 199-217.
 }
 \seealso{
 \code{\link{mmcif_data}}, \code{\link{mmcif_start_values}} and
