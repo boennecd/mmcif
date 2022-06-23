@@ -81,7 +81,7 @@ b\_{ij})
  b_{ij} &\\sim \\text{Unif}(-1, 1)\\\\ \\vec z_{ij} &= (1, a_{ij}, b_{ij}) \\end{align*}")  
 
 We set the parameters below and plot the conditional cumulative
-incidences function when the random effects are zero and the covariates
+incidence functions when the random effects are zero and the covariates
 are zero, ![a\_{ij} = b\_{ij}
 = 0](https://latex.codecogs.com/png.image?%5Cdpi%7B110%7D&space;%5Cbg_white&space;a_%7Bij%7D%20%3D%20b_%7Bij%7D%20%3D%200
 "a_{ij} = b_{ij} = 0").
@@ -99,8 +99,8 @@ coef_risk <- c(.67, 1, .1, -.4, .25, .3) |>
 coef_traject <- c(-.8, -.45, .8, .4, -1.2, .15, .25, -.2) |> 
   matrix(ncol = n_causes)
 
-# plot the conditional cumulative incidences when random effects and covariates
-# are all zero
+# plot the conditional cumulative incidence functions when random effects and 
+# covariates are all zero
 local({
   probs <- exp(coef_risk[1, ]) / (1 + sum(exp(coef_risk[1, ])))
   par(mar = c(5, 5, 1, 1), mfcol = c(1, 2))
@@ -1138,8 +1138,8 @@ coef_traject <- c(-.8, -.45, -1, -.1, -.5, -.4,
                   .25, -.2, 0, -.2, .25, 0) |> 
   matrix(ncol = n_causes)
 
-# plot the conditional cumulative incidences when random effects and covariates
-# are all zero
+# plot the conditional cumulative incidence functions when random effects and 
+# covariates are all zero
 local({
   for(strata in 1:3 - 1L){
     probs <- exp(coef_risk[1 + strata * 3, ]) / 
@@ -1773,6 +1773,560 @@ Sigma # the true values
 #> [2,]  0.008  0.759  0.251 -0.250
 #> [3,] -0.138  0.251  0.756 -0.319
 #> [4,]  0.197 -0.250 -0.319  0.903
+```
+
+## Three Cause Example
+
+In this section, we show an example with ![K
+= 3](https://latex.codecogs.com/png.image?%5Cdpi%7B110%7D&space;%5Cbg_white&space;K%20%3D%203
+"K = 3") causes. First, we assign the parameters and plot the cumulative
+incidence functions when the random effects are zero and the covariates
+are zero.
+
+``` r
+# assign model parameters
+n_causes <- 3L
+delta <- 2
+
+# set the betas
+coef_risk <- c(.67, 1, .1, -.4, .25, .3, 0.56, -0.2, 0.14) |> 
+  matrix(ncol = n_causes)
+
+# set the gammas
+coef_traject <- c(-.8, -.45, .8, .4, -1.2, .15, .25, -.2, 
+                  -0.6, -0.38, 0.66, -0.64) |> 
+  matrix(ncol = n_causes)
+
+# plot the conditional cumulative incidence functions when random effects and 
+# covariates are all zero
+local({
+  probs <- exp(coef_risk[1, ]) / (1 + sum(exp(coef_risk[1, ])))
+  par(mar = c(5, 5, 1, 1), mfcol = c(2, 2))
+  
+  for(i in 1:3){
+    plot(\(x) probs[i] * pnorm(
+      -coef_traject[1, i] * atanh((x - delta / 2) / (delta / 2)) - 
+        coef_traject[2, i]),
+         xlim = c(0, delta), ylim = c(0, 1), bty = "l",  xlab = "Time", 
+         ylab = sprintf("Cumulative incidence; cause %d", i),
+       yaxs = "i", xaxs = "i")
+    grid()
+  }
+})
+# set the covariance matrix
+Sigma <- c(0.637, -0.19, 0.261, -0.203, 0.186, -0.085, -0.19, 0.348, -0.16, -0.089, -0.166, -0.048, 0.261, -0.16, 0.312, -0.022, 0.089, -0.149, -0.203, -0.089, -0.022, 0.246, -0.09, 0.031, 0.186, -0.166, 0.089, -0.09, 0.402, -0.077, -0.085, -0.048, -0.149, 0.031, -0.077, 0.602) |> 
+  matrix(2L * n_causes)
+```
+
+<img src="man/figures/README-three_assign_model_parameters-1.png" width="100%" />
+
+Then we assign a simulation function like before with delayed entry but
+with the additional cause.
+
+``` r
+library(mvtnorm)
+
+# simulates a data set with a given number of clusters and maximum number of 
+# observations per cluster
+sim_dat <- \(n_clusters, max_cluster_size){
+  stopifnot(max_cluster_size > 0,
+            n_clusters > 0)
+  
+  cluster_id <- 0L
+  replicate(n_clusters, simplify = FALSE, {
+    n_obs <- sample.int(max_cluster_size, 1L)
+    cluster_id <<- cluster_id + 1L
+    
+    # draw the covariates and the left truncation time
+    covs <- cbind(a = rnorm(n_obs), b = runif(n_obs, -1))
+    Z <- cbind(1, covs)
+    
+    delayed_entry <- pmax(runif(n_obs, -1), 0)
+    cens <- rep(-Inf, n_obs)
+    while(all(cens <= delayed_entry))
+      cens <- runif(n_obs, max = 3 * delta)
+    
+    successful_sample <- FALSE
+    while(!successful_sample){
+      rng_effects <- rmvnorm(1, sigma = Sigma) |> drop()
+      U <- head(rng_effects, n_causes)
+      eta <- tail(rng_effects, n_causes)
+      
+      # draw the cause
+      cond_logits_exp <- exp(Z %*% coef_risk + rep(U, each = n_obs)) |> 
+        cbind(1)
+      cond_probs <- cond_logits_exp / rowSums(cond_logits_exp)
+      cause <- apply(cond_probs, 1, 
+                     \(prob) sample.int(n_causes + 1L, 1L, prob = prob))
+      
+      # compute the observed time if needed
+      obs_time <- mapply(\(cause, idx){
+        if(cause > n_causes)
+          return(delta)
+        
+        # can likely be done smarter but this is more general
+        coefs <- coef_traject[, cause]
+        offset <- sum(Z[idx, ] * coefs[-1]) + eta[cause]
+        rng <- runif(1)
+        eps <- .Machine$double.eps
+        root <- uniroot(
+          \(x) rng - pnorm(
+            -coefs[1] * atanh((x - delta / 2) / (delta / 2)) - offset), 
+          c(eps^2, delta * (1 - eps)), tol = 1e-12)$root
+      }, cause, 1:n_obs)
+      
+      keep <- which(pmin(obs_time, cens) > delayed_entry)
+      successful_sample <- length(keep) > 0
+      if(!successful_sample)
+        next
+      
+      has_finite_trajectory_prob <- cause <= n_causes
+      is_censored <- which(!has_finite_trajectory_prob | cens < obs_time)
+      
+      if(length(is_censored) > 0){
+        obs_time[is_censored] <- pmin(delta, cens[is_censored])
+        cause[is_censored] <- n_causes + 1L
+      }
+    }
+    
+    data.frame(covs, cause, time = obs_time, cluster_id, delayed_entry)[keep, ]
+  }) |> 
+    do.call(what = rbind)
+}
+```
+
+We then sample a data set, setup the C++ object to do the computation,
+fit the model and compute the sandwich estimator.
+
+``` r
+# sample a data set
+set.seed(8401828)
+n_clusters <- 1000L
+max_cluster_size <- 5L
+dat <- sim_dat(n_clusters, max_cluster_size = max_cluster_size)
+
+# show some stats
+NROW(dat) # number of individuals
+#> [1] 2436
+table(dat$cause) # distribution of causes (4 is censored)
+#> 
+#>   1   2   3   4 
+#> 786 284 600 766
+
+# distribution of observed times by cause
+tapply(dat$time, dat$cause, quantile, 
+       probs = seq(0, 1, length.out = 11), na.rm = TRUE)
+#> $`1`
+#>        0%       10%       20%       30%       40%       50%       60%       70% 
+#> 1.208e-05 2.442e-02 1.202e-01 3.211e-01 5.966e-01 9.704e-01 1.347e+00 1.625e+00 
+#>       80%       90%      100% 
+#> 1.848e+00 1.970e+00 2.000e+00 
+#> 
+#> $`2`
+#>       0%      10%      20%      30%      40%      50%      60%      70% 
+#> 0.008254 0.167846 0.273404 0.474006 0.660235 0.847364 1.170765 1.356371 
+#>      80%      90%     100% 
+#> 1.583251 1.779544 1.986833 
+#> 
+#> $`3`
+#>        0%       10%       20%       30%       40%       50%       60%       70% 
+#> 2.183e-09 5.804e-04 4.394e-03 2.310e-02 1.124e-01 3.283e-01 7.082e-01 1.266e+00 
+#>       80%       90%      100% 
+#> 1.744e+00 1.953e+00 2.000e+00 
+#> 
+#> $`4`
+#>       0%      10%      20%      30%      40%      50%      60%      70% 
+#> 0.001316 0.373174 0.756691 1.046705 1.352014 1.712767 2.000000 2.000000 
+#>      80%      90%     100% 
+#> 2.000000 2.000000 2.000000
+```
+
+``` r
+library(mmcif)
+comp_obj <- mmcif_data(
+  ~ a + b, dat, cause = cause, time = time, cluster_id = cluster_id,
+  max_time = delta, spline_df = 4L, left_trunc = delayed_entry)
+```
+
+``` r
+NCOL(comp_obj$pair_indices) # the number of pairs in the composite likelihood
+#> [1] 2543
+length(comp_obj$singletons) # the number of clusters with one observation
+#> [1] 306
+
+# we need to find the combination of the spline bases that yield a straight 
+# line to construct the true values using the splines. You can skip this
+comb_slope <- sapply(comp_obj$spline, \(spline){
+  boundary_knots <- spline$boundary_knots
+  pts <- seq(boundary_knots[1], boundary_knots[2], length.out = 1000)
+  lm.fit(cbind(1, spline$expansion(pts)), pts)$coef
+})
+
+# assign a function to compute the log composite likelihood
+ll_func <- \(par, n_threads = 1L)
+  mmcif_logLik(
+    comp_obj, par = par, n_threads = n_threads, is_log_chol = FALSE)
+
+# the log composite likelihood at the true parameters
+coef_traject_spline <- 
+  rbind(comb_slope[-1, ] * rep(coef_traject[1, ], each = NROW(comb_slope) - 1), 
+        coef_traject[2, ] + comb_slope[1, ] * coef_traject[1, ],
+        coef_traject[-(1:2), ])
+true_values <- c(coef_risk, coef_traject_spline, Sigma)
+ll_func(true_values)
+#> [1] -4785
+
+# check the time to compute the log composite likelihood
+bench::mark(
+  `one thread` = ll_func(n_threads = 1L, true_values),
+  `two threads` = ll_func(n_threads = 2L, true_values),
+  `three threads` = ll_func(n_threads = 3L, true_values),
+  `four threads` = ll_func(n_threads = 4L, true_values), 
+  min_time = 4)
+#> # A tibble: 4 × 6
+#>   expression         min   median `itr/sec` mem_alloc `gc/sec`
+#>   <bch:expr>    <bch:tm> <bch:tm>     <dbl> <bch:byt>    <dbl>
+#> 1 one thread     299.4ms  303.6ms      3.23    5.64KB        0
+#> 2 two threads    152.7ms  153.4ms      6.46        0B        0
+#> 3 three threads  108.2ms    111ms      8.78        0B        0
+#> 4 four threads    81.5ms   85.2ms     11.3         0B        0
+
+# next, we compute the gradient of the log composite likelihood at the true 
+# parameters. First we assign a few functions to verify the result. You can 
+# skip these
+upper_to_full <- \(x){
+  dim <- (sqrt(8 * length(x) + 1) - 1) / 2
+  out <- matrix(0, dim, dim)
+  out[upper.tri(out, TRUE)] <- x
+  out[lower.tri(out)] <- t(out)[lower.tri(out)]
+  out
+}
+d_upper_to_full <- \(x){
+  dim <- (sqrt(8 * length(x) + 1) - 1) / 2
+  out <- matrix(0, dim, dim)
+  out[upper.tri(out, TRUE)] <- x
+  out[upper.tri(out)] <- out[upper.tri(out)] / 2
+  out[lower.tri(out)] <- t(out)[lower.tri(out)]
+  out
+}
+
+# then we can compute the gradient with the function from the package and with 
+# numerical differentiation
+gr_func <- function(par, n_threads = 1L)
+  mmcif_logLik_grad(comp_obj, par, n_threads = n_threads, is_log_chol = FALSE)
+gr_package <- gr_func(true_values)
+
+true_values_upper <- 
+  c(coef_risk, coef_traject_spline, Sigma[upper.tri(Sigma, TRUE)])
+gr_num <- numDeriv::grad(
+  \(x) ll_func(c(head(x, -21), upper_to_full(tail(x, 21)))), 
+  true_values_upper, method = "simple")
+
+# they are very close but not exactly equal as expected (this is due to the 
+# adaptive quadrature)
+rbind(
+  `Numerical gradient` = 
+    c(head(gr_num, -21), d_upper_to_full(tail(gr_num, 21))), 
+  `Gradient package` = gr_package)
+#>                      [,1]  [,2]   [,3]   [,4]   [,5]  [,6]  [,7]  [,8]  [,9]
+#> Numerical gradient -12.31 31.09 -7.838 -10.01 -4.852 8.847 30.30 26.62 8.099
+#> Gradient package   -12.27 31.12 -7.826  -9.99 -4.831 8.855 30.34 26.65 8.112
+#>                     [,10]  [,11]  [,12] [,13]  [,14]  [,15] [,16]  [,17] [,18]
+#> Numerical gradient -26.43 -22.79 -36.52 33.58 -140.7 -114.7 64.62 -42.28 42.93
+#> Gradient package   -26.40 -22.77 -36.51 33.59 -140.6 -114.6 64.64 -42.26 42.94
+#>                     [,19] [,20]  [,21]  [,22]  [,23]  [,24]   [,25]  [,26]
+#> Numerical gradient -46.17 1.290 -43.46 -24.32 -14.81 -12.04 -0.6390 -30.67
+#> Gradient package   -46.16 1.296 -43.44 -24.30 -14.80 -12.02 -0.6251 -30.66
+#>                    [,27]  [,28] [,29] [,30]  [,31] [,32]   [,33]  [,34] [,35]
+#> Numerical gradient 12.39 -53.91 47.59 21.85 -9.969 1.282 -0.1266 -23.35    11
+#> Gradient package   12.40 -53.87 47.64 21.86 -9.958 1.301 -0.1205 -23.33    11
+#>                    [,36] [,37] [,38]  [,39] [,40]  [,41] [,42]   [,43]  [,44]
+#> Numerical gradient 4.289 1.282 1.723 -1.338 4.958 -17.27 1.489 -0.1266 -1.338
+#> Gradient package   4.292 1.301 1.782 -1.331 4.965 -17.27 1.492 -0.1205 -1.331
+#>                    [,45] [,46] [,47]  [,48]  [,49] [,50] [,51] [,52]  [,53]
+#> Numerical gradient 11.76 10.78 4.457 -9.690 -23.35 4.958 10.78 61.63 -4.773
+#> Gradient package   11.77 10.79 4.459 -9.682 -23.33 4.965 10.79 61.66 -4.771
+#>                     [,54] [,55]  [,56] [,57]  [,58]  [,59]  [,60] [,61] [,62]
+#> Numerical gradient -7.281    11 -17.27 4.457 -4.773 -28.36 0.5672 4.289 1.489
+#> Gradient package   -7.275    11 -17.27 4.459 -4.771 -28.36 0.5682 4.292 1.492
+#>                     [,63]  [,64]  [,65]  [,66]
+#> Numerical gradient -9.690 -7.281 0.5672 -24.40
+#> Gradient package   -9.682 -7.275 0.5682 -24.39
+
+# check the time to compute the gradient of the log composite likelihood
+bench::mark(
+  `one thread` = gr_func(n_threads = 1L, true_values),
+  `two threads` = gr_func(n_threads = 2L, true_values),
+  `three threads` = gr_func(n_threads = 3L, true_values),
+  `four threads` = gr_func(n_threads = 4L, true_values), 
+  min_time = 4)
+#> # A tibble: 4 × 6
+#>   expression         min   median `itr/sec` mem_alloc `gc/sec`
+#>   <bch:expr>    <bch:tm> <bch:tm>     <dbl> <bch:byt>    <dbl>
+#> 1 one thread       460ms    461ms      2.16    6.17KB        0
+#> 2 two threads      236ms    239ms      4.17      576B        0
+#> 3 three threads    165ms    168ms      5.86      576B        0
+#> 4 four threads     138ms    140ms      7.01      576B        0
+```
+
+``` r
+# find the starting values
+system.time(start <- mmcif_start_values(comp_obj, n_threads = 4L))
+#>    user  system elapsed 
+#>   0.104   0.000   0.032
+
+# the maximum likelihood without the random effects. Note that this is not 
+# comparable with the composite likelihood
+attr(start, "logLik")
+#> [1] -2183
+
+# examples of using log_chol and log_chol_inv
+log_chol(Sigma)
+#>  [1] -0.22549 -0.23806 -0.61665  0.32702 -0.15220 -0.85216 -0.25435 -0.27707
+#>  [9]  0.04456 -1.13869  0.23305 -0.20476 -0.04309 -0.26711 -0.72931 -0.10650
+#> [17] -0.13590 -0.31620 -0.06137 -0.22815 -0.43807
+stopifnot(all.equal(Sigma, log_chol(Sigma) |> log_chol_inv()))
+
+# set true values
+truth <- c(coef_risk, coef_traject_spline, log_chol(Sigma))
+
+# we can verify that the gradient is correct
+gr_package <- mmcif_logLik_grad(
+  comp_obj, truth, n_threads = 4L, is_log_chol = TRUE)
+gr_num <- numDeriv::grad(
+  mmcif_logLik, truth, object = comp_obj, n_threads = 4L, is_log_chol = TRUE, 
+  method = "simple")
+
+rbind(`Numerical gradient` = gr_num, `Gradient package` = gr_package)
+#>                      [,1]  [,2]   [,3]   [,4]   [,5]  [,6]  [,7]  [,8]  [,9]
+#> Numerical gradient -12.31 31.09 -7.838 -10.01 -4.852 8.847 30.30 26.62 8.099
+#> Gradient package   -12.27 31.12 -7.826  -9.99 -4.831 8.855 30.34 26.65 8.112
+#>                     [,10]  [,11]  [,12] [,13]  [,14]  [,15] [,16]  [,17] [,18]
+#> Numerical gradient -26.43 -22.79 -36.52 33.58 -140.7 -114.7 64.62 -42.28 42.93
+#> Gradient package   -26.40 -22.77 -36.51 33.59 -140.6 -114.6 64.64 -42.26 42.94
+#>                     [,19] [,20]  [,21]  [,22]  [,23]  [,24]   [,25]  [,26]
+#> Numerical gradient -46.17 1.290 -43.46 -24.32 -14.81 -12.04 -0.6390 -30.67
+#> Gradient package   -46.16 1.296 -43.44 -24.30 -14.80 -12.02 -0.6251 -30.66
+#>                    [,27]  [,28] [,29] [,30]   [,31]  [,32] [,33] [,34]  [,35]
+#> Numerical gradient 12.39 -53.91 47.59 21.85 -0.4164 -10.54 3.338 6.787 -10.20
+#> Gradient package   12.40 -53.87 47.64 21.86 -0.4096 -10.53 3.370 6.794 -10.19
+#>                    [,36]  [,37]  [,38] [,39] [,40] [,41]  [,42] [,43] [,44]
+#> Numerical gradient 7.139 -64.61 -28.17 19.71 13.75 17.77 -5.903 5.459 12.02
+#> Gradient package   7.140 -64.59 -28.16 19.71 13.75 17.78 -5.893 5.463 12.02
+#>                     [,45] [,46] [,47] [,48]  [,49] [,50]  [,51]
+#> Numerical gradient -13.32 8.965 14.98 6.459 -1.974 11.67 -20.32
+#> Gradient package   -13.32 8.970 14.99 6.468 -1.970 11.68 -20.31
+
+# optimize the log composite likelihood
+system.time(fit <- mmcif_fit(start$upper, comp_obj, n_threads = 4L))
+#>    user  system elapsed 
+#> 191.869   0.012  48.309
+
+# the log composite likelihood at different points
+mmcif_logLik(comp_obj, truth, n_threads = 4L, is_log_chol = TRUE)
+#> [1] -4785
+mmcif_logLik(comp_obj, start$upper, n_threads = 4L, is_log_chol = TRUE)
+#> [1] -5097
+-fit$value
+#> [1] -4724
+```
+
+``` r
+system.time(sandwich_est <- mmcif_sandwich(comp_obj, fit$par, n_threads = 4L))
+#>    user  system elapsed 
+#> 258.333   0.012  64.648
+```
+
+We show the estimated and true the conditional cumulative incidence
+functions (the dashed curves are the estimates) like before.
+
+``` r
+local({
+  # get the estimates
+  coef_risk_est <- fit$par[comp_obj$indices$coef_risk] |> 
+    matrix(ncol = n_causes)
+  coef_traject_time_est <- fit$par[comp_obj$indices$coef_trajectory_time] |> 
+    matrix(ncol = n_causes)
+  coef_traject_est <- fit$par[comp_obj$indices$coef_trajectory] |> 
+    matrix(ncol = n_causes)
+  coef_traject_intercept_est <- coef_traject_est[5, ]
+  
+  # compute the risk probabilities  
+  probs <- exp(coef_risk[1, ]) / (1 + sum(exp(coef_risk[1, ])))
+  probs_est <- exp(coef_risk_est[1, ]) / (1 + sum(exp(coef_risk_est[1, ])))
+  
+  # plot the estimated and true conditional cumulative incidence functions. The
+  # estimates are the dashed lines
+  par(mar = c(5, 5, 1, 1), mfcol = c(2, 2))
+  pts <- seq(1e-8, delta * (1 - 1e-8), length.out = 1000)
+  
+  for(i in 1:3){
+    true_vals <- probs[i] * pnorm(
+      -coef_traject[1, i] * atanh((pts - delta / 2) / (delta / 2)) - 
+        coef_traject[2, i])
+    
+    estimates <- probs_est[i] * pnorm(
+      -comp_obj$time_expansion(pts, cause = i) %*% coef_traject_time_est[, i] - 
+        coef_traject_intercept_est[i]) |> drop()
+    
+    matplot(pts, cbind(true_vals, estimates), xlim = c(0, delta), 
+            ylim = c(0, 1), bty = "l",  xlab = "Time", lty = c(1, 2),
+            ylab = sprintf("Cumulative incidence; cause %d", i),
+            yaxs = "i", xaxs = "i", type = "l", col = "black")
+    grid()
+  }
+})
+```
+
+<img src="man/figures/README-three_compare_estimated_incidence_funcs-1.png" width="100%" />
+
+Further illustrations of the estimated model are given below.
+
+``` r
+# the number of call we made
+fit$counts
+#> function gradient 
+#>      256      160
+fit$outer.iterations
+#> [1] 3
+
+# compute the standard errors from the sandwich estimator
+SEs <- diag(sandwich_est) |> sqrt()
+
+# compare the estimates with the true values
+rbind(`Estimate AGHQ` = fit$par[comp_obj$indices$coef_risk],
+      `Standard errors` = SEs[comp_obj$indices$coef_risk],
+      Truth = truth[comp_obj$indices$coef_risk])
+#>                 cause1:risk:(Intercept) cause1:risk:a cause1:risk:b
+#> Estimate AGHQ                    0.8021       1.12964       0.07604
+#> Standard errors                  0.1214       0.09789       0.14625
+#> Truth                            0.6700       1.00000       0.10000
+#>                 cause2:risk:(Intercept) cause2:risk:a cause2:risk:b
+#> Estimate AGHQ                   -0.4107        0.3102        0.4007
+#> Standard errors                  0.1596        0.1007        0.1563
+#> Truth                           -0.4000        0.2500        0.3000
+#>                 cause3:risk:(Intercept) cause3:risk:a cause3:risk:b
+#> Estimate AGHQ                    0.7289      -0.09139        0.1775
+#> Standard errors                  0.1177       0.09107        0.1383
+#> Truth                            0.5600      -0.20000        0.1400
+rbind(`Estimate AGHQ` = fit$par[comp_obj$indices$coef_trajectory],
+      `Standard errors` = SEs[comp_obj$indices$coef_trajectory],
+      Truth = truth[comp_obj$indices$coef_trajectory])
+#>                 cause1:spline1 cause1:spline2 cause1:spline3 cause1:spline4
+#> Estimate AGHQ          -2.6193        -3.1929        -5.8675        -4.2491
+#> Standard errors         0.1501         0.1606         0.3004         0.1824
+#> Truth                  -2.7317        -3.2379        -5.9914        -4.3616
+#>                 cause1:traject:(Intercept) cause1:traject:a cause1:traject:b
+#> Estimate AGHQ                        2.171          0.74095          0.55567
+#> Standard errors                      0.148          0.06118          0.09657
+#> Truth                                2.332          0.80000          0.40000
+#>                 cause2:spline1 cause2:spline2 cause2:spline3 cause2:spline4
+#> Estimate AGHQ          -2.1503        -2.3567        -4.8792        -3.4815
+#> Standard errors         0.1823         0.1869         0.3437         0.2718
+#> Truth                  -1.7410        -2.3637        -4.1591        -3.3332
+#>                 cause2:traject:(Intercept) cause2:traject:a cause2:traject:b
+#> Estimate AGHQ                       2.2600          0.19952          -0.3201
+#> Standard errors                     0.2002          0.08299           0.1316
+#> Truth                               2.0684          0.25000          -0.2000
+#>                 cause3:spline1 cause3:spline2 cause3:spline3 cause3:spline4
+#> Estimate AGHQ           -2.597        -3.1564        -5.8773        -4.2059
+#> Standard errors          0.189         0.1856         0.3938         0.2154
+#> Truth                   -2.805        -3.4571        -6.2620        -4.6750
+#>                 cause3:traject:(Intercept) cause3:traject:a cause3:traject:b
+#> Estimate AGHQ                        2.687          0.61696         -0.49655
+#> Standard errors                      0.196          0.06466          0.08898
+#> Truth                                2.988          0.66000         -0.64000
+
+n_vcov <- (2L * n_causes * (2L * n_causes + 1L)) %/% 2L
+Sigma
+#>        [,1]   [,2]   [,3]   [,4]   [,5]   [,6]
+#> [1,]  0.637 -0.190  0.261 -0.203  0.186 -0.085
+#> [2,] -0.190  0.348 -0.160 -0.089 -0.166 -0.048
+#> [3,]  0.261 -0.160  0.312 -0.022  0.089 -0.149
+#> [4,] -0.203 -0.089 -0.022  0.246 -0.090  0.031
+#> [5,]  0.186 -0.166  0.089 -0.090  0.402 -0.077
+#> [6,] -0.085 -0.048 -0.149  0.031 -0.077  0.602
+log_chol_inv(tail(fit$par, n_vcov))
+#>          [,1]     [,2]     [,3]      [,4]     [,5]      [,6]
+#> [1,]  0.81924 -0.10911  0.58007 -0.253454  0.26732 -0.073745
+#> [2,] -0.10911  0.87726  0.08714 -0.128468 -0.10945 -0.076053
+#> [3,]  0.58007  0.08714  0.75851 -0.072058  0.10346 -0.065536
+#> [4,] -0.25345 -0.12847 -0.07206  0.323641 -0.19312  0.005011
+#> [5,]  0.26732 -0.10945  0.10346 -0.193121  0.28626  0.037221
+#> [6,] -0.07375 -0.07605 -0.06554  0.005011  0.03722  0.268682
+
+# on the log Cholesky scale
+rbind(`Estimate AGHQ` = fit$par[comp_obj$indices$vcov_upper],
+      `Standard errors` = SEs[comp_obj$indices$vcov_upper],
+      Truth = truth[comp_obj$indices$vcov_upper])
+#>                 vcov:risk1:risk1 vcov:risk1:risk2 vcov:risk2:risk2
+#> Estimate AGHQ           -0.09969          -0.1205         -0.07383
+#> Standard errors          0.19922           0.3328          0.28120
+#> Truth                   -0.22549          -0.2381         -0.61665
+#>                 vcov:risk1:risk3 vcov:risk2:risk3 vcov:risk3:risk3
+#> Estimate AGHQ             0.6409           0.1770          -0.5753
+#> Standard errors           0.2165           0.2229           0.2811
+#> Truth                     0.3270          -0.1522          -0.8522
+#>                 vcov:risk1:traject1 vcov:risk2:traject1 vcov:risk3:traject1
+#> Estimate AGHQ               -0.2800             -0.1747             0.24587
+#> Standard errors              0.1438              0.2049             0.23322
+#> Truth                       -0.2543             -0.2771             0.04456
+#>                 vcov:traject1:traject1 vcov:risk1:traject2 vcov:risk2:traject2
+#> Estimate AGHQ                  -0.9345              0.2953             -0.0795
+#> Standard errors                 0.6172              0.2209              0.2707
+#> Truth                          -1.1387              0.2330             -0.2048
+#>                 vcov:risk3:traject2 vcov:traject1:traject2
+#> Estimate AGHQ              -0.12755                -0.2366
+#> Standard errors             0.29695                 0.3770
+#> Truth                      -0.04309                -0.2671
+#>                 vcov:traject2:traject2 vcov:risk1:traject3 vcov:risk2:traject3
+#> Estimate AGHQ                  -1.0583            -0.08148            -0.09245
+#> Standard errors                 0.8583             0.15366             0.17982
+#> Truth                          -0.7293            -0.10650            -0.13590
+#>                 vcov:risk3:traject3 vcov:traject1:traject3
+#> Estimate AGHQ               0.00541               -0.08983
+#> Standard errors             0.19841                0.30707
+#> Truth                      -0.31620               -0.06137
+#>                 vcov:traject2:traject3 vcov:traject3:traject3
+#> Estimate AGHQ                  0.09615                -0.7216
+#> Standard errors                0.44366                 0.3711
+#> Truth                         -0.22815                -0.4381
+
+# on the original covariance matrix scale
+vcov_est <- log_chol_inv(tail(fit$par, n_vcov))
+vcov_est[lower.tri(vcov_est)] <- NA_real_
+vcov_SE <- matrix(NA_real_, NROW(vcov_est), NCOL(vcov_est))
+vcov_SE[upper.tri(vcov_SE, TRUE)] <- 
+  attr(sandwich_est, "res vcov") |> diag() |> sqrt() |> 
+  tail(n_vcov)
+
+vcov_show <- cbind(Estimates = vcov_est, NA, SEs = vcov_SE) 
+colnames(vcov_show) <- 
+  c(rep("Est.", NCOL(vcov_est)), "", rep("SE", NCOL(vcov_est)))
+print(vcov_show, na.print = "")
+#>        Est.    Est.    Est.     Est.    Est.      Est.      SE     SE     SE
+#> [1,] 0.8192 -0.1091 0.58007 -0.25345  0.2673 -0.073745  0.3264 0.2913 0.2711
+#> [2,]         0.8773 0.08714 -0.12847 -0.1094 -0.076053         0.4388 0.2581
+#> [3,]                0.75851 -0.07206  0.1035 -0.065536                0.3014
+#> [4,]                         0.32364 -0.1931  0.005011                      
+#> [5,]                                  0.2863  0.037221                      
+#> [6,]                                          0.268682                      
+#>          SE     SE      SE
+#> [1,] 0.1303 0.2044 0.13877
+#> [2,] 0.1437 0.2249 0.15368
+#> [3,] 0.1165 0.1979 0.13007
+#> [4,] 0.1167 0.1103 0.08523
+#> [5,]        0.1585 0.14038
+#> [6,]               0.12487
+
+Sigma # the true values
+#>        [,1]   [,2]   [,3]   [,4]   [,5]   [,6]
+#> [1,]  0.637 -0.190  0.261 -0.203  0.186 -0.085
+#> [2,] -0.190  0.348 -0.160 -0.089 -0.166 -0.048
+#> [3,]  0.261 -0.160  0.312 -0.022  0.089 -0.149
+#> [4,] -0.203 -0.089 -0.022  0.246 -0.090  0.031
+#> [5,]  0.186 -0.166  0.089 -0.090  0.402 -0.077
+#> [6,] -0.085 -0.048 -0.149  0.031 -0.077  0.602
 ```
 
 ## References

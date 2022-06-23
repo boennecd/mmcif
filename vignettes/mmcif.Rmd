@@ -56,8 +56,8 @@ We start with a simple example where there are $K = 2$ competing risks and
 $$\begin{align*} \vec x_{ij}(t) &= \left(\text{arcthan}\left(\frac{t - \delta/2}{\delta/2}\right), 1, a_{ij}, b_{ij}\right) \\ a_{ij} &\sim N(0, 1) \\
  b_{ij} &\sim \text{Unif}(-1, 1)\\ \vec z_{ij} &= (1, a_{ij}, b_{ij}) \end{align*}$$
 
-We set the parameters below and plot the conditional cumulative incidences 
-function when the random effects are zero and the covariates are zero, 
+We set the parameters below and plot the conditional cumulative incidence
+functions when the random effects are zero and the covariates are zero, 
 $a_{ij} = b_{ij} = 0$.
 
 ```{r assign_model_parameters, fig.height=knitr::opts_chunk$get("fig.width") * .5}
@@ -73,8 +73,8 @@ coef_risk <- c(.67, 1, .1, -.4, .25, .3) |>
 coef_traject <- c(-.8, -.45, .8, .4, -1.2, .15, .25, -.2) |> 
   matrix(ncol = n_causes)
 
-# plot the conditional cumulative incidences when random effects and covariates
-# are all zero
+# plot the conditional cumulative incidence functions when random effects and 
+# covariates are all zero
 local({
   probs <- exp(coef_risk[1, ]) / (1 + sum(exp(coef_risk[1, ])))
   par(mar = c(5, 5, 1, 1), mfcol = c(1, 2))
@@ -100,7 +100,7 @@ Next, we assign a function to simulate clusters. The cluster sizes are
 uniformly sampled from one to the maximum size. The censoring times are drawn 
 from a uniform distribution from zero to $3\delta$.
 
-```{r assing_sim_dat}
+```{r assign_sim_dat}
 library(mvtnorm)
 
 # simulates a data set with a given number of clusters and maximum number of 
@@ -456,7 +456,7 @@ Thus, we assign a new simulation function. The delayed entry is sampled by
 sampling a random variable from the uniform distribution on -1 to 1 and taking 
 the entry time as being the maximum of this variable and zero.
 
-```{r delayed_assing_sim_dat}
+```{r delayed_assign_sim_dat}
 library(mvtnorm)
 
 # simulates a data set with a given number of clusters and maximum number of 
@@ -650,8 +650,8 @@ coef_traject <- c(-.8, -.45, -1, -.1, -.5, -.4,
                   .25, -.2, 0, -.2, .25, 0) |> 
   matrix(ncol = n_causes)
 
-# plot the conditional cumulative incidences when random effects and covariates
-# are all zero
+# plot the conditional cumulative incidence functions when random effects and 
+# covariates are all zero
 local({
   for(strata in 1:3 - 1L){
     probs <- exp(coef_risk[1 + strata * 3, ]) / 
@@ -682,7 +682,7 @@ Sigma <- c(0.306, 0.008, -0.138, 0.197, 0.008, 0.759, 0.251,
 
 Then we define a simulation function.
 
-```{r strata_delayed_assing_sim_dat}
+```{r strata_delayed_assign_sim_dat}
 library(mvtnorm)
 
 # simulates a data set with a given number of clusters and maximum number of 
@@ -918,6 +918,353 @@ local({
 Further illustrations of the estimated model are given below.
 
 ```{r show_res}
+```
+
+## Three Cause Example
+
+```{r pre_three_assign_model_parameters, echo = FALSE}
+rm(list = ls())
+```
+
+In this section, we show an example with $K = 3$ causes. First, we assign 
+the parameters and plot the  cumulative incidence functions when the 
+random effects are zero and the covariates are zero.
+
+```{r three_assign_model_parameters}
+# assign model parameters
+n_causes <- 3L
+delta <- 2
+
+# set the betas
+coef_risk <- c(.67, 1, .1, -.4, .25, .3, 0.56, -0.2, 0.14) |> 
+  matrix(ncol = n_causes)
+
+# set the gammas
+coef_traject <- c(-.8, -.45, .8, .4, -1.2, .15, .25, -.2, 
+                  -0.6, -0.38, 0.66, -0.64) |> 
+  matrix(ncol = n_causes)
+
+# plot the conditional cumulative incidence functions when random effects and 
+# covariates are all zero
+local({
+  probs <- exp(coef_risk[1, ]) / (1 + sum(exp(coef_risk[1, ])))
+  par(mar = c(5, 5, 1, 1), mfcol = c(2, 2))
+  
+  for(i in 1:3){
+    plot(\(x) probs[i] * pnorm(
+      -coef_traject[1, i] * atanh((x - delta / 2) / (delta / 2)) - 
+        coef_traject[2, i]),
+         xlim = c(0, delta), ylim = c(0, 1), bty = "l",  xlab = "Time", 
+         ylab = sprintf("Cumulative incidence; cause %d", i),
+       yaxs = "i", xaxs = "i")
+    grid()
+  }
+})
+# set the covariance matrix
+Sigma <- c(0.637, -0.19, 0.261, -0.203, 0.186, -0.085, -0.19, 0.348, -0.16, -0.089, -0.166, -0.048, 0.261, -0.16, 0.312, -0.022, 0.089, -0.149, -0.203, -0.089, -0.022, 0.246, -0.09, 0.031, 0.186, -0.166, 0.089, -0.09, 0.402, -0.077, -0.085, -0.048, -0.149, 0.031, -0.077, 0.602) |> 
+  matrix(2L * n_causes)
+```
+
+Then we assign a simulation function like before with delayed entry 
+but with the additional cause.
+
+```{r three_assign_sim_dat}
+library(mvtnorm)
+
+# simulates a data set with a given number of clusters and maximum number of 
+# observations per cluster
+sim_dat <- \(n_clusters, max_cluster_size){
+  stopifnot(max_cluster_size > 0,
+            n_clusters > 0)
+  
+  cluster_id <- 0L
+  replicate(n_clusters, simplify = FALSE, {
+    n_obs <- sample.int(max_cluster_size, 1L)
+    cluster_id <<- cluster_id + 1L
+    
+    # draw the covariates and the left truncation time
+    covs <- cbind(a = rnorm(n_obs), b = runif(n_obs, -1))
+    Z <- cbind(1, covs)
+    
+    delayed_entry <- pmax(runif(n_obs, -1), 0)
+    cens <- rep(-Inf, n_obs)
+    while(all(cens <= delayed_entry))
+      cens <- runif(n_obs, max = 3 * delta)
+    
+    successful_sample <- FALSE
+    while(!successful_sample){
+      rng_effects <- rmvnorm(1, sigma = Sigma) |> drop()
+      U <- head(rng_effects, n_causes)
+      eta <- tail(rng_effects, n_causes)
+      
+      # draw the cause
+      cond_logits_exp <- exp(Z %*% coef_risk + rep(U, each = n_obs)) |> 
+        cbind(1)
+      cond_probs <- cond_logits_exp / rowSums(cond_logits_exp)
+      cause <- apply(cond_probs, 1, 
+                     \(prob) sample.int(n_causes + 1L, 1L, prob = prob))
+      
+      # compute the observed time if needed
+      obs_time <- mapply(\(cause, idx){
+        if(cause > n_causes)
+          return(delta)
+        
+        # can likely be done smarter but this is more general
+        coefs <- coef_traject[, cause]
+        offset <- sum(Z[idx, ] * coefs[-1]) + eta[cause]
+        rng <- runif(1)
+        eps <- .Machine$double.eps
+        root <- uniroot(
+          \(x) rng - pnorm(
+            -coefs[1] * atanh((x - delta / 2) / (delta / 2)) - offset), 
+          c(eps^2, delta * (1 - eps)), tol = 1e-12)$root
+      }, cause, 1:n_obs)
+      
+      keep <- which(pmin(obs_time, cens) > delayed_entry)
+      successful_sample <- length(keep) > 0
+      if(!successful_sample)
+        next
+      
+      has_finite_trajectory_prob <- cause <= n_causes
+      is_censored <- which(!has_finite_trajectory_prob | cens < obs_time)
+      
+      if(length(is_censored) > 0){
+        obs_time[is_censored] <- pmin(delta, cens[is_censored])
+        cause[is_censored] <- n_causes + 1L
+      }
+    }
+    
+    data.frame(covs, cause, time = obs_time, cluster_id, delayed_entry)[keep, ]
+  }) |> 
+    do.call(what = rbind)
+}
+```
+
+We then sample a data set, setup the C++ object to do the computation, 
+fit the model and compute the sandwich estimator.
+
+```{r three_sample_data, cache = 1}
+# sample a data set
+set.seed(8401828)
+n_clusters <- 1000L
+max_cluster_size <- 5L
+dat <- sim_dat(n_clusters, max_cluster_size = max_cluster_size)
+
+# show some stats
+NROW(dat) # number of individuals
+table(dat$cause) # distribution of causes (4 is censored)
+
+# distribution of observed times by cause
+tapply(dat$time, dat$cause, quantile, 
+       probs = seq(0, 1, length.out = 11), na.rm = TRUE)
+```
+
+```{r three_setup_data}
+library(mmcif)
+comp_obj <- mmcif_data(
+  ~ a + b, dat, cause = cause, time = time, cluster_id = cluster_id,
+  max_time = delta, spline_df = 4L, left_trunc = delayed_entry)
+```
+
+```{r three_check_comp_time, cache = 1}
+NCOL(comp_obj$pair_indices) # the number of pairs in the composite likelihood
+length(comp_obj$singletons) # the number of clusters with one observation
+
+# we need to find the combination of the spline bases that yield a straight 
+# line to construct the true values using the splines. You can skip this
+comb_slope <- sapply(comp_obj$spline, \(spline){
+  boundary_knots <- spline$boundary_knots
+  pts <- seq(boundary_knots[1], boundary_knots[2], length.out = 1000)
+  lm.fit(cbind(1, spline$expansion(pts)), pts)$coef
+})
+
+# assign a function to compute the log composite likelihood
+ll_func <- \(par, n_threads = 1L)
+  mmcif_logLik(
+    comp_obj, par = par, n_threads = n_threads, is_log_chol = FALSE)
+
+# the log composite likelihood at the true parameters
+coef_traject_spline <- 
+  rbind(comb_slope[-1, ] * rep(coef_traject[1, ], each = NROW(comb_slope) - 1), 
+        coef_traject[2, ] + comb_slope[1, ] * coef_traject[1, ],
+        coef_traject[-(1:2), ])
+true_values <- c(coef_risk, coef_traject_spline, Sigma)
+ll_func(true_values)
+
+# check the time to compute the log composite likelihood
+bench::mark(
+  `one thread` = ll_func(n_threads = 1L, true_values),
+  `two threads` = ll_func(n_threads = 2L, true_values),
+  `three threads` = ll_func(n_threads = 3L, true_values),
+  `four threads` = ll_func(n_threads = 4L, true_values), 
+  min_time = 4)
+
+# next, we compute the gradient of the log composite likelihood at the true 
+# parameters. First we assign a few functions to verify the result. You can 
+# skip these
+upper_to_full <- \(x){
+  dim <- (sqrt(8 * length(x) + 1) - 1) / 2
+  out <- matrix(0, dim, dim)
+  out[upper.tri(out, TRUE)] <- x
+  out[lower.tri(out)] <- t(out)[lower.tri(out)]
+  out
+}
+d_upper_to_full <- \(x){
+  dim <- (sqrt(8 * length(x) + 1) - 1) / 2
+  out <- matrix(0, dim, dim)
+  out[upper.tri(out, TRUE)] <- x
+  out[upper.tri(out)] <- out[upper.tri(out)] / 2
+  out[lower.tri(out)] <- t(out)[lower.tri(out)]
+  out
+}
+
+# then we can compute the gradient with the function from the package and with 
+# numerical differentiation
+gr_func <- function(par, n_threads = 1L)
+  mmcif_logLik_grad(comp_obj, par, n_threads = n_threads, is_log_chol = FALSE)
+gr_package <- gr_func(true_values)
+
+true_values_upper <- 
+  c(coef_risk, coef_traject_spline, Sigma[upper.tri(Sigma, TRUE)])
+gr_num <- numDeriv::grad(
+  \(x) ll_func(c(head(x, -21), upper_to_full(tail(x, 21)))), 
+  true_values_upper, method = "simple")
+
+# they are very close but not exactly equal as expected (this is due to the 
+# adaptive quadrature)
+rbind(
+  `Numerical gradient` = 
+    c(head(gr_num, -21), d_upper_to_full(tail(gr_num, 21))), 
+  `Gradient package` = gr_package)
+
+# check the time to compute the gradient of the log composite likelihood
+bench::mark(
+  `one thread` = gr_func(n_threads = 1L, true_values),
+  `two threads` = gr_func(n_threads = 2L, true_values),
+  `three threads` = gr_func(n_threads = 3L, true_values),
+  `four threads` = gr_func(n_threads = 4L, true_values), 
+  min_time = 4)
+```
+
+```{r three_fit, cache = 1}
+# find the starting values
+system.time(start <- mmcif_start_values(comp_obj, n_threads = 4L))
+
+# the maximum likelihood without the random effects. Note that this is not 
+# comparable with the composite likelihood
+attr(start, "logLik")
+
+# examples of using log_chol and log_chol_inv
+log_chol(Sigma)
+stopifnot(all.equal(Sigma, log_chol(Sigma) |> log_chol_inv()))
+
+# set true values
+truth <- c(coef_risk, coef_traject_spline, log_chol(Sigma))
+
+# we can verify that the gradient is correct
+gr_package <- mmcif_logLik_grad(
+  comp_obj, truth, n_threads = 4L, is_log_chol = TRUE)
+gr_num <- numDeriv::grad(
+  mmcif_logLik, truth, object = comp_obj, n_threads = 4L, is_log_chol = TRUE, 
+  method = "simple")
+
+rbind(`Numerical gradient` = gr_num, `Gradient package` = gr_package)
+
+# optimize the log composite likelihood
+system.time(fit <- mmcif_fit(start$upper, comp_obj, n_threads = 4L))
+
+# the log composite likelihood at different points
+mmcif_logLik(comp_obj, truth, n_threads = 4L, is_log_chol = TRUE)
+mmcif_logLik(comp_obj, start$upper, n_threads = 4L, is_log_chol = TRUE)
+-fit$value
+```
+
+```{r three_sandwich, cache = 1}
+system.time(sandwich_est <- mmcif_sandwich(comp_obj, fit$par, n_threads = 4L))
+```
+
+We show the estimated and true the conditional cumulative incidence functions 
+(the dashed curves are the estimates) like before.
+
+```{r three_compare_estimated_incidence_funcs, cache = 1}
+local({
+  # get the estimates
+  coef_risk_est <- fit$par[comp_obj$indices$coef_risk] |> 
+    matrix(ncol = n_causes)
+  coef_traject_time_est <- fit$par[comp_obj$indices$coef_trajectory_time] |> 
+    matrix(ncol = n_causes)
+  coef_traject_est <- fit$par[comp_obj$indices$coef_trajectory] |> 
+    matrix(ncol = n_causes)
+  coef_traject_intercept_est <- coef_traject_est[5, ]
+  
+  # compute the risk probabilities  
+  probs <- exp(coef_risk[1, ]) / (1 + sum(exp(coef_risk[1, ])))
+  probs_est <- exp(coef_risk_est[1, ]) / (1 + sum(exp(coef_risk_est[1, ])))
+  
+  # plot the estimated and true conditional cumulative incidence functions. The
+  # estimates are the dashed lines
+  par(mar = c(5, 5, 1, 1), mfcol = c(2, 2))
+  pts <- seq(1e-8, delta * (1 - 1e-8), length.out = 1000)
+  
+  for(i in 1:3){
+    true_vals <- probs[i] * pnorm(
+      -coef_traject[1, i] * atanh((pts - delta / 2) / (delta / 2)) - 
+        coef_traject[2, i])
+    
+    estimates <- probs_est[i] * pnorm(
+      -comp_obj$time_expansion(pts, cause = i) %*% coef_traject_time_est[, i] - 
+        coef_traject_intercept_est[i]) |> drop()
+    
+    matplot(pts, cbind(true_vals, estimates), xlim = c(0, delta), 
+            ylim = c(0, 1), bty = "l",  xlab = "Time", lty = c(1, 2),
+            ylab = sprintf("Cumulative incidence; cause %d", i),
+            yaxs = "i", xaxs = "i", type = "l", col = "black")
+    grid()
+  }
+})
+```
+
+Further illustrations of the estimated model are given below.
+
+```{r three_show_res}
+# the number of call we made
+fit$counts
+fit$outer.iterations
+
+# compute the standard errors from the sandwich estimator
+SEs <- diag(sandwich_est) |> sqrt()
+
+# compare the estimates with the true values
+rbind(`Estimate AGHQ` = fit$par[comp_obj$indices$coef_risk],
+      `Standard errors` = SEs[comp_obj$indices$coef_risk],
+      Truth = truth[comp_obj$indices$coef_risk])
+rbind(`Estimate AGHQ` = fit$par[comp_obj$indices$coef_trajectory],
+      `Standard errors` = SEs[comp_obj$indices$coef_trajectory],
+      Truth = truth[comp_obj$indices$coef_trajectory])
+
+n_vcov <- (2L * n_causes * (2L * n_causes + 1L)) %/% 2L
+Sigma
+log_chol_inv(tail(fit$par, n_vcov))
+
+# on the log Cholesky scale
+rbind(`Estimate AGHQ` = fit$par[comp_obj$indices$vcov_upper],
+      `Standard errors` = SEs[comp_obj$indices$vcov_upper],
+      Truth = truth[comp_obj$indices$vcov_upper])
+
+# on the original covariance matrix scale
+vcov_est <- log_chol_inv(tail(fit$par, n_vcov))
+vcov_est[lower.tri(vcov_est)] <- NA_real_
+vcov_SE <- matrix(NA_real_, NROW(vcov_est), NCOL(vcov_est))
+vcov_SE[upper.tri(vcov_SE, TRUE)] <- 
+  attr(sandwich_est, "res vcov") |> diag() |> sqrt() |> 
+  tail(n_vcov)
+
+vcov_show <- cbind(Estimates = vcov_est, NA, SEs = vcov_SE) 
+colnames(vcov_show) <- 
+  c(rep("Est.", NCOL(vcov_est)), "", rep("SE", NCOL(vcov_est)))
+print(vcov_show, na.print = "")
+
+Sigma # the true values
 ```
 
 ## References
