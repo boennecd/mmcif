@@ -308,10 +308,10 @@ bench::mark(
 #> # A tibble: 4 × 6
 #>   expression         min   median `itr/sec` mem_alloc `gc/sec`
 #>   <bch:expr>    <bch:tm> <bch:tm>     <dbl> <bch:byt>    <dbl>
-#> 1 one thread      42.9ms   44.3ms      22.2        0B    0    
-#> 2 two threads     22.7ms   23.2ms      42.9        0B    0    
-#> 3 three threads   15.5ms     16ms      62.4        0B    0    
-#> 4 four threads    12.4ms   12.5ms      79.6        0B    0.250
+#> 1 one thread      42.6ms   42.9ms      23.0        0B        0
+#> 2 two threads     22.2ms   22.8ms      43.8        0B        0
+#> 3 three threads   15.9ms   16.1ms      61.9        0B        0
+#> 4 four threads    12.6ms   13.2ms      75.5        0B        0
 
 # next, we compute the gradient of the log composite likelihood at the true 
 # parameters. First we assign a few functions to verify the result. You can 
@@ -373,10 +373,10 @@ bench::mark(
 #> # A tibble: 4 × 6
 #>   expression         min   median `itr/sec` mem_alloc `gc/sec`
 #>   <bch:expr>    <bch:tm> <bch:tm>     <dbl> <bch:byt>    <dbl>
-#> 1 one thread      68.3ms   69.7ms      14.3      336B        0
-#> 2 two threads     35.8ms   36.8ms      27.3      336B        0
-#> 3 three threads   24.7ms     25ms      39.7      336B        0
-#> 4 four threads    19.6ms     20ms      49.8      336B        0
+#> 1 one thread      67.3ms   67.6ms      14.6      336B        0
+#> 2 two threads     35.4ms   36.4ms      26.9      336B        0
+#> 3 three threads   24.8ms     27ms      37.3      336B        0
+#> 4 four threads    21.8ms   22.7ms      43.9      336B        0
 ```
 
 Then we optimize the parameters.
@@ -385,7 +385,7 @@ Then we optimize the parameters.
 # find the starting values
 system.time(start <- mmcif_start_values(comp_obj, n_threads = 4L))
 #>    user  system elapsed 
-#>   0.061   0.000   0.020
+#>   0.048   0.004   0.018
 
 # the maximum likelihood without the random effects. Note that this is not 
 # comparable with the composite likelihood
@@ -425,7 +425,7 @@ rbind(`Numerical gradient` = gr_num, `Gradient package` = gr_package)
 # optimize the log composite likelihood
 system.time(fit <- mmcif_fit(start$upper, comp_obj, n_threads = 4L))
 #>    user  system elapsed 
-#>   45.98    0.00   11.50
+#>  60.424   0.004  15.111
 
 # the log composite likelihood at different points
 mmcif_logLik(comp_obj, truth, n_threads = 4L, is_log_chol = TRUE)
@@ -456,52 +456,52 @@ system.time(
   fits <- mmcif_fit(
     start$upper, comp_obj, n_threads = 4L, ghq_data = ghq_lists))
 #>    user  system elapsed 
-#>  45.065   0.004  11.274
+#>  42.499   0.003  10.626
 
 # compare the estimates
 rbind(sapply(fits, `[[`, "par") |> t(), 
       `Previous` = fit$par)
 #>          cause1:risk:(Intercept) cause1:risk:a cause1:risk:b
-#>                           0.5589        0.9142       0.08436
-#>                           0.5854        0.9494       0.08944
+#>                           0.5595        0.9131       0.08530
+#>                           0.5854        0.9494       0.08946
 #> Previous                  0.5868        0.9495       0.08984
 #>          cause2:risk:(Intercept) cause2:risk:a cause2:risk:b cause1:spline1
-#>                          -0.4227        0.1949        0.4893         -2.746
-#>                          -0.4068        0.2085        0.5039         -2.761
+#>                          -0.4239        0.1947        0.4928         -2.747
+#>                          -0.4069        0.2084        0.5040         -2.761
 #> Previous                 -0.4088        0.2086        0.5051         -2.761
 #>          cause1:spline2 cause1:spline3 cause1:spline4
-#>                  -3.619         -6.500         -4.960
+#>                  -3.619         -6.503         -4.960
 #>                  -3.636         -6.536         -4.983
 #> Previous         -3.636         -6.536         -4.983
 #>          cause1:traject:(Intercept) cause1:traject:a cause1:traject:b
-#>                               2.778           0.7855           0.3168
+#>                               2.777           0.7848           0.3191
 #>                               2.789           0.7898           0.3207
 #> Previous                      2.789           0.7898           0.3207
 #>          cause2:spline1 cause2:spline2 cause2:spline3 cause2:spline4
-#>                  -2.796         -3.207         -6.012         -4.739
-#>                  -2.890         -3.309         -6.214         -4.881
+#>                  -2.787         -3.199         -5.993         -4.722
+#>                  -2.890         -3.309         -6.213         -4.880
 #> Previous         -2.890         -3.309         -6.213         -4.880
 #>          cause2:traject:(Intercept) cause2:traject:a cause2:traject:b
-#>                               3.295           0.2392          -0.3385
+#>                               3.287           0.2389          -0.3374
 #>                               3.365           0.2468          -0.3478
-#> Previous                      3.363           0.2468          -0.3477
+#> Previous                      3.364           0.2469          -0.3477
 #>          vcov:risk1:risk1 vcov:risk1:risk2 vcov:risk2:risk2 vcov:risk1:traject1
-#>                   -1.0565         -0.24391          -0.3446            -0.17713
-#>                   -0.4793          0.07042          -0.1160            -0.09146
+#>                   -1.0584         -0.24841          -0.3445            -0.17792
+#>                   -0.4798          0.07002          -0.1161            -0.09150
 #> Previous          -0.4770          0.08131          -0.1043            -0.09116
 #>          vcov:risk2:traject1 vcov:traject1:traject1 vcov:risk1:traject2
-#>                       0.2726                -0.2826              0.4107
-#>                       0.2791                -0.2546              0.2579
+#>                       0.2740                -0.2822              0.4155
+#>                       0.2789                -0.2545              0.2579
 #> Previous              0.2768                -0.2536              0.2575
 #>          vcov:risk2:traject2 vcov:traject1:traject2 vcov:traject2:traject2
-#>                      -0.4984                -0.0385                -0.3074
-#>                      -0.4970                -0.1036                -0.1517
-#> Previous             -0.4939                -0.1062                -0.1505
+#>                      -0.4918               -0.03595                -0.3167
+#>                      -0.4971               -0.10373                -0.1522
+#> Previous             -0.4939               -0.10620                -0.1503
 
 print(fits[[length(fits)]]$value, digits = 10)
-#> [1] 7050.314425
+#> [1] 7050.314439
 print(fit                 $value, digits = 10)
-#> [1] 7050.351507
+#> [1] 7050.351503
 ```
 
 Then we compute the sandwich estimator. The Hessian is currently
@@ -510,14 +510,14 @@ computed with numerical differentiation which is why it takes a while.
 ``` r
 system.time(sandwich_est <- mmcif_sandwich(comp_obj, fit$par, n_threads = 4L))
 #>    user  system elapsed 
-#>   23.55    0.00    5.89
+#>  23.682   0.003   5.922
 
 # setting order equal to zero yield no Richardson extrapolation and just
 # standard symmetric difference quotient. This is less precise but faster 
 system.time(sandwich_est_simple <- 
               mmcif_sandwich(comp_obj, fit$par, n_threads = 4L, order = 0L))
 #>    user  system elapsed 
-#>   5.099   0.000   1.275
+#>   5.355   0.004   1.342
 ```
 
 We show the estimated and true the conditional cumulative incidence
@@ -572,7 +572,7 @@ Further illustrations of the estimated model are given below.
 # the number of call we made
 fit$counts
 #> function gradient 
-#>      423      255
+#>      506      323
 fit$outer.iterations
 #> [1] 3
 
@@ -610,19 +610,19 @@ rbind(`Estimate AGHQ` = fit$par[comp_obj$indices$coef_trajectory],
 #> Standard errors simple         0.1573                     0.1048
 #> Truth                         -4.9574                     2.8655
 #>                        cause1:traject:a cause1:traject:b cause2:spline1
-#> Estimate AGHQ                   0.78980          0.32070        -2.8896
+#> Estimate AGHQ                   0.78980          0.32070        -2.8898
 #> Standard errors                 0.05136          0.06089         0.2251
 #> Standard errors simple          0.05136          0.06089         0.2250
 #> Truth                           0.80000          0.40000        -2.5969
 #>                        cause2:spline2 cause2:spline3 cause2:spline4
-#> Estimate AGHQ                 -3.3089        -6.2127        -4.8797
-#> Standard errors                0.2291         0.4477         0.3179
-#> Standard errors simple         0.2290         0.4473         0.3176
+#> Estimate AGHQ                 -3.3092        -6.2132        -4.8800
+#> Standard errors                0.2292         0.4478         0.3179
+#> Standard errors simple         0.2291         0.4474         0.3176
 #> Truth                         -3.3416        -6.0232        -4.6611
 #>                        cause2:traject:(Intercept) cause2:traject:a
-#> Estimate AGHQ                              3.3634          0.24684
+#> Estimate AGHQ                              3.3637          0.24686
 #> Standard errors                            0.2574          0.06955
-#> Standard errors simple                     0.2572          0.06954
+#> Standard errors simple                     0.2573          0.06955
 #> Truth                                      3.1145          0.25000
 #>                        cause2:traject:b
 #> Estimate AGHQ                   -0.3477
@@ -642,7 +642,7 @@ log_chol_inv(tail(fit$par, n_vcov))
 #> [1,]  0.38517  0.05046 -0.05658  0.1598
 #> [2,]  0.05046  0.81841  0.24202 -0.4241
 #> [3,] -0.05658  0.24202  0.68717 -0.2426
-#> [4,]  0.15978 -0.42408 -0.24261  1.0616
+#> [4,]  0.15980 -0.42409 -0.24263  1.0619
 
 # on the log Cholesky scale
 rbind(`Estimate AGHQ` = fit$par[comp_obj$indices$vcov_upper],
@@ -656,7 +656,7 @@ rbind(`Estimate AGHQ` = fit$par[comp_obj$indices$vcov_upper],
 #> Truth                           -0.5921          0.01446          -0.1380
 #>                        vcov:risk1:traject1 vcov:risk2:traject1
 #> Estimate AGHQ                     -0.09116              0.2768
-#> Standard errors                    0.14510              0.1155
+#> Standard errors                    0.14511              0.1155
 #> Standard errors simple             0.14510              0.1155
 #> Truth                             -0.24947              0.2923
 #>                        vcov:traject1:traject1 vcov:risk1:traject2
@@ -670,7 +670,7 @@ rbind(`Estimate AGHQ` = fit$par[comp_obj$indices$vcov_upper],
 #> Standard errors simple              0.2011                 0.1501
 #> Truth                              -0.2929                -0.1853
 #>                        vcov:traject2:traject2
-#> Estimate AGHQ                         -0.1505
+#> Estimate AGHQ                         -0.1503
 #> Standard errors                        0.1871
 #> Standard errors simple                 0.1870
 #> Truth                                 -0.2108
@@ -691,7 +691,7 @@ print(vcov_show, na.print = "")
 #> [1,] 0.3852 0.05046 -0.05658  0.1598  0.1602 0.1509 0.08933 0.1506
 #> [2,]        0.81841  0.24202 -0.4241         0.2723 0.11034 0.1815
 #> [3,]                 0.68717 -0.2426                0.11579 0.1033
-#> [4,]                          1.0616                        0.2819
+#> [4,]                          1.0619                        0.2820
 
 Sigma # the true values
 #>        [,1]   [,2]   [,3]   [,4]
@@ -855,7 +855,7 @@ truth <- c(coef_risk, coef_traject_spline, log_chol(Sigma))
 # find the starting values
 system.time(start <- mmcif_start_values(comp_obj, n_threads = 4L))
 #>    user  system elapsed 
-#>   0.057   0.000   0.016
+#>   0.051   0.000   0.017
 
 # we can verify that the gradient is correct again
 gr_package <- mmcif_logLik_grad(
@@ -881,7 +881,7 @@ rbind(`Numerical gradient` = gr_num, `Gradient package` = gr_package)
 # optimize the log composite likelihood
 system.time(fit <- mmcif_fit(start$upper, comp_obj, n_threads = 4L))
 #>    user  system elapsed 
-#>   51.02    0.00   12.76
+#>   53.63    0.00   13.41
 
 # the log composite likelihood at different points
 mmcif_logLik(comp_obj, truth, n_threads = 4L, is_log_chol = TRUE)
@@ -898,14 +898,14 @@ computed with numerical differentiation which is why it takes a while.
 ``` r
 system.time(sandwich_est <- mmcif_sandwich(comp_obj, fit$par, n_threads = 4L))
 #>    user  system elapsed 
-#>   42.04    0.00   10.53
+#>   42.49    0.00   10.63
 
 # setting order equal to zero yield no Richardson extrapolation and just
 # standard symmetric difference quotient. This is less precise but faster 
 system.time(sandwich_est_simple <- 
               mmcif_sandwich(comp_obj, fit$par, n_threads = 4L, order = 0L))
 #>    user  system elapsed 
-#>   9.639   0.000   2.410
+#>   9.649   0.000   2.415
 ```
 
 We show the estimated and true the conditional cumulative incidence
@@ -960,7 +960,7 @@ Further illustrations of the estimated model are given below.
 # the number of call we made
 fit$counts
 #> function gradient 
-#>      224      182
+#>      233      183
 fit$outer.iterations
 #> [1] 3
 
@@ -990,7 +990,7 @@ rbind(`Estimate AGHQ` = fit$par[comp_obj$indices$coef_trajectory],
 #>                        cause1:spline1 cause1:spline2 cause1:spline3
 #> Estimate AGHQ                 -2.9825         -3.625        -6.6752
 #> Standard errors                0.1641          0.165         0.3374
-#> Standard errors simple         0.1642          0.165         0.3373
+#> Standard errors simple         0.1641          0.165         0.3373
 #> Truth                         -3.0513         -3.666        -6.6720
 #>                        cause1:spline4 cause1:traject:(Intercept)
 #> Estimate AGHQ                 -4.7854                     2.5959
@@ -1028,9 +1028,9 @@ Sigma
 log_chol_inv(tail(fit$par, n_vcov))
 #>          [,1]    [,2]     [,3]    [,4]
 #> [1,]  0.33652 -0.1471 -0.07113  0.1426
-#> [2,] -0.14710  0.3690  0.41898 -0.1071
+#> [2,] -0.14711  0.3690  0.41899 -0.1072
 #> [3,] -0.07113  0.4190  0.72052 -0.4198
-#> [4,]  0.14264 -0.1071 -0.41981  0.5897
+#> [4,]  0.14263 -0.1072 -0.41981  0.5897
 
 # on the log Cholesky scale
 rbind(`Estimate AGHQ` = fit$par[comp_obj$indices$vcov_upper],
@@ -1038,14 +1038,14 @@ rbind(`Estimate AGHQ` = fit$par[comp_obj$indices$vcov_upper],
       `Standard errors simple` = SEs_simple[comp_obj$indices$vcov_upper],
       Truth = truth[comp_obj$indices$vcov_upper])
 #>                        vcov:risk1:risk1 vcov:risk1:risk2 vcov:risk2:risk2
-#> Estimate AGHQ                   -0.5446         -0.25357          -0.5942
-#> Standard errors                  0.2753          0.22883           0.3426
+#> Estimate AGHQ                   -0.5446         -0.25359          -0.5942
+#> Standard errors                  0.2753          0.22882           0.3426
 #> Standard errors simple           0.2753          0.22875           0.3423
 #> Truth                           -0.5921          0.01446          -0.1380
 #>                        vcov:risk1:traject1 vcov:risk2:traject1
 #> Estimate AGHQ                      -0.1226              0.7027
 #> Standard errors                     0.1953              0.1764
-#> Standard errors simple              0.1953              0.1762
+#> Standard errors simple              0.1953              0.1761
 #> Truth                              -0.2495              0.2923
 #>                        vcov:traject1:traject1 vcov:risk1:traject2
 #> Estimate AGHQ                         -0.7763              0.2459
@@ -1053,14 +1053,14 @@ rbind(`Estimate AGHQ` = fit$par[comp_obj$indices$vcov_upper],
 #> Standard errors simple                 0.5240              0.2156
 #> Truth                                 -0.2485              0.3561
 #>                        vcov:risk2:traject2 vcov:traject1:traject2
-#> Estimate AGHQ                     -0.08113                -0.7230
-#> Standard errors                    0.28626                 0.1277
-#> Standard errors simple             0.28588                 0.1277
+#> Estimate AGHQ                     -0.08116                -0.7230
+#> Standard errors                    0.28623                 0.1277
+#> Standard errors simple             0.28586                 0.1277
 #> Truth                             -0.29291                -0.1853
 #>                        vcov:traject2:traject2
-#> Estimate AGHQ                         -6.5798
-#> Standard errors                        1.6180
-#> Standard errors simple                 1.5647
+#> Estimate AGHQ                         -6.7617
+#> Standard errors                        1.5361
+#> Standard errors simple                 1.5696
 #> Truth                                 -0.2108
 
 # on the original covariance matrix scale
@@ -1076,8 +1076,8 @@ colnames(vcov_show) <-
   c(rep("Est.", NCOL(vcov_est)), "", rep("SE", NCOL(vcov_est)))
 print(vcov_show, na.print = "")
 #>        Est.    Est.     Est.    Est.      SE     SE     SE     SE
-#> [1,] 0.3365 -0.1471 -0.07113  0.1426  0.1853 0.1173 0.1135 0.1320
-#> [2,]         0.3690  0.41898 -0.1071         0.1661 0.1142 0.1396
+#> [1,] 0.3365 -0.1471 -0.07113  0.1426  0.1853 0.1173 0.1135 0.1319
+#> [2,]         0.3690  0.41899 -0.1072         0.1661 0.1142 0.1396
 #> [3,]                 0.72052 -0.4198                0.1473 0.1278
 #> [4,]                          0.5897                       0.1845
 
@@ -1413,7 +1413,7 @@ truth <- c(coef_risk[permu, ],
 # find the starting values
 system.time(start <- mmcif_start_values(comp_obj, n_threads = 4L))
 #>    user  system elapsed 
-#>   0.276   0.000   0.073
+#>   0.174   0.004   0.051
 
 # we can verify that the gradient is correct again
 gr_package <- mmcif_logLik_grad(
@@ -1451,7 +1451,7 @@ rbind(`Numerical gradient` = gr_num, `Gradient package` = gr_package)
 # optimize the log composite likelihood
 system.time(fit <- mmcif_fit(start$upper, comp_obj, n_threads = 4L))
 #>    user  system elapsed 
-#>   55.88    0.00   13.98
+#>   55.85    0.00   13.96
 
 # the log composite likelihood at different points
 mmcif_logLik(comp_obj, truth, n_threads = 4L, is_log_chol = TRUE)
@@ -1468,14 +1468,14 @@ computed with numerical differentiation which is why it takes a while.
 ``` r
 system.time(sandwich_est <- mmcif_sandwich(comp_obj, fit$par, n_threads = 4L))
 #>    user  system elapsed 
-#>   88.39    0.00   22.11
+#>   93.00    0.00   23.25
 
 # setting order equal to zero yield no Richardson extrapolation and just
 # standard symmetric difference quotient. This is less precise but faster 
 system.time(sandwich_est_simple <- 
               mmcif_sandwich(comp_obj, fit$par, n_threads = 4L, order = 0L))
 #>    user  system elapsed 
-#>  19.566   0.000   4.893
+#>  19.302   0.000   4.829
 ```
 
 We show the estimated and true the conditional cumulative incidence
@@ -1536,7 +1536,7 @@ Further illustrations of the estimated model are given below.
 # the number of call we made
 fit$counts
 #> function gradient 
-#>      279      204
+#>      278      204
 fit$outer.iterations
 #> [1] 3
 
@@ -1986,10 +1986,10 @@ bench::mark(
 #> # A tibble: 4 × 6
 #>   expression         min   median `itr/sec` mem_alloc `gc/sec`
 #>   <bch:expr>    <bch:tm> <bch:tm>     <dbl> <bch:byt>    <dbl>
-#> 1 one thread     299.4ms  303.6ms      3.23    5.64KB        0
-#> 2 two threads    152.7ms  153.4ms      6.46        0B        0
-#> 3 three threads  108.2ms    111ms      8.78        0B        0
-#> 4 four threads    81.5ms   85.2ms     11.3         0B        0
+#> 1 one thread     288.1ms  290.2ms      3.44        0B        0
+#> 2 two threads      151ms  154.2ms      6.49        0B        0
+#> 3 three threads  106.4ms  109.1ms      8.78        0B        0
+#> 4 four threads    84.3ms   86.6ms     11.6         0B        0
 
 # next, we compute the gradient of the log composite likelihood at the true 
 # parameters. First we assign a few functions to verify the result. You can 
@@ -2063,17 +2063,17 @@ bench::mark(
 #> # A tibble: 4 × 6
 #>   expression         min   median `itr/sec` mem_alloc `gc/sec`
 #>   <bch:expr>    <bch:tm> <bch:tm>     <dbl> <bch:byt>    <dbl>
-#> 1 one thread       460ms    461ms      2.16    6.17KB        0
-#> 2 two threads      236ms    239ms      4.17      576B        0
-#> 3 three threads    165ms    168ms      5.86      576B        0
-#> 4 four threads     138ms    140ms      7.01      576B        0
+#> 1 one thread       447ms    448ms      2.23      576B        0
+#> 2 two threads      234ms    235ms      4.26      576B        0
+#> 3 three threads    166ms    169ms      5.92      576B        0
+#> 4 four threads     129ms    134ms      7.44      576B        0
 ```
 
 ``` r
 # find the starting values
 system.time(start <- mmcif_start_values(comp_obj, n_threads = 4L))
 #>    user  system elapsed 
-#>   0.104   0.000   0.032
+#>   0.080   0.000   0.024
 
 # the maximum likelihood without the random effects. Note that this is not 
 # comparable with the composite likelihood
@@ -2120,7 +2120,7 @@ rbind(`Numerical gradient` = gr_num, `Gradient package` = gr_package)
 # optimize the log composite likelihood
 system.time(fit <- mmcif_fit(start$upper, comp_obj, n_threads = 4L))
 #>    user  system elapsed 
-#> 191.869   0.012  48.309
+#>  190.74    0.00   47.69
 
 # the log composite likelihood at different points
 mmcif_logLik(comp_obj, truth, n_threads = 4L, is_log_chol = TRUE)
@@ -2134,7 +2134,7 @@ mmcif_logLik(comp_obj, start$upper, n_threads = 4L, is_log_chol = TRUE)
 ``` r
 system.time(sandwich_est <- mmcif_sandwich(comp_obj, fit$par, n_threads = 4L))
 #>    user  system elapsed 
-#> 258.333   0.012  64.648
+#>  255.29    0.00   63.82
 ```
 
 We show the estimated and true the conditional cumulative incidence
@@ -2186,7 +2186,7 @@ Further illustrations of the estimated model are given below.
 # the number of call we made
 fit$counts
 #> function gradient 
-#>      256      160
+#>      264      165
 fit$outer.iterations
 #> [1] 3
 
@@ -2198,7 +2198,7 @@ rbind(`Estimate AGHQ` = fit$par[comp_obj$indices$coef_risk],
       `Standard errors` = SEs[comp_obj$indices$coef_risk],
       Truth = truth[comp_obj$indices$coef_risk])
 #>                 cause1:risk:(Intercept) cause1:risk:a cause1:risk:b
-#> Estimate AGHQ                    0.8021       1.12964       0.07604
+#> Estimate AGHQ                    0.8021       1.12964       0.07603
 #> Standard errors                  0.1214       0.09789       0.14625
 #> Truth                            0.6700       1.00000       0.10000
 #>                 cause2:risk:(Intercept) cause2:risk:a cause2:risk:b
@@ -2206,7 +2206,7 @@ rbind(`Estimate AGHQ` = fit$par[comp_obj$indices$coef_risk],
 #> Standard errors                  0.1596        0.1007        0.1563
 #> Truth                           -0.4000        0.2500        0.3000
 #>                 cause3:risk:(Intercept) cause3:risk:a cause3:risk:b
-#> Estimate AGHQ                    0.7289      -0.09139        0.1775
+#> Estimate AGHQ                    0.7288      -0.09139        0.1775
 #> Standard errors                  0.1177       0.09107        0.1383
 #> Truth                            0.5600      -0.20000        0.1400
 rbind(`Estimate AGHQ` = fit$par[comp_obj$indices$coef_trajectory],
@@ -2217,17 +2217,17 @@ rbind(`Estimate AGHQ` = fit$par[comp_obj$indices$coef_trajectory],
 #> Standard errors         0.1501         0.1606         0.3004         0.1824
 #> Truth                  -2.7317        -3.2379        -5.9914        -4.3616
 #>                 cause1:traject:(Intercept) cause1:traject:a cause1:traject:b
-#> Estimate AGHQ                        2.171          0.74095          0.55567
+#> Estimate AGHQ                        2.171          0.74094          0.55567
 #> Standard errors                      0.148          0.06118          0.09657
 #> Truth                                2.332          0.80000          0.40000
 #>                 cause2:spline1 cause2:spline2 cause2:spline3 cause2:spline4
-#> Estimate AGHQ          -2.1503        -2.3567        -4.8792        -3.4815
-#> Standard errors         0.1823         0.1869         0.3437         0.2718
+#> Estimate AGHQ          -2.1502        -2.3566        -4.8792        -3.4815
+#> Standard errors         0.1823         0.1869         0.3438         0.2718
 #> Truth                  -1.7410        -2.3637        -4.1591        -3.3332
 #>                 cause2:traject:(Intercept) cause2:traject:a cause2:traject:b
-#> Estimate AGHQ                       2.2600          0.19952          -0.3201
-#> Standard errors                     0.2002          0.08299           0.1316
-#> Truth                               2.0684          0.25000          -0.2000
+#> Estimate AGHQ                       2.2600           0.1995          -0.3201
+#> Standard errors                     0.2002           0.0830           0.1316
+#> Truth                               2.0684           0.2500          -0.2000
 #>                 cause3:spline1 cause3:spline2 cause3:spline3 cause3:spline4
 #> Estimate AGHQ           -2.597        -3.1564        -5.8773        -4.2059
 #> Standard errors          0.189         0.1856         0.3938         0.2154
@@ -2248,48 +2248,48 @@ Sigma
 #> [6,] -0.085 -0.048 -0.149  0.031 -0.077  0.602
 log_chol_inv(tail(fit$par, n_vcov))
 #>          [,1]     [,2]     [,3]      [,4]     [,5]      [,6]
-#> [1,]  0.81924 -0.10911  0.58007 -0.253454  0.26732 -0.073745
-#> [2,] -0.10911  0.87726  0.08714 -0.128468 -0.10945 -0.076053
-#> [3,]  0.58007  0.08714  0.75851 -0.072058  0.10346 -0.065536
-#> [4,] -0.25345 -0.12847 -0.07206  0.323641 -0.19312  0.005011
-#> [5,]  0.26732 -0.10945  0.10346 -0.193121  0.28626  0.037221
-#> [6,] -0.07375 -0.07605 -0.06554  0.005011  0.03722  0.268682
+#> [1,]  0.81924 -0.10912  0.58007 -0.253450  0.26732 -0.073754
+#> [2,] -0.10912  0.87727  0.08713 -0.128458 -0.10945 -0.076064
+#> [3,]  0.58007  0.08713  0.75851 -0.072050  0.10346 -0.065547
+#> [4,] -0.25345 -0.12846 -0.07205  0.323638 -0.19312  0.005015
+#> [5,]  0.26732 -0.10945  0.10346 -0.193125  0.28624  0.037219
+#> [6,] -0.07375 -0.07606 -0.06555  0.005015  0.03722  0.268679
 
 # on the log Cholesky scale
 rbind(`Estimate AGHQ` = fit$par[comp_obj$indices$vcov_upper],
       `Standard errors` = SEs[comp_obj$indices$vcov_upper],
       Truth = truth[comp_obj$indices$vcov_upper])
 #>                 vcov:risk1:risk1 vcov:risk1:risk2 vcov:risk2:risk2
-#> Estimate AGHQ           -0.09969          -0.1205         -0.07383
-#> Standard errors          0.19922           0.3328          0.28120
+#> Estimate AGHQ           -0.09969          -0.1206         -0.07383
+#> Standard errors          0.19923           0.3328          0.28120
 #> Truth                   -0.22549          -0.2381         -0.61665
 #>                 vcov:risk1:risk3 vcov:risk2:risk3 vcov:risk3:risk3
 #> Estimate AGHQ             0.6409           0.1770          -0.5753
 #> Standard errors           0.2165           0.2229           0.2811
 #> Truth                     0.3270          -0.1522          -0.8522
 #>                 vcov:risk1:traject1 vcov:risk2:traject1 vcov:risk3:traject1
-#> Estimate AGHQ               -0.2800             -0.1747             0.24587
-#> Standard errors              0.1438              0.2049             0.23322
+#> Estimate AGHQ               -0.2800             -0.1746             0.24588
+#> Standard errors              0.1438              0.2049             0.23326
 #> Truth                       -0.2543             -0.2771             0.04456
 #>                 vcov:traject1:traject1 vcov:risk1:traject2 vcov:risk2:traject2
 #> Estimate AGHQ                  -0.9345              0.2953             -0.0795
-#> Standard errors                 0.6172              0.2209              0.2707
+#> Standard errors                 0.6174              0.2210              0.2707
 #> Truth                          -1.1387              0.2330             -0.2048
 #>                 vcov:risk3:traject2 vcov:traject1:traject2
-#> Estimate AGHQ              -0.12755                -0.2366
-#> Standard errors             0.29695                 0.3770
+#> Estimate AGHQ              -0.12754                -0.2366
+#> Standard errors             0.29703                 0.3773
 #> Truth                      -0.04309                -0.2671
 #>                 vcov:traject2:traject2 vcov:risk1:traject3 vcov:risk2:traject3
-#> Estimate AGHQ                  -1.0583            -0.08148            -0.09245
-#> Standard errors                 0.8583             0.15366             0.17982
+#> Estimate AGHQ                  -1.0584            -0.08149            -0.09247
+#> Standard errors                 0.8589             0.15367             0.17984
 #> Truth                          -0.7293            -0.10650            -0.13590
 #>                 vcov:risk3:traject3 vcov:traject1:traject3
-#> Estimate AGHQ               0.00541               -0.08983
-#> Standard errors             0.19841                0.30707
-#> Truth                      -0.31620               -0.06137
+#> Estimate AGHQ              0.005407               -0.08982
+#> Standard errors            0.198421                0.30711
+#> Truth                     -0.316202               -0.06137
 #>                 vcov:traject2:traject3 vcov:traject3:traject3
-#> Estimate AGHQ                  0.09615                -0.7216
-#> Standard errors                0.44366                 0.3711
+#> Estimate AGHQ                  0.09615                -0.7217
+#> Standard errors                0.44383                 0.3711
 #> Truth                         -0.22815                -0.4381
 
 # on the original covariance matrix scale
@@ -2305,18 +2305,18 @@ colnames(vcov_show) <-
   c(rep("Est.", NCOL(vcov_est)), "", rep("SE", NCOL(vcov_est)))
 print(vcov_show, na.print = "")
 #>        Est.    Est.    Est.     Est.    Est.      Est.      SE     SE     SE
-#> [1,] 0.8192 -0.1091 0.58007 -0.25345  0.2673 -0.073745  0.3264 0.2913 0.2711
-#> [2,]         0.8773 0.08714 -0.12847 -0.1094 -0.076053         0.4388 0.2581
-#> [3,]                0.75851 -0.07206  0.1035 -0.065536                0.3014
-#> [4,]                         0.32364 -0.1931  0.005011                      
-#> [5,]                                  0.2863  0.037221                      
-#> [6,]                                          0.268682                      
+#> [1,] 0.8192 -0.1091 0.58007 -0.25345  0.2673 -0.073754  0.3264 0.2913 0.2711
+#> [2,]         0.8773 0.08713 -0.12846 -0.1094 -0.076064         0.4388 0.2581
+#> [3,]                0.75851 -0.07205  0.1035 -0.065547                0.3014
+#> [4,]                         0.32364 -0.1931  0.005015                      
+#> [5,]                                  0.2862  0.037219                      
+#> [6,]                                          0.268679                      
 #>          SE     SE      SE
 #> [1,] 0.1303 0.2044 0.13877
-#> [2,] 0.1437 0.2249 0.15368
-#> [3,] 0.1165 0.1979 0.13007
+#> [2,] 0.1437 0.2249 0.15369
+#> [3,] 0.1165 0.1979 0.13008
 #> [4,] 0.1167 0.1103 0.08523
-#> [5,]        0.1585 0.14038
+#> [5,]        0.1586 0.14040
 #> [6,]               0.12487
 
 Sigma # the true values

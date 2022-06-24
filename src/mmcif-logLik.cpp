@@ -490,7 +490,7 @@ double mmcif_logLik_both_obs_grad
   arma::vec const dens_point{lp_traject[0], lp_traject[1]};
   arma::vec::fixed<2> gr_lp_traject{0, 0};
 
-  arma::mat d_Sig(gr + indexer.vcov(), 2 * n_causes, 2 * n_causes, false);
+  arma::mat d_Sig(gr + indexer.vcov(), 2 * n_causes, 2 * n_causes, false, true);
   {
     vcov_cond_dens = V * vcov * V.t();
     vcov_cond_dens.diag() += 1;
@@ -536,7 +536,7 @@ double mmcif_logLik_both_obs_grad
   std::for_each(ghq_res + 1, ghq_res + prob_use.n_out(),
                 [&](double &x){ x /= integral; });
   double * d_logit_offsets{ghq_res + 1};
-  arma::vec d_cond_mean(d_logit_offsets + 2 * n_causes, n_causes, false);
+  arma::vec d_cond_mean(d_logit_offsets + 2 * n_causes, n_causes, false, true);
   double * d_vcov_cond_sub{d_cond_mean.end()};
 
   helper.backprop_logit_offsets(d_logit_offsets           , obs1, gr);
@@ -619,8 +619,10 @@ double mmcif_logLik_one_obs_grad
                   [&](double &x){ x /= integral; });
 
     double * d_logit_offsets{ghq_res + 1};
-    arma::vec d_cond_mean_sub(d_logit_offsets + 2 * n_causes, n_causes, false);
-    arma::mat d_vcov_cond_sub(d_cond_mean_sub.end(), n_causes, n_causes, false);
+    arma::vec d_cond_mean_sub(d_logit_offsets + 2 * n_causes, n_causes, false,
+                              true);
+    arma::mat d_vcov_cond_sub(d_cond_mean_sub.end(), n_causes, n_causes, false,
+                              true);
 
     helper.backprop_logit_offsets(d_logit_offsets           , obs1, gr);
     helper.backprop_logit_offsets(d_logit_offsets + n_causes, obs2, gr);
@@ -670,8 +672,10 @@ double mmcif_logLik_one_obs_grad
     integral_term += ghq_res[0];
 
     double * d_logit_offsets{ghq_res + 1};
-    arma::vec d_cond_mean_sub(d_logit_offsets + n_causes, n_causes, false);
-    arma::mat d_vcov_cond_sub(d_cond_mean_sub.end(), n_causes, n_causes, false);
+    arma::vec d_cond_mean_sub(d_logit_offsets + n_causes, n_causes, false,
+                              true);
+    arma::mat d_vcov_cond_sub(d_cond_mean_sub.end(), n_causes, n_causes, false,
+                              true);
 
     helper.backprop_logit_offsets(d_logit_offsets, obs1, gr_integral);
 
@@ -739,10 +743,12 @@ double mmcif_logLik_one_obs_grad
 
     double d_shift_prob{ghq_res[1]},
              d_var_cond{ghq_res[2] / (2 * std::sqrt(var_cond))};
-    arma::vec d_rng_coefs(ghq_res + 3, n_causes, false);
+    arma::vec d_rng_coefs(ghq_res + 3, n_causes, false, true);
     double * d_logit_offset{d_rng_coefs.end()};
-    arma::vec d_cond_mean_sub(d_logit_offset + 2 * n_causes, n_causes, false);
-    arma::mat d_vcov_cond_sub(d_cond_mean_sub.end(), n_causes, n_causes, false);
+    arma::vec d_cond_mean_sub(d_logit_offset + 2 * n_causes, n_causes, false,
+                              true);
+    arma::mat d_vcov_cond_sub(d_cond_mean_sub.end(), n_causes, n_causes, false,
+                              true);
 
     d_rng_coefs *= -1;
 
@@ -836,7 +842,8 @@ double mmcif_logLik_both_cens_grad
     helper.backprop_logit_offsets(d_logit_offsets           , obs1, gr);
     helper.backprop_logit_offsets(d_logit_offsets + n_causes, obs2, gr);
 
-    arma::mat d_vcov(gr + indexer.vcov(), 2 * n_causes, 2 * n_causes, false);
+    arma::mat d_vcov(gr + indexer.vcov(), 2 * n_causes, 2 * n_causes, false,
+                     true);
     d_vcov.submat(0, 0, n_causes - 1, n_causes - 1) += d_vcov_sub;
 
     return std::log(integral);
@@ -906,10 +913,10 @@ double mmcif_logLik_both_cens_grad
 
       double const d_lp_traject1{ghq_res[1]};
       double const d_var_cond{ghq_res[2] / (2 * std::sqrt(var_cond))};
-      arma::vec d_rng_coefs(ghq_res + 3, n_causes, false);
+      arma::vec d_rng_coefs(ghq_res + 3, n_causes, false, true);
       double * d_logit_offsets{d_rng_coefs.end()};
       arma::mat d_vcov_sub
-        (d_logit_offsets + 2 * n_causes, n_causes, n_causes, false);
+        (d_logit_offsets + 2 * n_causes, n_causes, n_causes, false, true);
 
       helper.backprop_lp_traject(d_lp_traject1, obs1, cause_1, new_gr_terms);
 
@@ -1008,11 +1015,11 @@ double mmcif_logLik_both_cens_grad
       integral += ghq_res[0];
 
       double * d_dens_point{ghq_res + 1};
-      arma::mat d_rng_coefs(d_dens_point + 2, 2, n_causes, false),
-                d_pbvn_vcov(d_rng_coefs.end(), 2, 2, false);
+      arma::mat d_rng_coefs(d_dens_point + 2, 2, n_causes, false, true),
+                d_pbvn_vcov(d_rng_coefs.end(), 2, 2, false, true);
       double * d_logit_offsets{d_pbvn_vcov.end()};
       arma::mat d_vcov_sub
-        (d_logit_offsets + 2 * n_causes, n_causes, n_causes, false);
+        (d_logit_offsets + 2 * n_causes, n_causes, n_causes, false, true);
 
       helper.backprop_lp_traject(-d_dens_point[0], obs1, cause_1, new_gr_terms);
       helper.backprop_lp_traject(-d_dens_point[1], obs2, cause_2, new_gr_terms);

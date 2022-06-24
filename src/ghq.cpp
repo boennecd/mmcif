@@ -163,9 +163,13 @@ void ghq_inner
     problem.eval(points, n_points, outs, mem);
     mem.reset_to_mark();
 
-    for(size_t i = 0; i < n_res; ++i)
-      for(size_t j = 0; j < n_points; ++j)
-        res[i] += weights[j] * outs[j + i * n_points];
+    char const trans{'T'};
+    int const i_n_points = n_points, i_n_res = n_res, incxy{1};
+    double const alpha{1};
+
+    F77_CALL(dgemv)
+      (&trans, &i_n_points, &i_n_res, &alpha, outs, &i_n_points, weights,
+       &incxy, &alpha, res, &incxy, size_t(1));
 
     return;
   }
@@ -495,8 +499,7 @@ void rescale_problem<comp_grad>::post_process
     }
   }
 
-  arma::mat lhs(res, n_vars(), n_vars(), false);
-
+  arma::mat lhs(res, n_vars(), n_vars(), false, true);
   lhs = arma::solve
     (arma::trimatu(Sigma_chol),
      arma::solve(arma::trimatu(Sigma_chol), outer_int).t());
@@ -643,7 +646,7 @@ void rescale_shift_problem<comp_grad>::post_process
   res += inner_problem.n_out();
 
   {
-    arma::vec rhs(res, n_vars()), lhs(res, n_vars(), false);
+    arma::vec rhs(res, n_vars()), lhs(res, n_vars(), false, true);
     lhs = arma::solve(arma::trimatu(Sigma_chol), rhs);
   }
 
@@ -660,7 +663,7 @@ void rescale_shift_problem<comp_grad>::post_process
       outer_int(j, j) = (*res_ij - integral) / 2;
     }
   }
-  arma::mat lhs(res, n_vars(), n_vars(), false);
+  arma::mat lhs(res, n_vars(), n_vars(), false, true);
 
   lhs = arma::solve
     (arma::trimatu(Sigma_chol),

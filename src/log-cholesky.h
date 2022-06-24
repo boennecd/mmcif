@@ -17,7 +17,7 @@ struct pd_mat {
     * entries are on the log scale. The last element is working memory */
   static void get
     (double const *theta, size_t const dim, double * res, double *wk_mem){
-    arma::mat L(wk_mem, dim, dim, false);
+    arma::mat L(wk_mem, dim, dim, false, true);
     L.zeros();
 
     for(size_t j = 0; j < dim; ++j){
@@ -26,7 +26,7 @@ struct pd_mat {
       L.at(j, j) = std::exp(*theta++);
     }
 
-    arma::mat res_mat(res, dim, dim, false);
+    arma::mat res_mat(res, dim, dim, false, true);
     res_mat = L.t() * L;
   }
 
@@ -55,7 +55,7 @@ struct dpd_mat {
   static void get
     (double const *theta, size_t const dim, double * __restrict__ res,
      double const * derivs, double * __restrict__ wk_mem){
-    arma::mat L(wk_mem, dim, dim, false);
+    arma::mat L(wk_mem, dim, dim, false, true);
     L.zeros();
 
     for(size_t j = 0; j < dim; ++j){
@@ -65,10 +65,10 @@ struct dpd_mat {
     }
 
     // TODO: can be done more efficient
-    arma::mat dum(const_cast<double*>(derivs), dim, dim, false),
-                D(L.end(), dim, dim, false);
+    arma::mat dum(const_cast<double*>(derivs), dim, dim, false, true),
+                D(L.end(), dim, dim, false, true);
     D = arma::symmatu(dum);
-    arma::mat inter(D.end(), dim, dim, false);
+    arma::mat inter(D.end(), dim, dim, false, true);
     inter = L * D;
 
     double * __restrict__ r = res;

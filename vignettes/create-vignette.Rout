@@ -1,3 +1,5 @@
+WARNING: unknown option '--norestore'
+
 
 R version 4.2.0 (2022-04-22) -- "Vigorous Calisthenics"
 Copyright (C) 2022 The R Foundation for Statistical Computing
@@ -303,7 +305,7 @@ label: three_show_res
 
 output file: mmcif.knit.md
 
-/usr/bin/pandoc +RTS -K512m -RTS mmcif.knit.md --to html4 --from markdown+autolink_bare_uris+tex_math_single_backslash --output mmcif.html --lua-filter /home/boennecd/R/x86_64-pc-linux-gnu-library/4.2/rmarkdown/rmarkdown/lua/pagebreak.lua --lua-filter /home/boennecd/R/x86_64-pc-linux-gnu-library/4.2/rmarkdown/rmarkdown/lua/latex-div.lua --self-contained --variable bs3=TRUE --standalone --section-divs --template /home/boennecd/R/x86_64-pc-linux-gnu-library/4.2/rmarkdown/rmd/h/default.html --no-highlight --variable highlightjs=1 --variable theme=bootstrap --mathjax --variable 'mathjax-url=https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML' --include-in-header /tmp/RtmpCnFZid/rmarkdown-str37b13774077e.html --filter /usr/bin/pandoc-citeproc 
+/usr/bin/pandoc +RTS -K512m -RTS mmcif.knit.md --to html4 --from markdown+autolink_bare_uris+tex_math_single_backslash --output mmcif.html --lua-filter /home/boennecd/R/x86_64-pc-linux-gnu-library/4.2/rmarkdown/rmarkdown/lua/pagebreak.lua --lua-filter /home/boennecd/R/x86_64-pc-linux-gnu-library/4.2/rmarkdown/rmarkdown/lua/latex-div.lua --self-contained --variable bs3=TRUE --standalone --section-divs --template /home/boennecd/R/x86_64-pc-linux-gnu-library/4.2/rmarkdown/rmd/h/default.html --no-highlight --variable highlightjs=1 --variable theme=bootstrap --mathjax --variable 'mathjax-url=https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML' --include-in-header /tmp/RtmpJnyBYf/rmarkdown-str11b2645082752.html --filter /usr/bin/pandoc-citeproc 
 [WARNING] This document format requires a nonempty <title> element.
   Please specify either 'title' or 'pagetitle' in the metadata,
   e.g. by using --metadata pagetitle="..." on the command line.
@@ -585,5 +587,5 @@ Preview created: README.html
 Output created: README.md
 > 
 > proc.time()
-   user  system elapsed 
-  5.809   0.537  33.164 
+    user   system  elapsed 
+1080.575    0.541  347.019 
