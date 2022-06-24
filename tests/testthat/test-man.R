@@ -56,6 +56,6 @@ test_that("mmcif_x function calls in the manual pages gives the same", {
 
   # get the sandwich estimator
   vcov_est <- mmcif_sandwich(
-    mmcif_obj, ests$par, n_threads = n_threads, order = 2L)
+    mmcif_obj, ests$par, n_threads = n_threads, order = 4L)
   expect_snapshot_value(vcov_est, style = "serialize", tolerance = 1e-2)
 })
