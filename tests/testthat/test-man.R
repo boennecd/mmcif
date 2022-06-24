@@ -22,8 +22,8 @@ test_that("mmcif_x function calls in the manual pages gives the same", {
     prt_use, id %in% sample(unique(id), length(unique(id)) %/% 10L))
 
   ghq_data <- list(
-    node = c(-2.02018287045609, -0.958572464613819, 2.73349801485409e-17, 0.958572464613819, 2.02018287045609),
-    weight = c(0.0199532420590459, 0.393619323152241, 0.945308720482941, 0.393619323152241, 0.0199532420590459))
+    node = c(-3.43615911883774, -2.53273167423279, -1.75668364929988, -1.03661082978951, -0.342901327223705, 0.342901327223705, 1.03661082978951, 1.75668364929988, 2.53273167423279, 3.43615911883774),
+    weight = c(7.6404328552326e-06, 0.00134364574678124, 0.0338743944554811, 0.240138611082314, 0.610862633735326, 0.610862633735326, 0.240138611082315, 0.033874394455481, 0.00134364574678124, 7.64043285523265e-06))
 
   mmcif_obj <- mmcif_data(
     ~ country - 1, prt_use, status, time, id, max_time,
@@ -32,7 +32,8 @@ test_that("mmcif_x function calls in the manual pages gives the same", {
   # get the staring values
   n_threads <- 2L
   start_vals <- mmcif_start_values(mmcif_obj, n_threads = n_threads)
-  expect_snapshot_value(start_vals, cran = TRUE, style = "json2")
+  expect_snapshot_value(
+    start_vals, cran = TRUE, style = "json2", tolerance = 1e-4)
 
   # mmcif_logLik(
   #   mmcif_obj, start_vals$upper, is_log_chol = TRUE, n_threads = n_threads) |>
@@ -40,21 +41,21 @@ test_that("mmcif_x function calls in the manual pages gives the same", {
   expect_equal(
     mmcif_logLik(
       mmcif_obj, start_vals$upper, is_log_chol = TRUE, n_threads = n_threads),
-    -2389.42390562039)
+    -2389.42390562039, tolerance = 1e-6)
 
   expect_snapshot_value(
     mmcif_logLik_grad(
       mmcif_obj, start_vals$upper, is_log_chol = TRUE, n_threads = n_threads),
-    cran = TRUE, style = "json2")
+    cran = TRUE, style = "json2", tolerance = 1e-4)
 
   # estimate the parameters
   skip_on_cran()
   ests <- mmcif_fit(start_vals$upper, mmcif_obj, n_threads = n_threads)
   expect_snapshot_value(ests[c("par", "value", "convergence")],
-                        style = "serialize")
+                        style = "serialize", tolerance = 1e-4)
 
   # get the sandwich estimator
   vcov_est <- mmcif_sandwich(
     mmcif_obj, ests$par, n_threads = n_threads, order = 2L)
-  expect_snapshot_value(vcov_est, style = "serialize")
+  expect_snapshot_value(vcov_est, style = "serialize", tolerance = 1e-4)
 })

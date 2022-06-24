@@ -31,7 +31,7 @@
 This vignette covers computational details about the implementation. 
 It is provided for interested users. The vignette largely follows 
 \cite{Cederkvist18} but we point out a few additional ways to speed up 
-the computation and how to make an implementation.
+the computation and how the implementation is.
 
 We have $n$ clusters with each having $m_i$ members. Let 
 $T_{ij}^*$, $\epsilon_{ij}^*$, and $C_{ij}$ be the 
@@ -68,10 +68,12 @@ where %
 $$
 \pi_k(\vec z_{ij},\vec u_i) = 
   \frac{\exp(\vec z_{ij}^\top\vec\beta_k + u_{ik})}
-       {1 + \sum_{l = 1}^K \exp(\vec z_{ij}^\top\vec\beta_l + u_{il})}
+       {1 + \sum_{l = 1}^K \exp(\vec z_{ij}^\top\vec\beta_l + u_{il})},
 $$%
 %
-and $\vec x_{ij}(t)^\top\vec\gamma_k$ is monotonically decreasing. 
+$\vec x_{ij}(t)^\top\vec\gamma_k$ is monotonically decreasing
+and $\Phi$ is standard normal distribution's cumulative density 
+function. 
 Thus, the conditional 
 survival probability is%
 %
@@ -79,8 +81,9 @@ $$
 1 - \sum_{k = 1}^K F_{kij}(t\mid \vec u_i, \vec\eta_i).
 $$
 
-We allow for $-\vec x_{ij}(t)^\top\vec\gamma_k = \infty$ such that 
-$F_{kij}(t\mid \vec u_i, \vec\eta_i) = \pi_k(\vec z_{ij},\vec u_i)$. 
+We allow for $-\vec x_{ij}(t)^\top\vec\gamma_k = \infty$ 
+for $t\rightarrow\tau$ for some $\tau$ such that 
+$F_{kij}(\tau\mid \vec u_i, \vec\eta_i) = \pi_k(\vec z_{ij},\vec u_i)$. 
 In the case where this is true for all $k\in\{1,\dots,K\}$, 
 the conditional survival probability simplifies to %
 %
@@ -469,6 +472,7 @@ microseconds or less when $K = 2$ with adaptive Gauss-Hermite quadrature.
 It takes a bit longer when one also has to use the method mentioned 
 in \cite{Genz04}. 
 The cost of all other computations are negligible.
+This is what makes this implementation fast for one, two or three.
 
 \subsection{Singleton Observations}\label{subsec:singleton}
 

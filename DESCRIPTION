@@ -7,6 +7,8 @@ Authors@R: c(
          email = "boennecd@gmail.com", 
          role = c("cre", "aut"),  
          comment = c(ORCID = "0000-0002-7182-1346")), 
+  person("Mark", "Clements", 
+         role = "cph"),
   person("Alan", "Genz", 
          role = c("cph")),
   person("Frank", "Bretz", 
@@ -18,7 +20,7 @@ Authors@R: c(
 Description: Fits the mixed cumulative incidence functions model suggested by 
     <doi:10.1093/biostatistics/kxx072> which decomposes within cluster 
     dependence of risk and timing. The estimation method supports computation in 
-    parallel using shared memory C++ implementation. A sandwich estimator of the 
+    parallel using a shared memory C++ implementation. A sandwich estimator of the 
     covariance matrix is available. Natural cubic splines are used to provide a 
     flexible model for the cumulative incidence functions.
 License: GPL (>= 3)
