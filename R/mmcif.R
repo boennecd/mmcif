@@ -10,7 +10,7 @@
   stopifnot(is.logical(is_log_chol), length(is_log_chol) == 1,
             is_log_chol %in% c(FALSE, TRUE))
 
-#' Setup Object to Compute the Log Composite Likelihood
+#' Sets up an Object to Compute the Log Composite Likelihood
 #'
 #' Sets up the R and C++ objects that are needed to evaluate the log composite
 #' likelihood. This reduces to a log likelihood when only clusters of size one
@@ -680,8 +680,9 @@ mmcif_start_values <- function(object, n_threads = 1L, vcov_start = NULL){
 #' Cholesky decomposition for the covariance matrix.
 #' @param ghq_data the Gauss-Hermite quadrature nodes and weights to use.
 #' It should be a list with two elements called \code{"node"} and \code{"weight"}.
-#' The argument can also be a list with list with different sets of quadrature
-#' nodes. In this case, fits are successively using the previous fit. This may
+#' The argument can also be a list with lists with different sets of quadrature
+#' nodes. In this case, fits are successively made using the previous fit as the
+#' starting value. This may
 #' reduce the computation time by starting with fewer quadrature nodes.
 #' @param control.outer,control.optim,... arguments passed to
 #' \code{\link[alabama]{auglag}}.
@@ -812,7 +813,8 @@ mmcif_fit <- function(
 #' @param par numeric vector with the parameters to compute the sandwich
 #' estimator at.
 #' @param eps determines the step size in the numerical differentiation using
-#'  \code{max(eps^2, |par[i]| * eps)} for each parameter \code{i}.
+#'  \code{max(sqrt(.Machine$double.eps), |par[i]| * eps)}
+#'  for each parameter \code{i}.
 #' @param scale scaling factor in the Richardson extrapolation. Each step is
 #' smaller by a factor \code{scale}.
 #' @param tol relative convergence criteria in the extrapolation given

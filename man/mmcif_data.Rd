@@ -2,7 +2,7 @@
 % Please edit documentation in R/mmcif.R
 \name{mmcif_data}
 \alias{mmcif_data}
-\title{Setup Object to Compute the Log Composite Likelihood}
+\title{Sets up an Object to Compute the Log Composite Likelihood}
 \usage{
 mmcif_data(
   formula,

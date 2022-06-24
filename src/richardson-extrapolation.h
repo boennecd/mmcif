@@ -3,6 +3,7 @@
 #include <stdexcept>
 #include <vector>
 #include <numeric>
+#include <limits>
 
 namespace ghqCpp {
 
@@ -78,7 +79,9 @@ struct richardson_extrapolation {
    * pointer.
    */
   void operator()(double const x, double *out) const {
-    double const step{std::max(eps * eps, std::abs(x) * eps)};
+    static double const step_min
+    {std::sqrt(std::numeric_limits<double>::epsilon())};
+    double const step{std::max(step_min, std::abs(x) * eps)};
 
     // compute the initial points
     double delta{step};

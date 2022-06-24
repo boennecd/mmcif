@@ -28,8 +28,9 @@ Cholesky decomposition for the covariance matrix.}
 
 \item{ghq_data}{the Gauss-Hermite quadrature nodes and weights to use.
 It should be a list with two elements called \code{"node"} and \code{"weight"}.
-The argument can also be a list with list with different sets of quadrature
-nodes. In this case, fits are successively using the previous fit. This may
+The argument can also be a list with lists with different sets of quadrature
+nodes. In this case, fits are successively made using the previous fit as the
+starting value. This may
 reduce the computation time by starting with fewer quadrature nodes.}
 }
 \value{

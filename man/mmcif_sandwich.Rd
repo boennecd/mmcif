@@ -28,7 +28,8 @@ and \code{"weight"}. A default is provided if \code{NULL} is passed.}
 \item{n_threads}{the number of threads to use.}
 
 \item{eps}{determines the step size in the numerical differentiation using
-\code{max(eps^2, |par[i]| * eps)} for each parameter \code{i}.}
+\code{max(sqrt(.Machine$double.eps), |par[i]| * eps)}
+for each parameter \code{i}.}
 
 \item{scale}{scaling factor in the Richardson extrapolation. Each step is
 smaller by a factor \code{scale}.}
