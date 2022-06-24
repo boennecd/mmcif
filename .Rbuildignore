@@ -16,3 +16,4 @@
 ^vignettes/.*\.tex
 ^examples/.*
 ^cran-comments\.md
+^CRAN-SUBMISSION$
