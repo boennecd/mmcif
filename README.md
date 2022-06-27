@@ -2,6 +2,9 @@
 # MMCIF: Mixed Multivariate Cumulative Incidence Functions
 
 [![R-CMD-check](https://github.com/boennecd/mmcif/workflows/R-CMD-check/badge.svg)](https://github.com/boennecd/mmcif/actions)
+[![](https://www.r-pkg.org/badges/version/mmcif)](https://CRAN.R-project.org/package=mmcif)
+[![CRAN RStudio mirror
+downloads](http://cranlogs.r-pkg.org/badges/mmcif)](https://CRAN.R-project.org/package=mmcif)
 
 This package provides an implementation of the model introduced by
 Cederkvist et al. (2018) to model within-cluster dependence of both risk
