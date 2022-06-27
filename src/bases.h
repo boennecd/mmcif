@@ -4,7 +4,7 @@
 #include "arma-wrap.h"
 #include <limits> // quiet_NaN
 #include <stdexcept> // invalid_argument
-#include <memory.h>
+#include <memory>
 #include "wmem.h"
 #include "lp-mmcif.h"
 #include <algorithm>

@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <iterator>
 #include <numeric>
+#include <memory>
 
 context("log-cholesky works as expected") {
   double const eps{std::sqrt(std::numeric_limits<double>::epsilon())};
