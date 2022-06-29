@@ -19,6 +19,16 @@ extern "C" {
     (char const * trans, int const * n, int const * nrhs, double const * A,
      int const * lda, int const * ipiv, double * B, int const *ldb, int * info,
      size_t);
+
+  void F77_NAME(dgeqrf)
+    (int const *m, int const *n, double *A, int const *lda,
+     double *tau, double *work, int const *lwork, int *info);
+
+  void F77_NAME(dormqr)
+    (char const *side, char const *trans, int const *m, int const *n,
+     int const *k, double const *A, int const *lda, double const *tau,
+     double *C, int const *ldc, double *work, int *lwork, int *info,
+     size_t, size_t);
 }
 
 namespace lp_mmcif {
