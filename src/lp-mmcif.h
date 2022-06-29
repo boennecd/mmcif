@@ -20,9 +20,9 @@ extern "C" {
      int const * lda, int const * ipiv, double * B, int const *ldb, int * info,
      size_t);
 
-  void F77_NAME(dgeqrf)
+  void F77_NAME(dgeqp3)
     (int const *m, int const *n, double *A, int const *lda,
-     double *tau, double *work, int const *lwork, int *info);
+     int *jpvt, double *tau, double *work, int const *lwork, int *info);
 
   void F77_NAME(dormqr)
     (char const *side, char const *trans, int const *m, int const *n,

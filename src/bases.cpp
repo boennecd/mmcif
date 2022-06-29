@@ -107,16 +107,19 @@ ns::ns(const vec &bk, const vec &interior_knots,
       qr_tau.resize(std::min(m, n));
 
       int lwork{-1}, info{};
+      qr_jpvt[0] = 0;
+      qr_jpvt[1] = 0;
       {
         double opt_work{};
-        F77_CALL(dgeqrf)
-          (&m, &n, qr_A.data(), &m, qr_tau.data(), &opt_work, &lwork, &info);
+        F77_CALL(dgeqp3)
+          (&m, &n, qr_A.data(), &m, qr_jpvt.data(), qr_tau.data(), &opt_work,
+           &lwork, &info);
         lwork = opt_work;
       }
 
-      F77_CALL(dgeqrf)
-        (&m, &n, qr_A.data(), &m, qr_tau.data(), wmem::mem_stack().get(lwork),
-         &lwork, &info);
+      F77_CALL(dgeqp3)
+        (&m, &n, qr_A.data(), &m, qr_jpvt.data(), qr_tau.data(),
+         wmem::mem_stack().get(lwork), &lwork, &info);
 
       if(info < 0)
         throw std::invalid_argument("ns: QR decomposition failed");

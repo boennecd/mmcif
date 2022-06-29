@@ -9,6 +9,7 @@
 #include "lp-mmcif.h"
 #include <algorithm>
 #include <vector>
+#include <array>
 
 namespace bases {
 
@@ -458,6 +459,7 @@ public:
 class ns final : public basisMixin {
   SplineBasis s_basis;
   std::vector<double> qr_A, qr_tau;
+  std::array<int, 2> qr_jpvt;
 
   void qr_prod(double *lhs, double const *b, double *work) const {
     int const m = qr_dim();

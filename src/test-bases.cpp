@@ -14,7 +14,7 @@ inline bool pass_rel_err(double const val, double const truth){
                       std::sqrt(std::numeric_limits<double>::epsilon()));
 }
 
-template<class Basis, size_t N>
+template<class Basis, bool test_flip_sign = false, size_t N>
 void run_test(double const xx_val, std::array<double, N> const &yy_val,
               std::array<double, N> const &dx_val, bool const intercept,
               std::array<double, N> const ix_val = {},
@@ -26,25 +26,34 @@ void run_test(double const xx_val, std::array<double, N> const &yy_val,
   auto bas = Basis(bk, ik, intercept, order);
   arma::vec y = bas(xx_val, wmem::mem_stack().get(bas.n_wmem()), 0.);
 
+  auto do_pass =
+    [&](double const value, double const expected, double const tol = 1e-8){
+    return pass_rel_err(value, expected, tol) ||
+      (test_flip_sign && pass_rel_err(-value, expected, tol));
+  };
+
   expect_true(y.size() == yy_val.size());
-  for(unsigned i = 0; i < y.size(); ++i)
-    expect_true(pass_rel_err(y[i], yy_val[i]));
+  for(unsigned i = 0; i < y.size(); ++i){
+    if(!do_pass(y[i], yy_val[i]))
+      throw std::runtime_error("meh");
+    expect_true(do_pass(y[i], yy_val[i]));
+  }
 
   arma::vec dx = bas(xx_val, wmem::mem_stack().get(bas.n_wmem()), 1);
   expect_true(dx.size() == dx_val.size());
   for(unsigned i = 0; i < y.size(); ++i)
-    expect_true(pass_rel_err(dx[i], dx_val[i]));
+    expect_true(do_pass(dx[i], dx_val[i]));
 
   // work when a pointer is passed
   y.zeros();
   bas(y.memptr(), wmem::mem_stack().get(bas.n_wmem()), xx_val, 0);
   for(unsigned i = 0; i < y.size(); ++i)
-    expect_true(pass_rel_err(y[i], yy_val[i]));
+    expect_true(do_pass(y[i], yy_val[i]));
 
   dx.zeros();
   bas(dx.memptr(), wmem::mem_stack().get(bas.n_wmem()), xx_val, 1);
   for(unsigned i = 0; i < y.size(); ++i)
-    expect_true(pass_rel_err(dx[i], dx_val[i]));
+    expect_true(do_pass(dx[i], dx_val[i]));
 
   if(!comp_eval)
     return;
@@ -54,38 +63,44 @@ void run_test(double const xx_val, std::array<double, N> const &yy_val,
   arma::vec ix = bas(xx_val, wmem::mem_stack().get(bas.n_wmem()), -1);
   expect_true(ix.size() == ix_val.size());
   for(unsigned i = 0; i < ix.size(); ++i)
-    expect_true(pass_rel_err(ix[i], ix_val[i], 1e-6));
+    expect_true(do_pass(ix[i], ix_val[i], 1e-6));
 }
 
-template<class Basis, size_t N>
+template<class Basis, bool test_flip_sign = false, size_t N>
 void run_test_use_log(double const xx_val, std::array<double, N> const &yy_val,
                       std::array<double, N> const &dx_val, bool const intercept){
   arma::vec bk = { 1, 3 },
             ik = { 1.5, 2.5 };
   int const order(4);
 
+  auto do_pass =
+    [&](double const value, double const expected, double const tol = 1e-8){
+    return pass_rel_err(value, expected, tol) ||
+      (test_flip_sign && pass_rel_err(-value, expected, tol));
+  };
+
   auto bas = Basis(bk, ik, intercept, order, true);
   arma::vec y = bas(xx_val, wmem::mem_stack().get(bas.n_wmem()), 0.);
 
   expect_true(y.size() == yy_val.size());
   for(unsigned i = 0; i < y.size(); ++i)
-    expect_true(pass_rel_err(y[i], yy_val[i]));
+    expect_true(do_pass(y[i], yy_val[i]));
 
   arma::vec dx = bas(xx_val, wmem::mem_stack().get(bas.n_wmem()), 1);
   expect_true(dx.size() == dx_val.size());
   for(unsigned i = 0; i < y.size(); ++i)
-    expect_true(pass_rel_err(dx[i], dx_val[i]));
+    expect_true(do_pass(dx[i], dx_val[i]));
 
   // work when a pointer is passed
   y.zeros();
   bas(y.memptr(), wmem::mem_stack().get(bas.n_wmem()), xx_val, 0);
   for(unsigned i = 0; i < y.size(); ++i)
-    expect_true(pass_rel_err(y[i], yy_val[i]));
+    expect_true(do_pass(y[i], yy_val[i]));
 
   dx.zeros();
   bas(dx.memptr(), wmem::mem_stack().get(bas.n_wmem()), xx_val, 1);
   for(unsigned i = 0; i < y.size(); ++i)
-    expect_true(pass_rel_err(dx[i], dx_val[i]));
+    expect_true(do_pass(dx[i], dx_val[i]));
 }
 
 context("test bs") {
@@ -289,19 +304,19 @@ context("test ns") {
     yy_val = { 0.760638829255665, -2.28191648776699, 1.52127765851133 };
     dx_val = { -0.760638829254791, 2.28191648776756, -1.52127765850958 };
     ix_val = {-0.380319414627832, 1.1409582438835, -0.760638829255665};
-    run_test<bases::ns>(xx_val, yy_val, dx_val, intercept, ix_val, true);
+    run_test<bases::ns, true>(xx_val, yy_val, dx_val, intercept, ix_val, true);
 
     xx_val = .5;
     yy_val = { 0.320473361597061, 0.476079915208815, -0.296553276805877 };
     dx_val = { 2.16289926827143, -0.863697804854082, 0.950798536564431 };
     ix_val = { 0.0014165944809377, 0.19627104989052, -0.129979311038125 };
-    run_test<bases::ns>(xx_val, yy_val, dx_val, intercept, ix_val, true);
+    run_test<bases::ns, true>(xx_val, yy_val, dx_val, intercept, ix_val, true);
 
     xx_val = 2;
     yy_val = { -3.35714285714286, 1.07142857142857, 3.28571428571428 };
     dx_val = { -3.21428571427524, 0.642857142843741, 2.57142857136958 };
     ix_val = { -1.57152009239773, 1.13122694385987, 1.94029314853787 };
-    run_test<bases::ns>(xx_val, yy_val, dx_val, intercept, ix_val, true);
+    run_test<bases::ns, true>(xx_val, yy_val, dx_val, intercept, ix_val, true);
   }
 
   test_that("ns works (intercept)") {
@@ -332,7 +347,7 @@ context("test ns") {
     dx_val = {3.66214047089044, 0.530893453727897, -1.59268036116767,
               1.06178690745579};
     ix_val = { 2.09833147735479, 0.479732441139409, -1.43919732341823, 0.959464882278818 };
-    run_test<bases::ns>(xx_val, yy_val, dx_val, intercept, ix_val, true);
+    run_test<bases::ns, true>(xx_val, yy_val, dx_val, intercept, ix_val, true);
 
     xx_val = .5;
     yy_val = {0.451294593143432, 0.419616910760803, 0.17864926771759,
@@ -340,14 +355,14 @@ context("test ns") {
     dx_val = {-1.6874999999859, 1.8378344485655, 0.11149665426856,
               0.300668897151231};
     ix_val = {0.175868152221105, 0.0115521618050298, 0.165864347918313, -0.109708176389986};
-    run_test<bases::ns>(xx_val, yy_val, dx_val, intercept, ix_val, true);
+    run_test<bases::ns, true>(xx_val, yy_val, dx_val, intercept, ix_val, true);
 
     xx_val = 2;
     yy_val = {0, -3.35714285714286, 1.07142857142857,
               3.28571428571428};
     dx_val = {0, -3.21428571427524, 0.642857142843741, 2.57142857136958};
     ix_val = { 0.23936516774501, -1.54711799479435, 1.05802065104973, 1.98909734374463 };
-    run_test<bases::ns>(xx_val, yy_val, dx_val, intercept, ix_val, true);
+    run_test<bases::ns, true>(xx_val, yy_val, dx_val, intercept, ix_val, true);
   }
 
   test_that("ns works (intercept) use_log = true") {
@@ -372,21 +387,21 @@ context("test ns") {
                -0.764952091352183 };
     dx_val = { 1.06619113518837, 0.122686446044928, -0.490745784179713,
                0.368059338136731 };
-    run_test_use_log<bases::ns>(xx_val, yy_val, dx_val, intercept);
+    run_test_use_log<bases::ns, true>(xx_val, yy_val, dx_val, intercept);
 
     xx_val = std::exp(1.9);
     yy_val = { 0.500443700571341, 0.341188087871783, 0.1525809818462,
                -0.0931024030513163 };
     dx_val = { -0.0799272289080084, 0.125213152356344, -0.0102675383769478,
                0.0316316328581655 };
-    run_test_use_log<bases::ns>(xx_val, yy_val, dx_val, intercept);
+    run_test_use_log<bases::ns, true>(xx_val, yy_val, dx_val, intercept);
 
     xx_val = std::exp(3.2);
     yy_val = { 0, -0.438461538461539, 0.553846153846154,
                0.884615384615385 };
     dx_val = { 0, -0.0658466371974155, 0.0188133249128504,
                0.0470333122847401 };
-    run_test_use_log<bases::ns>(xx_val, yy_val, dx_val, intercept);
+    run_test_use_log<bases::ns, true>(xx_val, yy_val, dx_val, intercept);
   }
 }
 
