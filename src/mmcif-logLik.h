@@ -4,6 +4,7 @@
 #include "ghq.h"
 #include "simple-mem-stack.h"
 #include "param-indexer.h"
+#include <array>
 
 /// information about a given individual
 struct mmcif_data {
@@ -55,6 +56,17 @@ double mmcif_logLik
    ghqCpp::simple_mem_stack<double> &mem, ghqCpp::ghq_data const &dat);
 
 /**
+ * computes the log of the marginal bivariate cumulative incidence function.
+ * The last element indicates if the density should be taken in for either of
+ * the outcomes.
+ */
+double mmcif_log_mcif
+  (double const * par, param_indexer const &indexer,
+   mmcif_data const &obs1, mmcif_data const &obs2,
+   ghqCpp::simple_mem_stack<double> &mem, ghqCpp::ghq_data const &dat,
+   std::array<bool, 2> const &derivs);
+
+/**
  * overload of singletons.
  */
 double mmcif_logLik
@@ -71,12 +83,20 @@ double mmcif_logLik_grad
    ghqCpp::simple_mem_stack<double> &mem, ghqCpp::ghq_data const &dat);
 
 /**
- * overload of singletons.
+ * overload for singletons.
  */
 double mmcif_logLik_grad
   (double const * par, double * __restrict__ gr, param_indexer const &indexer,
    mmcif_data const &obs, ghqCpp::simple_mem_stack<double> &mem,
    ghqCpp::ghq_data const &dat);
+
+/**
+ * overload for singletons
+ */
+double mmcif_log_mcif
+  (double const * par, param_indexer const &indexer,
+   mmcif_data const &obs, ghqCpp::simple_mem_stack<double> &mem,
+   ghqCpp::ghq_data const &dat, bool const deriv);
 
 /// computes the log likelihood of the model without the random effects.
 template<bool with_risk>

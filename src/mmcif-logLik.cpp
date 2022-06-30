@@ -152,6 +152,47 @@ public:
   }
 };
 
+double mmcif_univariate_mcif
+  (double const * par, param_indexer const &indexer, mmcif_data const &obs,
+   unsigned const cause, simple_mem_stack<double> &mem, ghq_data const &dat,
+   arma::mat const &vcov, arma::mat const &vcov_sub,
+   arma::mat const &logit_offsets){
+  mmcif_comp_helper helper{indexer, par, mem};
+  auto const n_causes = indexer.n_causes();
+
+  arma::uvec const which_cat{cause == n_causes ? 0 : cause + 1};
+  if(!obs.has_finite_trajectory_prob){
+    mixed_mult_logit_term<false> mult_term(logit_offsets, which_cat);
+    rescale_problem<false> prob_use(vcov_sub, mult_term);
+    adaptive_problem prob(prob_use, mem, adaptive_rel_eps);
+    double res{};
+    ghq(&res, dat, prob, mem, ghq_target_size);
+    return res;
+  }
+
+  size_t const idx_traject{n_causes + cause};
+  arma::vec vcov_col = vcov.col(idx_traject).subvec(0, n_causes - 1);
+  arma::vec rng_coefs = arma::solve(vcov_sub, vcov_col,
+                                    arma::solve_opts::likely_sympd);
+  double const var_cond
+  {1 + vcov(idx_traject, idx_traject) - arma::dot(vcov_col, rng_coefs)};
+  rng_coefs *= -1;
+  double const lp_traject{helper.comp_lp_traject(obs, cause)};
+
+  mixed_probit_term<false> probit_term
+    (std::sqrt(var_cond), lp_traject, rng_coefs);
+  mixed_mult_logit_term<false> mult_term(logit_offsets, which_cat);
+
+  combined_problem comp_prob({&probit_term, &mult_term});
+  rescale_problem<false> prob_use(vcov_sub, comp_prob);
+  adaptive_problem prob(prob_use, mem, adaptive_rel_eps);
+
+  double res{};
+  ghq(&res, dat, prob, mem, ghq_target_size);
+
+  return res;
+}
+
 /// computes the log likelihood when both outcomes are observed
 double mmcif_logLik_both_obs
   (double const * par, param_indexer const &indexer,
@@ -1048,7 +1089,6 @@ double mmcif_logLik_both_cens_grad
 
   return std::log(integral);
 }
-
 } // namespace
 
 double mmcif_logLik
@@ -1070,50 +1110,23 @@ double mmcif_logLik
     auto const n_causes = indexer.n_causes();
     arma::mat logit_offsets{mat_no_alloc(n_causes, 1, mem)};
     helper.fill_logit_offsets(logit_offsets.begin(), obs);
-    arma::uvec which_cat(1);
 
     arma::mat vcov, vcov_sub;
     helper.fill_vcov(vcov);
     helper.fill_vcov_rng_traject(vcov_sub, vcov);
 
+    auto mem_mark = mem.set_mark_raii();
     if(!obs.has_finite_trajectory_prob){
-      which_cat[0] = 0;
-
-      auto mem_mark = mem.set_mark_raii();
-      mixed_mult_logit_term<false> mult_term(logit_offsets, which_cat);
-      rescale_problem<false> prob_use(vcov_sub, mult_term);
-      adaptive_problem prob(prob_use, mem, adaptive_rel_eps);
-      double res{};
-      ghq(&res, dat, prob, mem, ghq_target_size);
-      return std::log(res);
+      return std::log(
+        mmcif_univariate_mcif
+          (par, indexer, obs, n_causes, mem, dat, vcov, vcov_sub,
+           logit_offsets));
     }
 
-    auto mem_mark = mem.set_mark_raii();
     double integral{1};
     for(size_t cause = 0; cause < n_causes; ++cause){
-      // TODO: allocations
-      size_t const idx_traject{n_causes + cause};
-      arma::vec vcov_col = vcov.col(idx_traject).subvec(0, n_causes - 1);
-      arma::vec rng_coefs = arma::solve(vcov_sub, vcov_col,
-                                        arma::solve_opts::likely_sympd);
-      double const var_cond
-        {1 + vcov(idx_traject, idx_traject) - arma::dot(vcov_col, rng_coefs)};
-      rng_coefs *= -1;
-      double const lp_traject{helper.comp_lp_traject(obs, cause)};
-
-      mixed_probit_term<false> probit_term
-        (std::sqrt(var_cond), lp_traject, rng_coefs);
-      which_cat[0] = cause + 1;
-      mixed_mult_logit_term<false> mult_term(logit_offsets, which_cat);
-
-      combined_problem comp_prob({&probit_term, &mult_term});
-      rescale_problem<false> prob_use(vcov_sub, comp_prob);
-      adaptive_problem prob(prob_use, mem, adaptive_rel_eps);
-
-      double res{};
-      ghq(&res, dat, prob, mem, ghq_target_size);
-
-      integral -= res;
+      integral -= mmcif_univariate_mcif
+        (par, indexer, obs, cause, mem, dat, vcov, vcov_sub, logit_offsets);
     }
 
     return std::log(integral);
@@ -1454,4 +1467,372 @@ double mmcif_logLik_grad
   else if(is_cens1 && !is_cens2)
     return mmcif_logLik_one_obs_grad(par, gr, indexer, obs2, obs1, mem, dat);
   return mmcif_logLik_both_obs_grad(par, gr, indexer, obs1, obs2, mem, dat);
+}
+
+double mmcif_log_mcif
+  (double const * par, param_indexer const &indexer,
+   mmcif_data const &obs, ghqCpp::simple_mem_stack<double> &mem,
+   ghqCpp::ghq_data const &dat, bool const deriv){
+  if(obs.has_delayed_entry()){
+    double const delayed_term
+      {mmcif_logLik(par, indexer, obs.to_delayed(indexer), mem, dat)};
+
+    return mmcif_log_mcif(par, indexer, obs.without_delayed(), mem, dat, deriv) -
+      delayed_term;
+  }
+
+  mmcif_comp_helper helper{indexer, par, mem};
+
+  bool const is_cens{helper.is_censored(obs)};
+  if(is_cens){
+    if(deriv)
+      throw std::invalid_argument("deriv with censored observation");
+    return mmcif_logLik(par, indexer, obs, mem, dat);
+  } else if(deriv){
+    return mmcif_logLik(par, indexer, obs, mem, dat);
+  }
+
+  arma::mat logit_offsets{mat_no_alloc(indexer.n_causes(), 1, mem)};
+  helper.fill_logit_offsets(logit_offsets.begin(), obs);
+
+  arma::mat vcov, vcov_sub;
+  helper.fill_vcov(vcov);
+  helper.fill_vcov_rng_traject(vcov_sub, vcov);
+
+  auto mem_mark = mem.set_mark_raii();
+  double const mcif
+    {mmcif_univariate_mcif(par, indexer, obs, obs.cause, mem, dat,
+                           vcov, vcov_sub, logit_offsets)};
+
+  return std::log(mcif);
+}
+
+double mmcif_log_mcif
+  (double const * par, param_indexer const &indexer,
+   mmcif_data const &obs1, mmcif_data const &obs2,
+   ghqCpp::simple_mem_stack<double> &mem, ghqCpp::ghq_data const &dat,
+   std::array<bool, 2> const &derivs){
+  if(obs1.has_delayed_entry() && obs2.has_delayed_entry()){
+    double const delayed_term
+      {mmcif_logLik
+        (par, indexer, obs1.to_delayed(indexer),
+         obs2.to_delayed(indexer), mem, dat)};
+
+    return mmcif_log_mcif
+      (par, indexer, obs1.without_delayed(), obs2.without_delayed(),
+       mem, dat, derivs) - delayed_term;
+
+  } else if(obs1.has_delayed_entry() || obs2.has_delayed_entry()){
+    mmcif_data const &obs_w_delayed = obs1.has_delayed_entry() ? obs1 : obs2,
+                    &obs_wo_delayed = obs1.has_delayed_entry() ? obs2 : obs1;
+
+    double const delayed_term
+      {mmcif_logLik(par, indexer, obs_w_delayed.to_delayed(indexer), mem, dat)};
+
+    std::array<bool, 2> const new_deriv =
+      obs1.has_delayed_entry()
+        ? derivs
+        : std::array<bool, 2>{ derivs[1], derivs[0] };
+
+    return mmcif_log_mcif
+      (par, indexer, obs_w_delayed.without_delayed(), obs_wo_delayed,
+       mem, dat, new_deriv) - delayed_term;
+
+  }
+
+  mmcif_comp_helper helper{indexer, par, mem};
+  bool const is_cens1{helper.is_censored(obs1)},
+             is_cens2{helper.is_censored(obs2)};
+
+  auto comp_swap = [&]{
+    return mmcif_log_mcif
+      (par, indexer, obs2, obs1, mem, dat, { derivs[1], derivs[0] });
+  };
+
+  if(derivs[1] && !derivs[0])
+    return comp_swap();
+  else if(derivs[1] == derivs[0] && is_cens2 && !is_cens1)
+    return comp_swap();
+
+  if((is_cens1 && derivs[0]) || (is_cens2 && derivs[1]))
+    throw std::invalid_argument("deriv with censored observation");
+
+  bool const obs_wo_deriv1{(!is_cens1 && !derivs[0])};
+  bool const obs_wo_deriv2{(!is_cens2 && !derivs[1])};
+  if(!obs_wo_deriv1 && !obs_wo_deriv2)
+    return mmcif_logLik(par, indexer, obs1, obs2, mem, dat);
+
+  // because of the swapping, there are only three scenarios left
+  //  a. the first one is density and the second is an observed cif
+  //  b. both are observed cifs
+  //  c. the first one is censored and the second one is observed cif
+  auto const n_causes = indexer.n_causes();
+  if(derivs[0]){
+    // TODO: more or less the same code as in mmcif_logLik_one_obs
+    double const lp_traject1{helper.comp_lp_traject(obs1)};
+    double const d_lp_traject1{helper.comp_d_lp_traject(obs1)};
+    auto const cause1 = obs1.cause;
+    auto const cause2 = obs2.cause;
+
+    double out{std::log(d_lp_traject1)};
+    out += helper.comp_trajector_cond_dens_obs_one(lp_traject1, cause1);
+
+    arma::mat logit_offsets{mat_no_alloc(n_causes, 2, mem)};
+    helper.fill_logit_offsets(logit_offsets.colptr(0), obs1);
+    helper.fill_logit_offsets(logit_offsets.colptr(1), obs2);
+
+    arma::mat vcov_cond;
+    helper.fill_cond_vcov_one_obs(vcov_cond, cause1);
+
+    arma::vec cond_mean;
+    cond_mean = vcov_cond.col(cause1 + n_causes) * lp_traject1;
+
+    arma::mat const vcov_cond_sub
+      {vcov_cond.submat(0, 0, n_causes - 1, n_causes - 1)};
+    arma::vec const cond_mean_sub{cond_mean.subvec(0, n_causes - 1)};
+
+    arma::uvec const which_cat{cause1 + 1, obs2.cause + 1};
+    auto mem_mark = mem.set_mark_raii();
+    if(!obs2.has_finite_trajectory_prob){
+      mixed_mult_logit_term<false> mult_term(logit_offsets, which_cat);
+      rescale_shift_problem<false> prob_use
+        (vcov_cond_sub, cond_mean_sub, mult_term);
+      adaptive_problem prob(prob_use, mem, adaptive_rel_eps);
+
+      double integral_term{};
+      ghq(&integral_term, dat, prob, mem, ghq_target_size);
+      out += std::log(integral_term);
+      return out;
+    }
+
+    arma::vec rng_coefs, vcov_col;
+    mixed_mult_logit_term<false> mult_term(logit_offsets, which_cat);
+
+    size_t const idx_traject{n_causes + cause2};
+    vcov_col = vcov_cond.col(idx_traject).subvec(0, n_causes - 1);
+
+    rng_coefs = arma::solve
+      (vcov_cond_sub, vcov_col, arma::solve_opts::likely_sympd);
+    double const var_cond
+    {1 + vcov_cond(idx_traject, idx_traject)
+      - arma::dot(vcov_col, rng_coefs)};
+
+    double const lp_traject2{helper.comp_lp_traject(obs2, cause2)};
+    double const shift_prob
+    {lp_traject2 - cond_mean[idx_traject]
+      + arma::dot(rng_coefs, cond_mean_sub)};
+
+    rng_coefs *= -1;
+
+    mixed_probit_term<false> probit_term
+      (std::sqrt(var_cond), shift_prob, rng_coefs);
+    combined_problem comp_prob({&probit_term, &mult_term});
+
+    rescale_shift_problem<false> prob_use
+      (vcov_cond_sub, cond_mean_sub, comp_prob);
+    adaptive_problem prob(prob_use, mem, adaptive_rel_eps);
+
+    double integral_term{};
+    ghq(&integral_term, dat, prob, mem, ghq_target_size);
+    out += std::log(integral_term);
+    return out;
+
+  } else if(!is_cens1 && !is_cens2){
+    // code more or less like in mmcif_logLik_both_cens
+    if(!obs1.has_finite_trajectory_prob && !obs2.has_finite_trajectory_prob){
+      arma::mat logit_offsets{mat_no_alloc(n_causes, 2, mem)};
+      helper.fill_logit_offsets(logit_offsets.colptr(0), obs1);
+      helper.fill_logit_offsets(logit_offsets.colptr(1), obs2);
+
+      arma::mat vcov, vcov_sub;
+      helper.fill_vcov(vcov);
+      helper.fill_vcov_rng_traject(vcov_sub, vcov);
+
+      arma::uvec const which_cat{obs1.cause + 1, obs2.cause + 1};
+
+      auto mem_marker = mem.set_mark_raii();
+      mixed_mult_logit_term<false> mult_term(logit_offsets, which_cat);
+      rescale_problem<false> prob_use(vcov_sub, mult_term);
+      adaptive_problem prob(prob_use, mem, adaptive_rel_eps);
+
+      double integral{};
+      ghq(&integral, dat, prob, mem, ghq_target_size);
+
+      return std::log(integral);
+    }
+
+    auto comp_order_one_none_finte =
+      [&](mmcif_data const &obs1, mmcif_data const &obs2){
+        arma::mat logit_offsets{mat_no_alloc(n_causes, 2, mem)};
+        helper.fill_logit_offsets(logit_offsets.colptr(0), obs1);
+        helper.fill_logit_offsets(logit_offsets.colptr(1), obs2);
+
+        arma::mat vcov, vcov_sub;
+        helper.fill_vcov(vcov);
+        helper.fill_vcov_rng_traject(vcov_sub, vcov);
+
+        arma::uvec const which_cat{obs1.cause + 1, obs2.cause + 1};
+
+        auto mem_marker = mem.set_mark_raii();
+        arma::vec rng_coefs, vcov_col;
+
+        size_t const idx_traject{n_causes + obs1.cause};
+        vcov_col = vcov.col(idx_traject).subvec(0, n_causes - 1);
+
+        rng_coefs = arma::solve
+          (vcov_sub, vcov_col, arma::solve_opts::likely_sympd);
+        double const var_cond
+          {1 + vcov(idx_traject, idx_traject) - arma::dot(vcov_col, rng_coefs)};
+
+        double const lp_traject1{helper.comp_lp_traject(obs1, obs1.cause)};
+        rng_coefs *= -1;
+
+        mixed_probit_term<false> probit_term
+          (std::sqrt(var_cond), lp_traject1, rng_coefs);
+        mixed_mult_logit_term<false> mult_term(logit_offsets, which_cat);
+        combined_problem comp_prob({&probit_term, &mult_term});
+
+        rescale_problem<false> prob_use(vcov_sub, comp_prob);
+        adaptive_problem prob(prob_use, mem, adaptive_rel_eps);
+
+        double integral{};
+        ghq(&integral, dat, prob, mem, ghq_target_size);
+        return std::log(integral);
+    };
+
+    if(!obs1.has_finite_trajectory_prob)
+      return comp_order_one_none_finte(obs2, obs1);
+    if(!obs2.has_finite_trajectory_prob)
+      return comp_order_one_none_finte(obs1, obs2);
+
+    arma::mat logit_offsets{mat_no_alloc(n_causes, 2, mem)};
+    helper.fill_logit_offsets(logit_offsets.colptr(0), obs1);
+    helper.fill_logit_offsets(logit_offsets.colptr(1), obs2);
+
+    arma::mat vcov, vcov_sub;
+    helper.fill_vcov(vcov);
+    helper.fill_vcov_rng_traject(vcov_sub, vcov);
+
+    auto const cause_1 = obs1.cause;
+    auto const cause_2 = obs2.cause;
+
+    arma::mat V{mat_no_alloc(2, n_causes, mem)};
+    arma::uvec const which_cat{cause_1 + 1, cause_2 + 1};
+    arma::vec dens_point(vec_no_alloc(2, mem));
+
+    arma::mat pbvn_vcov{mat_no_alloc(2, 2, mem)};
+    arma::mat rng_coefs{mat_no_alloc(2, n_causes, mem)};
+
+    auto const vcov_dim = 2 * n_causes;
+    arma::mat const cond_mean_loadings =
+      arma::solve(vcov_sub,
+                  vcov.submat(0, n_causes, n_causes - 1, vcov_dim - 1),
+                  arma::solve_opts::likely_sympd).t();
+    arma::mat const vcov_rng_cond_traject =
+      vcov.submat(n_causes, n_causes, vcov_dim - 1, vcov_dim - 1)
+      - vcov.submat(n_causes, 0, vcov_dim - 1, n_causes - 1) *
+        cond_mean_loadings.t();
+
+    auto mem_marker = mem.set_mark_raii();
+    dens_point[0] = -helper.comp_lp_traject(obs1, cause_1);
+
+    V.zeros();
+    V(0, cause_1) = 1;
+    V(1, cause_2) = 1;
+    dens_point[1] = -helper.comp_lp_traject(obs2, cause_2);
+
+    pbvn_vcov = V * vcov_rng_cond_traject * V.t();
+    pbvn_vcov.diag() += 1;
+    rng_coefs = V * cond_mean_loadings;
+
+    cond_pbvn<false> pbvn_term(dens_point, pbvn_vcov, rng_coefs);
+    mixed_mult_logit_term<false> mult_term(logit_offsets, which_cat);
+    combined_problem comp_prob({&pbvn_term, &mult_term});
+
+    rescale_problem<false> prob_use(vcov_sub, comp_prob);
+    adaptive_problem prob(prob_use, mem, adaptive_rel_eps);
+
+    double integral{};
+    ghq(&integral, dat, prob, mem, ghq_target_size);
+    return std::log(integral);
+  }
+
+  // code more or less like in mmcif_logLik_both_cens
+  arma::mat logit_offsets{mat_no_alloc(n_causes, 2, mem)};
+  helper.fill_logit_offsets(logit_offsets.colptr(0), obs1);
+  helper.fill_logit_offsets(logit_offsets.colptr(1), obs2);
+
+  arma::mat vcov, vcov_sub;
+  helper.fill_vcov(vcov);
+  helper.fill_vcov_rng_traject(vcov_sub, vcov);
+
+  if(!obs1.has_finite_trajectory_prob && !obs2.has_finite_trajectory_prob){
+    arma::uvec const which_cat{0, obs2.cause + 1};
+
+    auto mem_marker = mem.set_mark_raii();
+    mixed_mult_logit_term<false> mult_term(logit_offsets, which_cat);
+    rescale_problem<false> prob_use(vcov_sub, mult_term);
+    adaptive_problem prob(prob_use, mem, adaptive_rel_eps);
+
+    double integral{};
+    ghq(&integral, dat, prob, mem, ghq_target_size);
+
+    return std::log(integral);
+
+  } else if(obs1.has_finite_trajectory_prob != obs2.has_finite_trajectory_prob)
+    throw std::runtime_error("TODO: not implemented");
+
+  auto mem_marker1 = mem.set_mark_raii();
+  double integral
+    {std::exp(mmcif_log_mcif(par, indexer, obs2, mem, dat, derivs[1]))};
+
+  // handle the interaction terms
+  arma::mat V{mat_no_alloc(2, n_causes, mem)};
+  arma::uvec which_cat(2);
+  arma::vec dens_point(vec_no_alloc(2, mem));
+
+  arma::mat pbvn_vcov{mat_no_alloc(2, 2, mem)};
+  arma::mat rng_coefs{mat_no_alloc(2, n_causes, mem)};
+
+  auto const vcov_dim = 2 * n_causes;
+  arma::mat const cond_mean_loadings =
+    arma::solve(vcov_sub,
+                vcov.submat(0, n_causes, n_causes - 1, vcov_dim - 1),
+                arma::solve_opts::likely_sympd).t();
+  arma::mat const vcov_rng_cond_traject =
+    vcov.submat(n_causes, n_causes, vcov_dim - 1, vcov_dim - 1)
+    - vcov.submat(n_causes, 0, vcov_dim - 1, n_causes - 1) *
+      cond_mean_loadings.t();
+
+  auto const cause_2 = obs2.cause;
+  which_cat[1] = cause_2 + 1;
+
+  dens_point[1] = -helper.comp_lp_traject(obs2, cause_2);
+
+  auto mem_marker2 = mem.set_mark_raii();
+  for(size_t cause_1 = 0; cause_1 < n_causes; ++cause_1){
+    which_cat[0] = cause_1 + 1;
+    dens_point[0] = -helper.comp_lp_traject(obs1, cause_1);
+
+    V.zeros();
+    V(0, cause_1) = 1;
+    V(1, cause_2) = 1;
+
+    pbvn_vcov = V * vcov_rng_cond_traject * V.t();
+    pbvn_vcov.diag() += 1;
+    rng_coefs = V * cond_mean_loadings;
+
+    cond_pbvn<false> pbvn_term(dens_point, pbvn_vcov, rng_coefs);
+    mixed_mult_logit_term<false> mult_term(logit_offsets, which_cat);
+    combined_problem comp_prob({&pbvn_term, &mult_term});
+
+    rescale_problem<false> prob_use(vcov_sub, comp_prob);
+    adaptive_problem prob(prob_use, mem, adaptive_rel_eps);
+
+    double res{};
+    ghq(&res, dat, prob, mem, ghq_target_size);
+    integral -= res;
+  }
+
+  return std::log(integral);
 }

@@ -726,3 +726,61 @@ Rcpp::NumericMatrix ns_eval
 
   return out;
 }
+
+// [[Rcpp::export(rng = false)]]
+double mmcif_pd_univariate_cpp
+  (SEXP data_ptr, NumericVector const par, Rcpp::List ghq_data,
+   NumericVector const cov_trajectory, NumericVector const d_cov_trajectory,
+   NumericVector const cov_risk, bool const has_finite_trajectory_prob,
+   unsigned const cause, Rcpp::NumericVector const cov_trajectory_delayed,
+   bool const deriv){
+
+  Rcpp::XPtr<mmcif_data_holder const> data(data_ptr);
+  throw_if_invalid_par(*data, par);
+  wmem::setup_working_memory(1);
+  auto ghq_data_pass = ghq_data_from_list(ghq_data);
+
+  bool const has_delayed_entry{!std::isnan(cov_trajectory_delayed[0])};
+  return mmcif_log_mcif
+    (&par[0], data->indexer,
+     { &cov_trajectory[0], &d_cov_trajectory[0], &cov_risk[0],
+       has_finite_trajectory_prob, cause,
+       has_delayed_entry ? &cov_trajectory_delayed[0] : nullptr},
+     wmem::mem_stack(), ghq_data_pass, deriv);
+}
+
+// [[Rcpp::export(rng = false)]]
+double mmcif_pd_bivariate_cpp
+  (SEXP data_ptr, NumericVector const par, Rcpp::List ghq_data,
+   arma::mat const &cov_trajectory, arma::mat const &d_cov_trajectory,
+   arma::mat const &cov_risk,
+   Rcpp::IntegerVector const has_finite_trajectory_prob,
+   Rcpp::IntegerVector const cause, arma::mat const &cov_trajectory_delayed,
+   Rcpp::IntegerVector const derivs){
+
+  Rcpp::XPtr<mmcif_data_holder const> data(data_ptr);
+  throw_if_invalid_par(*data, par);
+  wmem::setup_working_memory(1);
+  auto ghq_data_pass = ghq_data_from_list(ghq_data);
+
+  bool const has_delayed_entry1{!std::isnan(cov_trajectory_delayed.col(0)[0])},
+             has_delayed_entry2{!std::isnan(cov_trajectory_delayed.col(1)[0])};
+
+  mmcif_data const obs1
+    {cov_trajectory.colptr(0), d_cov_trajectory.colptr(0), cov_risk.colptr(0),
+     static_cast<bool>(has_finite_trajectory_prob[0]),
+     static_cast<unsigned>(cause[0]),
+     has_delayed_entry1 ? cov_trajectory_delayed.colptr(0) : nullptr};
+  mmcif_data const obs2
+    {cov_trajectory.colptr(1), d_cov_trajectory.colptr(1), cov_risk.colptr(1),
+     static_cast<bool>(has_finite_trajectory_prob[1]),
+     static_cast<unsigned>(cause[1]),
+     has_delayed_entry2 ? cov_trajectory_delayed.colptr(1) : nullptr};
+
+  std::array<bool, 2> const derivs_pass
+    {static_cast<bool>(derivs[0]), static_cast<bool>(derivs[1])};
+
+  return mmcif_log_mcif
+    (&par[0], data->indexer, obs1, obs2, wmem::mem_stack(), ghq_data_pass,
+     derivs_pass);
+}

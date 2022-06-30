@@ -285,6 +285,8 @@ bench::mark(
   min_time = 4)
 ```
 
+#### Optimization
+
 Then we optimize the parameters. 
 
 ```{r fit, cache = 1}
@@ -346,7 +348,6 @@ print(fits[[length(fits)]]$value, digits = 10)
 print(fit                 $value, digits = 10)
 ```
 
-
 Then we compute the sandwich estimator. The Hessian is currently computed with 
 numerical differentiation which is why it takes a while.
 
@@ -358,6 +359,8 @@ system.time(sandwich_est <- mmcif_sandwich(comp_obj, fit$par, n_threads = 4L))
 system.time(sandwich_est_simple <- 
               mmcif_sandwich(comp_obj, fit$par, n_threads = 4L, order = 0L))
 ```
+
+#### Estimates
 
 We show
 the estimated and true the conditional cumulative incidence 
@@ -448,6 +451,235 @@ colnames(vcov_show) <-
 print(vcov_show, na.print = "")
 
 Sigma # the true values
+```
+
+#### Marginal Measures
+
+The `mmcif_pd_univariate` function is provided to compute the marginal CIFs, 
+the derivative of the marginal CIFs, and the marginal survival probability.
+
+```{r pre_show_mmcif_pd_univariate, echo = FALSE}
+comp_obj <- mmcif_data(
+  ~ a + b, dat, cause = cause, time = time, cluster_id = cluster_id,
+  max_time = delta, spline_df = 4L)
+```
+
+```{r show_mmcif_pd_univariate}
+# compute the univariate marginal CIFs
+ex_dat <- data.frame(a = c(-.5, .25), b = c(.1, .8))
+
+compute_cif <- \(cause, time = .25){
+  mmcif_pd_univariate(
+    fit$par, comp_obj, newdata = ex_dat[1, ], cause = cause, 
+    time = time, type = "cumulative")
+}
+
+m_cifs <- sapply(1:2, compute_cif)
+m_cifs
+
+# these match with the survival probability 
+m_surv <- compute_cif(3L)
+all.equal(m_surv, 1 - sum(m_cifs))
+
+# we can also get the derivative of the marginal CIFs
+compute_dens <- \(cause, time = .25){
+  mmcif_pd_univariate(
+    fit$par, comp_obj, newdata = ex_dat[1, ], cause = cause, 
+    time = time, type = "derivative")
+}
+
+compute_dens(2L)
+
+# they integrate to the CIFS
+int_m_cifs <- sapply(
+  1:2, \(cause) 
+    integrate(Vectorize(compute_dens), 1e-12, .25, rel.tol = 1e-10, 
+              cause = cause)$value)
+all.equal(int_m_cifs, m_cifs) # ~ the same
+
+# we can compute a marginal cause-specific hazard using these
+local({
+  tis <- seq(1e-2, 2 - 1e-2, length.out = 200)
+  pd_wrap <- \(ti, type, cause)
+    mmcif_pd_univariate(
+      fit$par, comp_obj, newdata = ex_dat[1, ], cause = cause, 
+      time = ti, type = type, use_log = TRUE)
+  
+  log_m_survs <- sapply(tis, pd_wrap, type = "cumulative", cause = 3L)
+  log_dens <- sapply(tis, pd_wrap, type = "derivative", cause = 2L)
+  
+  par(mar = c(5, 5, 1, 1))
+  hazs <- exp(log_dens - log_m_survs)
+  plot(tis, hazs, xlab = "Time", type = "l", bty = "l",
+       ylab = "Marginal hazard", ylim = range(0, hazs))
+  grid()
+})
+```
+
+There is a bivariate version as well. This gives the marginal bivaraite CIFs, 
+marginal survival probabilities, the marginal density, and mixtures thereof 
+as illustrated below.
+
+```{r show_mmcif_pd_bivariate}
+# wrapper to simplify calls to mmcif_pd_bivariate
+mmcif_pd_bivariate_wrap <- \(time = c(.25, 1.33), cause, type){
+  mmcif_pd_bivariate(
+    fit$par, comp_obj, newdata = ex_dat, cause = cause, 
+    time = time, ghq_data = ghq_lists[[2]], type = type)
+}
+
+# compute all configurations except for the double censored one
+(cause_combs <- cbind(rep(1:3, each = 3), rep(1:3, 3)))
+cause_combs <- cause_combs[rowSums(cause_combs) < 6L, ]
+m_cifs <- apply(cause_combs, 1, \(cause){
+  mmcif_pd_bivariate_wrap(cause = cause, type = c("cumulative", "cumulative"))
+})
+m_cifs
+
+# we can recover the probability of both being censored
+m_surv <- mmcif_pd_bivariate_wrap(
+  cause = c(3L, 3L), type = c("cumulative", "cumulative"))
+all.equal(m_surv, 1 - sum(m_cifs))
+
+# we can also compute the derivative of a CIF in one argument and the CIF in the 
+# other
+mmcif_pd_bivariate_wrap(cause = c(1L, 1L), type = c("derivative", "cumulative"))
+
+# we can also compute the derivative in both
+mmcif_pd_bivariate_wrap(cause = c(1L, 1L), type = c("derivative", "derivative"))
+
+# they integrate numerically to roughly the right value
+(combs_to_test <- cause_combs[!apply(cause_combs == 3, 1L, any), ])
+apply(combs_to_test, 1, \(cause){
+  # compute the CIF numerically and compute the relative error
+  f1 <- Vectorize(
+    \(x, cause1, type1){
+      mmcif_pd_bivariate(
+        fit$par, comp_obj, newdata = ex_dat, cause = c(cause1, cause[2]), 
+        time = c(x, 1.33), ghq_data = ghq_lists[[2]], 
+        type = c(type1, "cumulative"))
+    }, vectorize.args = "x")
+  
+  int_val <- integrate(
+    f1, 1e-8, .25, cause1 = cause[1], type1 = "derivative", 
+    rel.tol = 1e-10)$value
+  func_out <- f1(.25, cause[1], "cumulative")
+  err1 <- (func_out - int_val) / int_val
+  
+  # do the same for the other argument
+  f2 <- Vectorize(
+    \(x, cause2, type2){
+      mmcif_pd_bivariate(
+        fit$par, comp_obj, newdata = ex_dat, cause = c(cause[1], cause2), 
+        time = c(.25, x), ghq_data = ghq_lists[[2]], 
+        type = c("cumulative", type2))
+    }, vectorize.args = "x")
+  
+  int_val <- integrate(
+    f2, 1e-8, 1.33, cause2 = cause[2], type2 = "derivative", 
+    rel.tol = 1e-10)$value
+  func_out <- f2(1.33, cause[2], "cumulative")
+  err2 <- (func_out - int_val) / int_val
+  
+  # return the relative errors
+  c(err1, err2)
+}) # ~ tiny relative errors
+
+# we can also do the check with one CIF and one derivative
+apply(combs_to_test, 1, \(cause){
+  # compute the cif numerically
+  f1 <- Vectorize(
+    \(x, cause1, type1){
+      mmcif_pd_bivariate(
+        fit$par, comp_obj, newdata = ex_dat, cause = c(cause1, cause[2]), 
+        time = c(x, 1.33), ghq_data = ghq_lists[[2]], 
+        type = c(type1, "derivative"))
+    }, vectorize.args = "x")
+  
+  int_val <- integrate(
+    f1, 1e-8, .25, cause1 = cause[1], type1 = "derivative", rel.tol = 1e-10)$value
+  func_out <- f1(.25, cause[1], "cumulative")
+  err1 <- (func_out - int_val) / int_val
+  
+  # do the same for the other argument
+  f2 <- Vectorize(
+    \(x, cause2, type2){
+      mmcif_pd_bivariate(
+        fit$par, comp_obj, newdata = ex_dat, cause = c(cause[1], cause2), 
+        time = c(.25, x), ghq_data = ghq_lists[[2]], 
+        type = c("derivative", type2))
+    }, vectorize.args = "x")
+  
+  int_val <- integrate(
+    f2, 1e-8, 1.33, cause2 = cause[2], type2 = "derivative", 
+    rel.tol = 1e-10)$value
+  func_out <- f2(1.33, cause[2], "cumulative")
+  err2 <- (func_out - int_val) / int_val
+  
+  # return the relative errors
+  c(err1, err2)
+})
+```
+
+Finally, there is also function to compute the marginal density, CIF, survival 
+probability or hazard conditional on the outcome of another individual.
+
+```{r show_mmcif_pd_cond}
+# define two wrapper to simplify the calls to mmcif_pd_univariate and 
+# mmcif_pd_cond
+compute_uncond <- Vectorize(
+  \(time, cause, type){
+    mmcif_pd_univariate(
+      fit$par, comp_obj, newdata = ex_dat[1, ], cause = cause, 
+      time = time, type = type)
+  }, "time")
+
+compute_cond <- Vectorize(
+  \(time, cause, type){
+    mmcif_pd_cond(
+      fit$par, comp_obj, newdata = ex_dat, cause = c(2L, cause), 
+      time = c(.25, time), type_obs = type, type_cond = "cumulative", 
+      which_cond = 1L)
+  }, "time")
+
+# the conditional figures are the dashed curves
+local({
+  tis <- seq(1e-2, 2 - 1e-2, length.out = 200)
+  cifs <- cbind(compute_uncond(tis, 2L, "cumulative"),
+                compute_cond(tis, 2L, "cumulative"))
+  derivs <- cbind(compute_uncond(tis, 2L, "derivative"),
+                  compute_cond(tis, 2L, "derivative"))
+
+  par(mar = c(5, 5, 1, 1))  
+  matplot(tis, cifs, type = "l", lty = 1:2, col = "black", bty = "l", 
+          xlab = "Time", ylab = "Marginal CIF")
+  grid()
+
+  matplot(tis, derivs, type = "l", lty = 1:2, col = "black", bty = "l", 
+          xlab = "Time", ylab = "Marginal derivatives")
+  grid()
+  
+  # do the same for the hazard
+  hazs_cond <- compute_cond(tis, 2L, "hazard")
+  hazs_uncond <- 
+    compute_uncond(tis, "derivative", cause = 2L) / 
+      compute_uncond(tis, "cumulative", cause = 3L)
+  
+  matplot(tis, cbind(hazs_uncond, hazs_cond), type = "l", lty = 1:2, 
+          col = "black", bty = "l", xlab = "Time", ylab = "Marginal hazards")
+  grid()
+})
+# we can check a standard equality
+cond_surv <- compute_cond(.25, cause = 3L, type = "cumulative")
+cond_deriv <- compute_cond(.25, cause = 1L, type = "derivative")
+cond_haz <- compute_cond(.25, cause = 1L, type = "hazard")
+all.equal(cond_surv * cond_haz, cond_deriv)
+
+# the conditional derivative integrates to the conditional CIF
+num_cumulative <- integrate(
+  compute_cond, 1e-8, .25, cause = 1L, type = "derivative", 
+  rel.tol = 1e-10)$value
+all.equal(num_cumulative, compute_cond(.25, cause = 1L, type = "cumulative"))
 ```
 
 ### Delayed Entry
@@ -551,6 +783,8 @@ tapply(dat$time, dat$cause, quantile,
 quantile(dat$delayed_entry, probs = seq(0, 1, length.out = 11))
 ```
 
+#### Optimization
+
 Next, we fit the model as before but this time we pass the delayed entry 
 time.
 
@@ -602,6 +836,8 @@ numerical differentiation which is why it takes a while.
 
 ```{r delayed_sandwich, ref.label = "sandwich", cache = 1}
 ```
+
+#### Estimates
 
 We show
 the estimated and true the conditional cumulative incidence 
@@ -792,6 +1028,8 @@ table(dat$strata)
 quantile(dat$delayed_entry, probs = seq(0, 1, length.out = 11))
 ```
 
+#### Optimization
+
 Next, we fit the model as before but this time we with strata specific 
 fixed effects and transformations.
 
@@ -866,6 +1104,8 @@ numerical differentiation which is why it takes a while.
 
 ```{r strata_sandwich, ref.label = "sandwich", cache = 1}
 ```
+
+#### Estimates
 
 We show
 the estimated and true the conditional cumulative incidence 
@@ -1061,6 +1301,8 @@ tapply(dat$time, dat$cause, quantile,
        probs = seq(0, 1, length.out = 11), na.rm = TRUE)
 ```
 
+#### Optimization
+
 ```{r three_setup_data}
 library(mmcif)
 comp_obj <- mmcif_data(
@@ -1184,6 +1426,8 @@ mmcif_logLik(comp_obj, start$upper, n_threads = 4L, is_log_chol = TRUE)
 ```{r three_sandwich, cache = 1}
 system.time(sandwich_est <- mmcif_sandwich(comp_obj, fit$par, n_threads = 4L))
 ```
+
+#### Estimates
 
 We show the estimated and true the conditional cumulative incidence functions 
 (the dashed curves are the estimates) like before.

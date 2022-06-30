@@ -37,6 +37,14 @@ ns_eval <- function(ptr, points, ders) {
     .Call(`_mmcif_ns_eval`, ptr, points, ders)
 }
 
+mmcif_pd_univariate_cpp <- function(data_ptr, par, ghq_data, cov_trajectory, d_cov_trajectory, cov_risk, has_finite_trajectory_prob, cause, cov_trajectory_delayed, deriv) {
+    .Call(`_mmcif_mmcif_pd_univariate_cpp`, data_ptr, par, ghq_data, cov_trajectory, d_cov_trajectory, cov_risk, has_finite_trajectory_prob, cause, cov_trajectory_delayed, deriv)
+}
+
+mmcif_pd_bivariate_cpp <- function(data_ptr, par, ghq_data, cov_trajectory, d_cov_trajectory, cov_risk, has_finite_trajectory_prob, cause, cov_trajectory_delayed, derivs) {
+    .Call(`_mmcif_mmcif_pd_bivariate_cpp`, data_ptr, par, ghq_data, cov_trajectory, d_cov_trajectory, cov_risk, has_finite_trajectory_prob, cause, cov_trajectory_delayed, derivs)
+}
+
 create_pair_indices <- function(cluster_id, obs_idx) {
     .Call(`_mmcif_create_pair_indices`, cluster_id, obs_idx)
 }

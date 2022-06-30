@@ -132,6 +132,44 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// mmcif_pd_univariate_cpp
+double mmcif_pd_univariate_cpp(SEXP data_ptr, NumericVector const par, Rcpp::List ghq_data, NumericVector const cov_trajectory, NumericVector const d_cov_trajectory, NumericVector const cov_risk, bool const has_finite_trajectory_prob, unsigned const cause, Rcpp::NumericVector const cov_trajectory_delayed, bool const deriv);
+RcppExport SEXP _mmcif_mmcif_pd_univariate_cpp(SEXP data_ptrSEXP, SEXP parSEXP, SEXP ghq_dataSEXP, SEXP cov_trajectorySEXP, SEXP d_cov_trajectorySEXP, SEXP cov_riskSEXP, SEXP has_finite_trajectory_probSEXP, SEXP causeSEXP, SEXP cov_trajectory_delayedSEXP, SEXP derivSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::traits::input_parameter< SEXP >::type data_ptr(data_ptrSEXP);
+    Rcpp::traits::input_parameter< NumericVector const >::type par(parSEXP);
+    Rcpp::traits::input_parameter< Rcpp::List >::type ghq_data(ghq_dataSEXP);
+    Rcpp::traits::input_parameter< NumericVector const >::type cov_trajectory(cov_trajectorySEXP);
+    Rcpp::traits::input_parameter< NumericVector const >::type d_cov_trajectory(d_cov_trajectorySEXP);
+    Rcpp::traits::input_parameter< NumericVector const >::type cov_risk(cov_riskSEXP);
+    Rcpp::traits::input_parameter< bool const >::type has_finite_trajectory_prob(has_finite_trajectory_probSEXP);
+    Rcpp::traits::input_parameter< unsigned const >::type cause(causeSEXP);
+    Rcpp::traits::input_parameter< Rcpp::NumericVector const >::type cov_trajectory_delayed(cov_trajectory_delayedSEXP);
+    Rcpp::traits::input_parameter< bool const >::type deriv(derivSEXP);
+    rcpp_result_gen = Rcpp::wrap(mmcif_pd_univariate_cpp(data_ptr, par, ghq_data, cov_trajectory, d_cov_trajectory, cov_risk, has_finite_trajectory_prob, cause, cov_trajectory_delayed, deriv));
+    return rcpp_result_gen;
+END_RCPP
+}
+// mmcif_pd_bivariate_cpp
+double mmcif_pd_bivariate_cpp(SEXP data_ptr, NumericVector const par, Rcpp::List ghq_data, arma::mat const& cov_trajectory, arma::mat const& d_cov_trajectory, arma::mat const& cov_risk, Rcpp::IntegerVector const has_finite_trajectory_prob, Rcpp::IntegerVector const cause, arma::mat const& cov_trajectory_delayed, Rcpp::IntegerVector const derivs);
+RcppExport SEXP _mmcif_mmcif_pd_bivariate_cpp(SEXP data_ptrSEXP, SEXP parSEXP, SEXP ghq_dataSEXP, SEXP cov_trajectorySEXP, SEXP d_cov_trajectorySEXP, SEXP cov_riskSEXP, SEXP has_finite_trajectory_probSEXP, SEXP causeSEXP, SEXP cov_trajectory_delayedSEXP, SEXP derivsSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::traits::input_parameter< SEXP >::type data_ptr(data_ptrSEXP);
+    Rcpp::traits::input_parameter< NumericVector const >::type par(parSEXP);
+    Rcpp::traits::input_parameter< Rcpp::List >::type ghq_data(ghq_dataSEXP);
+    Rcpp::traits::input_parameter< arma::mat const& >::type cov_trajectory(cov_trajectorySEXP);
+    Rcpp::traits::input_parameter< arma::mat const& >::type d_cov_trajectory(d_cov_trajectorySEXP);
+    Rcpp::traits::input_parameter< arma::mat const& >::type cov_risk(cov_riskSEXP);
+    Rcpp::traits::input_parameter< Rcpp::IntegerVector const >::type has_finite_trajectory_prob(has_finite_trajectory_probSEXP);
+    Rcpp::traits::input_parameter< Rcpp::IntegerVector const >::type cause(causeSEXP);
+    Rcpp::traits::input_parameter< arma::mat const& >::type cov_trajectory_delayed(cov_trajectory_delayedSEXP);
+    Rcpp::traits::input_parameter< Rcpp::IntegerVector const >::type derivs(derivsSEXP);
+    rcpp_result_gen = Rcpp::wrap(mmcif_pd_bivariate_cpp(data_ptr, par, ghq_data, cov_trajectory, d_cov_trajectory, cov_risk, has_finite_trajectory_prob, cause, cov_trajectory_delayed, derivs));
+    return rcpp_result_gen;
+END_RCPP
+}
 // create_pair_indices
 Rcpp::List create_pair_indices(Rcpp::IntegerVector const cluster_id, Rcpp::IntegerVector const obs_idx);
 RcppExport SEXP _mmcif_create_pair_indices(SEXP cluster_idSEXP, SEXP obs_idxSEXP) {
@@ -180,6 +218,8 @@ static const R_CallMethodDef CallEntries[] = {
     {"_mmcif_mcif_logLik_grad_to_R", (DL_FUNC) &_mmcif_mcif_logLik_grad_to_R, 4},
     {"_mmcif_ns_ptr", (DL_FUNC) &_mmcif_ns_ptr, 2},
     {"_mmcif_ns_eval", (DL_FUNC) &_mmcif_ns_eval, 3},
+    {"_mmcif_mmcif_pd_univariate_cpp", (DL_FUNC) &_mmcif_mmcif_pd_univariate_cpp, 10},
+    {"_mmcif_mmcif_pd_bivariate_cpp", (DL_FUNC) &_mmcif_mmcif_pd_bivariate_cpp, 10},
     {"_mmcif_create_pair_indices", (DL_FUNC) &_mmcif_create_pair_indices, 2},
     {"_mmcif_commutation_dot", (DL_FUNC) &_mmcif_commutation_dot, 4},
     {"_mmcif_get_commutation", (DL_FUNC) &_mmcif_get_commutation, 2},

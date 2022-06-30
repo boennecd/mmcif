@@ -10,6 +10,70 @@
   stopifnot(is.logical(is_log_chol), length(is_log_chol) == 1,
             is_log_chol %in% c(FALSE, TRUE))
 
+time_trans <- function(x, max_time){
+  ifelse(x < max_time,
+         suppressWarnings(
+           atanh((x - max_time / 2) / (max_time / 2))),
+         NA)
+}
+
+d_time_trans <- function(x, max_time) {
+  ifelse(x < max_time,
+         suppressWarnings({
+           outer <- (x - max_time / 2) / (max_time / 2)
+           1/((1 - outer^2) * (max_time / 2))
+         }),
+         NA)
+}
+
+time_expansion <- function(
+    x, cause, max_time, splines, n_strata, which_strata = NULL){
+  x <- time_trans(x, max_time)
+  out <- splines[[cause]]$expansion(x, ders = 0L)
+
+  if(!is.null(which_strata)){
+    which_strata <- as.integer(which_strata)
+    stopifnot(all(which_strata %in% 1:n_strata),
+              length(which_strata) %in% c(1L, NROW(out)))
+    out_expanded <- matrix(0., NROW(out), NCOL(out) * n_strata)
+    for(i in 1:n_strata - 1L){
+      strata_match <- which_strata == i + 1L
+      out_expanded[strata_match, 1:NCOL(out) + i * NCOL(out)] <-
+        out[strata_match, ]
+    }
+    out <- out_expanded
+  }
+
+  out
+}
+
+d_time_expansion <- function(
+    x, cause, max_time, splines, n_strata, which_strata = NULL){
+  z <- time_trans(x, max_time)
+  d_x <- d_time_trans(x, max_time)
+  out <- splines[[cause]]$expansion(z, ders = 1L) * d_x
+
+  if(!is.null(which_strata)){
+    which_strata <- as.integer(which_strata)
+    stopifnot(all(which_strata %in% 1:n_strata),
+              length(which_strata) %in% c(1L, NROW(out)))
+    out_expanded <- matrix(0., NROW(out), NCOL(out) * n_strata)
+    for(i in 1:n_strata - 1L){
+      strata_match <- which_strata == i + 1L
+      out_expanded[strata_match, 1:NCOL(out) + i * NCOL(out)] <-
+        out[strata_match, ]
+    }
+    out <- out_expanded
+  }
+
+  out
+}
+
+eval_trajectory_covs <- function(x, FUN, covs, which_strata, n_causes){
+  varying_covs <- lapply(1:n_causes, FUN, x = x, which_strata = which_strata)
+  do.call(cbind, lapply(varying_covs, cbind, covs))
+}
+
 #' Sets up an Object to Compute the Log Composite Likelihood
 #'
 #' Sets up the R and C++ objects that are needed to evaluate the log composite
@@ -98,7 +162,8 @@ mmcif_data <- function(formula, data, cause, time, cluster_id, max_time,
 
   # setup the design matrix
   mf <- model.frame(formula, data)
-  covs_risk <- model.matrix(terms(mf), mf)
+  mf_terms <- terms(mf)
+  covs_risk <- model.matrix(mf_terms, mf)
 
   cause <- eval(substitute(cause), data, parent.frame())
   time_observed <- eval(substitute(time), data, parent.frame())
@@ -166,14 +231,7 @@ mmcif_data <- function(formula, data, cause, time, cluster_id, max_time,
     knots <- replicate(n_causes, list(), simplify = FALSE)
 
   # add the time transformations
-  time_trans <- function(x) atanh((x - max_time / 2) / (max_time / 2))
-  d_time_trans <- function(x) {
-    outer <- (x - max_time / 2) / (max_time / 2)
-    1/((1 - outer^2) * (max_time / 2))
-  }
-
-  time_observed_trans <- suppressWarnings(
-    ifelse(time_observed < max_time, time_trans(time_observed), NA))
+  time_observed_trans <- time_trans(time_observed, max_time)
 
   is_observed <- cause %in% 1:n_causes
   splines <- Map(
@@ -186,57 +244,19 @@ mmcif_data <- function(formula, data, cause, time, cluster_id, max_time,
     knots = knots)
 
   time_expansion <- function(x, cause, which_strata = NULL){
-    x <- suppressWarnings(time_trans(x))
-    out <- splines[[cause]]$expansion(x, ders = 0L)
-
-    if(!is.null(which_strata)){
-      which_strata <- as.integer(which_strata)
-      stopifnot(all(which_strata %in% 1:n_strata),
-                length(which_strata) %in% c(1L, NROW(out)))
-      out_expanded <- matrix(0., NROW(out), NCOL(out) * n_strata)
-      for(i in 1:n_strata - 1L){
-        strata_match <- which_strata == i + 1L
-        out_expanded[strata_match, 1:NCOL(out) + i * NCOL(out)] <-
-          out[strata_match, ]
-      }
-      out <- out_expanded
-    }
-
-    out
+    mmcif:::time_expansion(x, cause, max_time, splines, n_strata, which_strata)
   }
-
   d_time_expansion <- function(x, cause, which_strata = NULL){
-    z <- suppressWarnings(time_trans(x))
-    d_x <- suppressWarnings(d_time_trans(x))
-    out <- splines[[cause]]$expansion(z, ders = 1L) * d_x
-
-    if(!is.null(which_strata)){
-      which_strata <- as.integer(which_strata)
-      stopifnot(all(which_strata %in% 1:n_strata),
-                length(which_strata) %in% c(1L, NROW(out)))
-      out_expanded <- matrix(0., NROW(out), NCOL(out) * n_strata)
-      for(i in 1:n_strata - 1L){
-        strata_match <- which_strata == i + 1L
-        out_expanded[strata_match, 1:NCOL(out) + i * NCOL(out)] <-
-          out[strata_match, ]
-      }
-      out <- out_expanded
-    }
-
-    out
-  }
-
-  eval_trajectory_covs <- function(x, FUN, covs, which_strata){
-    varying_covs <- lapply(1:n_causes, FUN, x = x, which_strata = which_strata)
-    do.call(cbind, lapply(varying_covs, cbind, covs))
+    mmcif:::d_time_expansion(
+      x, cause, max_time, splines, n_strata, which_strata)
   }
 
   covs_trajectory <- eval_trajectory_covs(
-    time_observed, time_expansion, covs_risk, strata)
+    time_observed, time_expansion, covs_risk, strata, n_causes)
 
   d_covs_trajectory <- eval_trajectory_covs(
     time_observed, d_time_expansion,
-    matrix(0, NROW(covs_risk), NCOL(covs_risk)), strata)
+    matrix(0, NROW(covs_risk), NCOL(covs_risk)), strata, n_causes)
 
   has_finite_trajectory_prob <- time_observed < max_time
 
@@ -249,7 +269,7 @@ mmcif_data <- function(formula, data, cause, time, cluster_id, max_time,
     eval_trajectory_covs(
       left_trunc[has_delayed_entry], time_expansion,
       covs_risk[has_delayed_entry, ],
-      if(!is.null(strata)) strata[has_delayed_entry] else strata)
+      if(!is.null(strata)) strata[has_delayed_entry] else strata, n_causes)
 
   # find all permutation of indices in each cluster
   cluster_length <- ave(cluster_id, cluster_id, FUN = length)
@@ -383,19 +403,20 @@ mmcif_data <- function(formula, data, cause, time, cluster_id, max_time,
       "d_time_trans", "max_time", "indices", "splines", "d_covs_trajectory",
       "constraints", "covs_trajectory_delayed", "time_expansion",
       "d_time_expansion", "pair_cluster_id", "ghq_data",
-      "param_names", "n_strata", "strata")))
+      "param_names", "n_strata", "strata", "mf_terms")))
 
   structure(
     list(comp_obj = comp_obj, pair_indices = pair_indices,
          singletons = singletons, covs_risk = covs_risk,
          covs_trajectory = covs_trajectory, time_observed = time_observed,
-         cause = cause, time_trans = time_trans, d_time_trans = d_time_trans,
+         cause = cause, time_trans = function(x) time_trans(x, max_time),
+         d_time_trans = function(x) d_time_trans(x, max_time),
          time_expansion = time_expansion, d_time_expansion = d_time_expansion,
          max_time = max_time, indices = indices, splines = splines,
          d_covs_trajectory = d_covs_trajectory, constraints = constraints,
          covs_trajectory_delayed = covs_trajectory_delayed,
          pair_cluster_id = pair_cluster_id, ghq_data = ghq_data,
-         param_names = param_names, strata = strata),
+         param_names = param_names, strata = strata, terms = mf_terms),
     class = "mmcif")
 }
 
