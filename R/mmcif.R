@@ -243,11 +243,13 @@ mmcif_data <- function(formula, data, cause, time, cluster_id, max_time,
     split(time_observed_trans[is_observed], cause[is_observed]),
     knots = knots)
 
+  mmcif_time_expansion <- time_expansion
   time_expansion <- function(x, cause, which_strata = NULL){
-    mmcif:::time_expansion(x, cause, max_time, splines, n_strata, which_strata)
+    mmcif_time_expansion(x, cause, max_time, splines, n_strata, which_strata)
   }
+  mmcif_d_time_expansion <- d_time_expansion
   d_time_expansion <- function(x, cause, which_strata = NULL){
-    mmcif:::d_time_expansion(
+    mmcif_d_time_expansion(
       x, cause, max_time, splines, n_strata, which_strata)
   }
 
@@ -403,7 +405,8 @@ mmcif_data <- function(formula, data, cause, time, cluster_id, max_time,
       "d_time_trans", "max_time", "indices", "splines", "d_covs_trajectory",
       "constraints", "covs_trajectory_delayed", "time_expansion",
       "d_time_expansion", "pair_cluster_id", "ghq_data",
-      "param_names", "n_strata", "strata", "mf_terms")))
+      "param_names", "n_strata", "strata", "mf_terms",
+      "mmcif_time_expansion", "mmcif_d_time_expansion")))
 
   structure(
     list(comp_obj = comp_obj, pair_indices = pair_indices,
