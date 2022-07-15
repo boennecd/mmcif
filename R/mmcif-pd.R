@@ -13,7 +13,7 @@
 #' @param type_obs a character the type of conditional measure. It can be
 #' \code{"derivative"} for the derivative of a CIF,
 #' \code{"cumulative"} for a CIF or the survival probability, and
-#' \code{"hazard"} for the hazard.
+#' \code{"hazard"} for the cause-specific hazard.
 #' @param type_cond a character for the type of outcome that is being
 #' conditioned on.
 #' \code{"derivative"} for the derivative of a CIF or

@@ -1569,6 +1569,7 @@ double mmcif_log_mcif
   auto const n_causes = indexer.n_causes();
   if(derivs[0]){
     // TODO: more or less the same code as in mmcif_logLik_one_obs
+    // TODO: refactor
     double const lp_traject1{helper.comp_lp_traject(obs1)};
     double const d_lp_traject1{helper.comp_d_lp_traject(obs1)};
     auto const cause1 = obs1.cause;
@@ -1639,6 +1640,7 @@ double mmcif_log_mcif
 
   } else if(!is_cens1 && !is_cens2){
     // code more or less like in mmcif_logLik_both_cens
+    // TODO: refactor
     if(!obs1.has_finite_trajectory_prob && !obs2.has_finite_trajectory_prob){
       arma::mat logit_offsets{mat_no_alloc(n_causes, 2, mem)};
       helper.fill_logit_offsets(logit_offsets.colptr(0), obs1);
@@ -1758,6 +1760,7 @@ double mmcif_log_mcif
   }
 
   // code more or less like in mmcif_logLik_both_cens
+  // TODO: refactor
   arma::mat logit_offsets{mat_no_alloc(n_causes, 2, mem)};
   helper.fill_logit_offsets(logit_offsets.colptr(0), obs1);
   helper.fill_logit_offsets(logit_offsets.colptr(1), obs2);
@@ -1780,7 +1783,7 @@ double mmcif_log_mcif
     return std::log(integral);
 
   } else if(obs1.has_finite_trajectory_prob != obs2.has_finite_trajectory_prob)
-    throw std::runtime_error("TODO: not implemented");
+    throw std::runtime_error("the case where one is censored and at the maximum follow-up and the other is a cummulative is not implemented");
 
   auto mem_marker1 = mem.set_mark_raii();
   double integral

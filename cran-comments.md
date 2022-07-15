@@ -15,3 +15,5 @@
 There were no WARNINGs or ERRORs.
 
 There is a NOTE about the package size in some cases.
+
+The error when ATLAS is used is fixed.

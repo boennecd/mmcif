@@ -2,7 +2,8 @@
 * Issues using ATLAS (and possibly other Lapack versions) has been solved. The
   problem was a none unique Q matrix from a QR decomposition (so the results 
   were not wrong just different).
-* Functions are added to compute marginal figures post estimation.
+* Functions are added to compute marginal figures post estimation, see
+  `?mmcif_pd_univariate` and `?mmcif_pd_cond`.
 
 # mmcif 0.1.0
 * The first release on CRAN.
