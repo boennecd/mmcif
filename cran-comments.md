@@ -8,8 +8,6 @@
 * GitHub actions on windows-latest (release), macOS-latest (release), 
   ubuntu-20.04 (release), ubuntu-20.04 (old-release), and ubuntu-20.04 (devel)
 * win-builder (devel, oldrelease, and release)
-* `rhub::check_for_cran()`
-* `rhub::check(platform = c("macos-highsierra-release", "macos-highsierra-release-cran"))`
   
 ## R CMD check results
 There were no WARNINGs or ERRORs.
