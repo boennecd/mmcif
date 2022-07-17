@@ -229,6 +229,7 @@ mmcif_pd_bivariate <- function(
   stopifnot(is.character(type), length(type) == 2L,
             all(!(type == "derivative" & cause == n_causes + 1L)))
 
+  # TODO: this code is as in mmcif_data. Refactor
   covs_trajectory <- eval_trajectory_covs(
     time, time_expansion, covs_risk, strata, n_causes)
 
@@ -252,6 +253,11 @@ mmcif_pd_bivariate <- function(
   par_pass <- c(head(par, -n_vcov), log_chol_inv(tail(par, n_vcov)))
 
   deriv <- type == "derivative"
+
+  if(any(deriv & time >= object$max_time)){
+    return(if(use_log) -Inf else 0)
+  }
+
   out <- mmcif_pd_bivariate_cpp(
     data_ptr = object$comp_obj, par = par_pass, ghq_data = ghq_data,
     cov_trajectory = t(covs_trajectory),
@@ -392,6 +398,7 @@ mmcif_pd_univariate <- function(
   stopifnot(is.character(type), length(type) == 1L,
             !(type == "derivative" && cause == n_causes + 1L))
 
+  # TODO: this code is as in mmcif_data. Refactor
   covs_trajectory <- eval_trajectory_covs(
     time, time_expansion, covs_risk, strata, n_causes)
 

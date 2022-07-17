@@ -1565,11 +1565,10 @@ double mmcif_log_mcif
   // because of the swapping, there are only three scenarios left
   //  a. the first one is density and the second is an observed cif
   //  b. both are observed cifs
-  //  c. the first one is censored and the second one is observed cif
+  //  c. the first one is censored and the second one is an observed cif
   auto const n_causes = indexer.n_causes();
   if(derivs[0]){
-    // TODO: more or less the same code as in mmcif_logLik_one_obs
-    // TODO: refactor
+    // TODO: more or less the same code as in mmcif_logLik_one_obs. Refactor
     double const lp_traject1{helper.comp_lp_traject(obs1)};
     double const d_lp_traject1{helper.comp_d_lp_traject(obs1)};
     auto const cause1 = obs1.cause;
@@ -1639,8 +1638,7 @@ double mmcif_log_mcif
     return out;
 
   } else if(!is_cens1 && !is_cens2){
-    // code more or less like in mmcif_logLik_both_cens
-    // TODO: refactor
+    // code more or less like in mmcif_logLik_both_cens. Refactor
     if(!obs1.has_finite_trajectory_prob && !obs2.has_finite_trajectory_prob){
       arma::mat logit_offsets{mat_no_alloc(n_causes, 2, mem)};
       helper.fill_logit_offsets(logit_offsets.colptr(0), obs1);

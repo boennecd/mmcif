@@ -39,14 +39,149 @@ test_that("mmcif_pd_bivariate works", {
            2.69665543753264, 2.59359057553995, 2.7938341786374, 2.70689750644755,
            -0.362056555418564, 0.24088005091276, 0.124070380635372, -0.246152029808377,
            -0.0445628476462479, -0.911485513197845, -0.27911988106887, -0.359648419277058,
-           -0.242711959678559, -6.84897302527358)
+           -0.242711959678559, -6.84897302527358) |>
+    setNames(mmcif_obj$param_names$upper)
 
   # the test data we will use
   test_dat <- data.frame(
     country = factor(c("Norway", "Norway"), levels(prt_use$country)),
     status = c(1L, 2L), time = c(60, 75))
 
-  # TODO: test derivative-derivative is correct
+  # deriv_manual <- function(cause){
+  #   names <- mmcif_obj$param_names$upper
+  #   strata <- as.integer(test_dat$country)
+  #   ti <- test_dat$time
+  #   sig <- tail(par, 10) |> log_chol_inv()
+  #
+  #   is_spline <-
+  #     lapply(cause, \(cause) grep(sprintf("cause%d.+spline\\d", cause), names))
+  #   deriv_term <- mapply(\(ti, cause, is_spline, strata){
+  #     log(
+  #       -mmcif_obj$d_time_expansion(ti, cause = cause, which_strata = strata) %*%
+  #         par[is_spline])
+  #   }, ti, cause, is_spline, strata) |>
+  #     sum()
+  #
+  #   dnorm_term_lp <- mapply(\(ti, cause, is_spline, strata){
+  #     inter_term <- grep(sprintf("cause%d:traject.+countryNorway$", cause), names)
+  #     dnorm_term_lp <-
+  #       -mmcif_obj$time_expansion(ti, cause = cause, which_strata = strata) %*%
+  #       par[is_spline] - par[inter_term]
+  #     drop(dnorm_term_lp)
+  #   }, ti, cause, is_spline, strata)
+  #
+  #   V <- matrix(0, 2L, 4L)
+  #   V[1, 2 + cause[1]] <- 1
+  #   V[2, 2 + cause[2]] <- 1
+  #   M <- tcrossprod(V %*% sig, V)[1:2, 1:2] + diag(2)
+  #
+  #   dnorm_term <- mvtnorm::dmvnorm(dnorm_term_lp, sigma = M, log = TRUE)
+  #
+  #   library(ghqCpp)
+  #   M <- solve(solve(sig) + crossprod(V))
+  #   mlogit_offset <- par[grepl("risk:countryNorway", names)]
+  #
+  #   mu <- M %*% crossprod(V, dnorm_term_lp)
+  #   lp <- mlogit_offset + mu[1:2]
+  #   lp <- matrix(rep(lp, 2), length(lp))
+  #
+  #   logit_term <- ghqCpp::mixed_mult_logit_term(
+  #     eta = lp,
+  #     Sigma = M[1:2, 1:2], which_category = cause,
+  #     weights = ghq_data$weight, nodes = ghq_data$node, use_adaptive = TRUE)
+  #
+  #   logit_term * exp(dnorm_term + deriv_term)
+  # }
+  # deriv_manual(c(1, 1)) |> dput()
+  # deriv_manual(c(1, 2)) |> dput()
+  # deriv_manual(c(2, 1)) |> dput()
+  # deriv_manual(c(2, 2)) |> dput()
+
+  der_der <- function(cause){
+    mmcif_pd_bivariate(
+      par = par, object = mmcif_obj, newdata = test_dat, cause = cause,
+      strata = country, ghq_data = ghq_data, time = time, type =
+        c("derivative", "derivative"))
+  }
+
+  expect_equal(der_der(c(1, 1)), 8.58238984981538e-05, tolerance = 1e-5)
+  expect_equal(der_der(c(1, 2)), 1.65939236340968e-05, tolerance = 1e-5)
+  expect_equal(der_der(c(2, 1)), 5.46437706632941e-06, tolerance = 1e-5)
+  expect_equal(der_der(c(2, 2)), 5.69028230635104e-06, tolerance = 1e-5)
+
+  # deriv_manual_max_time <- function(cause){
+  #   names <- mmcif_obj$param_names$upper
+  #   strata <- as.integer(test_dat$country)
+  #   ti <- test_dat$time
+  #   ti[1] <- max_time
+  #   sig <- tail(par, 10) |> log_chol_inv()
+  #
+  #   is_spline <-
+  #     lapply(cause, \(cause) grep(sprintf("cause%d.+spline\\d", cause), names))
+  #   deriv_term <- mapply(\(ti, cause, is_spline, strata){
+  #     log(
+  #       -mmcif_obj$d_time_expansion(ti, cause = cause, which_strata = strata) %*%
+  #         par[is_spline])
+  #   }, ti[2], cause[2], is_spline[2], strata[2])
+  #
+  #   dnorm_term_lp <- mapply(\(ti, cause, is_spline, strata){
+  #     inter_term <- grep(sprintf("cause%d:traject.+countryNorway$", cause), names)
+  #     dnorm_term_lp <-
+  #       -mmcif_obj$time_expansion(ti, cause = cause, which_strata = strata) %*%
+  #       par[is_spline] - par[inter_term]
+  #     drop(dnorm_term_lp)
+  #   }, ti[2], cause[2], is_spline[2], strata[2])
+  #
+  #   V <- matrix(0, 1L, 4L)
+  #   V[1, 2 + cause[2]] <- 1
+  #   M <- tcrossprod(V %*% sig, V)[1, 1] + diag(1)
+  #
+  #   dnorm_term <- mvtnorm::dmvnorm(dnorm_term_lp, sigma = M, log = TRUE)
+  #
+  #   library(ghqCpp)
+  #   M <- solve(solve(sig) + crossprod(V))
+  #   mlogit_offset <- par[grepl("risk:countryNorway", names)]
+  #
+  #   mu <- M %*% crossprod(V, dnorm_term_lp)
+  #   lp <- mlogit_offset + mu[1:2]
+  #   lp <- matrix(rep(lp, 2), length(lp))
+  #
+  #   logit_term <- ghqCpp::mixed_mult_logit_term(
+  #     eta = lp,
+  #     Sigma = M[1:2, 1:2], which_category = cause,
+  #     weights = ghq_data$weight, nodes = ghq_data$node, use_adaptive = TRUE)
+  #
+  #   logit_term * exp(dnorm_term + deriv_term)
+  # }
+  # deriv_manual_max_time(c(1, 1)) |> dput()
+  # deriv_manual_max_time(c(1, 2)) |> dput()
+  # deriv_manual_max_time(c(2, 1)) |> dput()
+  # deriv_manual_max_time(c(2, 2)) |> dput()
+
+  max_time_one <- function(cause, type){
+    mmcif_pd_bivariate(
+      par = par, object = mmcif_obj, newdata = test_dat, cause = cause,
+      strata = country, ghq_data = ghq_data, time = c(max_time, time[2]),
+      type = type)
+  }
+
+  expect_equal(max_time_one(c(1, 1), c("derivative", "derivative")), 0)
+  expect_equal(max_time_one(c(1, 2), c("derivative", "derivative")), 0)
+  expect_equal(max_time_one(c(2, 1), c("derivative", "derivative")), 0)
+  expect_equal(max_time_one(c(2, 2), c("derivative", "derivative")), 0)
+
+  expect_equal(
+    max_time_one(c(1, 1), c("cumulative", "derivative")),
+    0.00825796361590734, tolerance = 1e-5)
+  expect_equal(
+    max_time_one(c(1, 2), c("cumulative", "derivative")),
+    0.00179906547679925, tolerance = 1e-5)
+  expect_equal(
+    max_time_one(c(2, 1), c("cumulative", "derivative")),
+    0.000998769041537346, tolerance = 1e-5)
+  expect_equal(
+    max_time_one(c(2, 2), c("cumulative", "derivative")),
+    0.000728556337892357, tolerance = 1e-5)
 
   # adds up to one minus the survival probability
   cum_cum <- function(cause){
