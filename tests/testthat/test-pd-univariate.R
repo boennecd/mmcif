@@ -39,12 +39,88 @@ test_that("mmic_pd_univaraite works", {
            2.69665543753264, 2.59359057553995, 2.7938341786374, 2.70689750644755,
            -0.362056555418564, 0.24088005091276, 0.124070380635372, -0.246152029808377,
            -0.0445628476462479, -0.911485513197845, -0.27911988106887, -0.359648419277058,
-           -0.242711959678559, -6.84897302527358)
+           -0.242711959678559, -6.84897302527358) |>
+    setNames(mmcif_obj$param_names$upper)
 
   # the test data we will use
   test_dat <- data.frame(country = factor("Norway", levels(prt_use$country)))
 
-  # TODO: test that the density is correct
+  # deriv_manual <- function(cause){
+  #   names <- mmcif_obj$param_names$upper
+  #   strata <- as.integer(test_dat$country)
+  #   ti <- 75
+  #   sig <- tail(par, 10) |> log_chol_inv()
+  #
+  #   is_spline <- grep(sprintf("cause%d.+spline\\d", cause), names)
+  #   deriv_term <-
+  #     log(
+  #       -mmcif_obj$d_time_expansion(ti, cause = cause, which_strata = strata) %*%
+  #         par[is_spline])
+  #
+  #   inter_term <- grep(sprintf("cause%d:traject.+countryNorway$", cause), names)
+  #   dnorm_term_lp <-
+  #     -mmcif_obj$time_expansion(ti, cause = cause, which_strata = strata) %*%
+  #     par[is_spline] - par[inter_term]
+  #   dnorm_term_lp <- drop(dnorm_term_lp)
+  #
+  #   dnorm_term <- dnorm(dnorm_term_lp, sd = sqrt(1 + sig[cause + 2, cause + 2]),
+  #                       log = TRUE)
+  #   library(ghqCpp)
+  #   M <- solve(sig)
+  #   M[2 + cause, 2 + cause] <- M[2 + cause, 2 + cause] + 1
+  #   M <- solve(M)
+  #   mu <- M[, 2 + cause] * dnorm_term_lp
+  #
+  #   mlogit_offset <- par[grepl("risk:countryNorway", names)]
+  #   logit_term <- ghqCpp::mixed_mult_logit_term(
+  #     eta = as.matrix(mlogit_offset + mu[1:2]),
+  #     Sigma = M[1:2, 1:2], which_category = cause,
+  #     weights = ghq_data$weight, nodes = ghq_data$node, use_adaptive = TRUE)
+  #
+  #   logit_term * exp(dnorm_term + deriv_term)
+  # }
+  # dput(deriv_manual(1))
+  # dput(deriv_manual(2))
+
+  der <- function(status){
+    mmcif_pd_univariate(
+      par = par, object = mmcif_obj, newdata = test_dat, cause = status,
+      strata = country, ghq_data = ghq_data, time = 75, type = "derivative")
+  }
+  expect_equal(der(1), 0.0137112369197422, tolerance = 1e-5)
+  expect_equal(der(2), 0.00375565514821125, tolerance = 1e-5)
+
+  # deriv_manual_max_time <- function(cause){
+  #   names <- mmcif_obj$param_names$upper
+  #   strata <- as.integer(test_dat$country)
+  #   sig <- tail(par, 10) |> log_chol_inv()
+  #
+  #   library(ghqCpp)
+  #   mlogit_offset <- par[grepl("risk:countryNorway", names)]
+  #   logit_term <- ghqCpp::mixed_mult_logit_term(
+  #     eta = as.matrix(mlogit_offset),
+  #     Sigma = sig[1:2, 1:2], which_category = cause,
+  #     weights = ghq_data$weight, nodes = ghq_data$node, use_adaptive = TRUE)
+  #
+  #   logit_term
+  # }
+  # dput(deriv_manual_max_time(1))
+  # dput(deriv_manual_max_time(2))
+
+  der_max_time <- function(status, type){
+    mmcif_pd_univariate(
+      par = par, object = mmcif_obj, newdata = test_dat, cause = status,
+      strata = country, ghq_data = ghq_data, time = max_time,
+      type = type)
+  }
+
+  expect_equal(der_max_time(1L, "derivative"), 0)
+  expect_equal(der_max_time(2L, "derivative"), 0)
+
+  expect_equal(der_max_time(1, "cumulative"), 0.547273746574481,
+               tolerance = 1e-5)
+  expect_equal(der_max_time(2, "cumulative"), 0.0839660183181699,
+               tolerance = 1e-5)
 
   # the CIFs add up to one minus the survival prob
   cum <- Vectorize(function(status){

@@ -415,6 +415,9 @@ mmcif_pd_univariate <- function(
   par_pass <- c(head(par, -n_vcov), log_chol_inv(tail(par, n_vcov)))
 
   deriv <- type == "derivative"
+  if(deriv && object$max_time <= time)
+    return(if(use_log) -Inf else 0)
+
   out <- mmcif_pd_univariate_cpp(
     data_ptr = object$comp_obj, par = par_pass, ghq_data = ghq_data,
     cov_trajectory = covs_trajectory, d_cov_trajectory = d_covs_trajectory,
