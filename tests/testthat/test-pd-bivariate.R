@@ -183,6 +183,62 @@ test_that("mmcif_pd_bivariate works", {
     max_time_one(c(2, 2), c("cumulative", "derivative")),
     0.000728556337892357, tolerance = 1e-5)
 
+  # deriv_manual_max_time <- function(cause){
+  #   names <- mmcif_obj$param_names$upper
+  #   strata <- as.integer(test_dat$country)
+  #   ti <- test_dat$time
+  #   ti[1] <- max_time
+  #   sig <- tail(par, 10) |> log_chol_inv()
+  #
+  #   library(ghqCpp)
+  #   mlogit_offset <- par[grepl("risk:countryNorway", names)]
+  #   lp <-
+  #
+  #   ghqCpp::mixed_mult_logit_term(
+  #     eta = matrix(rep(mlogit_offset, 2), length(mlogit_offset)),
+  #     Sigma = sig[1:2, 1:2], which_category = cause,
+  #     weights = ghq_data$weight, nodes = ghq_data$node, use_adaptive = TRUE)
+  # }
+  # deriv_manual_max_time(c(1, 1)) |> dput()
+  # deriv_manual_max_time(c(1, 2)) |> dput()
+  # deriv_manual_max_time(c(2, 1)) |> dput()
+  # deriv_manual_max_time(c(2, 2)) |> dput()
+
+  max_time_two <- function(cause, type){
+    mmcif_pd_bivariate(
+      par = par, object = mmcif_obj, newdata = test_dat, cause = cause,
+      strata = country, ghq_data = ghq_data, time = c(max_time, max_time),
+      type = type)
+  }
+
+  expect_equal(max_time_two(c(1, 1), c("derivative", "derivative")), 0)
+  expect_equal(max_time_two(c(1, 2), c("derivative", "derivative")), 0)
+  expect_equal(max_time_two(c(2, 1), c("derivative", "derivative")), 0)
+  expect_equal(max_time_two(c(2, 2), c("derivative", "derivative")), 0)
+
+  expect_equal(max_time_two(c(1, 1), c("cumulative", "derivative")), 0)
+  expect_equal(max_time_two(c(1, 2), c("cumulative", "derivative")), 0)
+  expect_equal(max_time_two(c(2, 1), c("cumulative", "derivative")), 0)
+  expect_equal(max_time_two(c(2, 2), c("cumulative", "derivative")), 0)
+
+  expect_equal(max_time_two(c(1, 1), c("derivative", "cumulative")), 0)
+  expect_equal(max_time_two(c(1, 2), c("derivative", "cumulative")), 0)
+  expect_equal(max_time_two(c(2, 1), c("derivative", "cumulative")), 0)
+  expect_equal(max_time_two(c(2, 2), c("derivative", "cumulative")), 0)
+
+  expect_equal(
+    max_time_two(c(1, 1), c("cumulative", "cumulative")),
+    0.323763299379266, tolerance = 1e-5)
+  expect_equal(
+    max_time_two(c(1, 2), c("cumulative", "cumulative")),
+    0.0397343239300881, tolerance = 1e-5)
+  expect_equal(
+    max_time_two(c(2, 1), c("cumulative", "cumulative")),
+    0.0397343239300881, tolerance = 1e-5)
+  expect_equal(
+    max_time_two(c(2, 2), c("cumulative", "cumulative")),
+    0.0153188705493866, tolerance = 1e-5)
+
   # adds up to one minus the survival probability
   cum_cum <- function(cause){
     mmcif_pd_bivariate(
@@ -211,52 +267,62 @@ test_that("mmcif_pd_bivariate works", {
   expect_equal(uni(2L), sum(apply(cause_combs, 1L, cum_cum)), tolerance = 1e-5)
 
   # integrating in one dimension gives the cumulative
-  der_der <- Vectorize(function(ti1, ti2){
+  der_der <- Vectorize(function(ti1, ti2, cause){
     mmcif_pd_bivariate(
-      par = par, object = mmcif_obj, newdata = test_dat, cause = status,
+      par = par, object = mmcif_obj, newdata = test_dat, cause = cause,
       strata = country, ghq_data = ghq_data, time = c(ti1, ti2), type =
         c("derivative", "derivative"))
   }, c("ti1", "ti2"))
-  cum_der <- Vectorize(function(ti2){
+  cum_der <- Vectorize(function(ti2, cause){
     mmcif_pd_bivariate(
-      par = par, object = mmcif_obj, newdata = test_dat, cause = status,
+      par = par, object = mmcif_obj, newdata = test_dat, cause = cause,
       strata = country, ghq_data = ghq_data, time = c(time[1], ti2), type =
         c("cumulative", "derivative"))
   }, "ti2")
 
-  tol = sqrt(.Machine$double.eps)
-  int <- integrate(
-    der_der, lower = 0, upper = test_dat$time[1], ti2 = test_dat$time[2],
-    rel.tol = tol)
-  expect_equal(int$value, cum_der(test_dat$time[2]), tolerance = 10 * tol)
+  cause_combs <- cbind(rep(1:2, 3), rep(1:3, each = 2)) |>
+    split(rep(1:6, 2))
 
-  int <- integrate(
-    cum_der, lower = 0, upper = test_dat$time[2], rel.tol = tol)
-  expect_equal(int$value, cum_cum(test_dat$status), tolerance = 10 * tol)
+  for(combs in cause_combs){
+    if(all(combs < 3)){
+      tol <- 10 * sqrt(.Machine$double.eps)
+      int <- integrate(
+        der_der, lower = 0, upper = test_dat$time[1], ti2 = test_dat$time[2],
+        rel.tol = tol, cause = combs)
+      expect_equal(int$value, cum_der(test_dat$time[2], cause = combs),
+                   tolerance = 100 * tol)
+    }
 
-  # the same but where one is censored
-  old_status <- test_dat$status
+    if(combs[2] < 3){
+      int <- integrate(
+        cum_der, lower = 0, upper = test_dat$time[2], rel.tol = tol,
+        cause = combs)
+      expect_equal(int$value, cum_cum(cause = combs),
+                   tolerance = 100 * tol)
+    }
+  }
+
+  # the same but when one is at the maximum time follow up
   old_time <- test_dat$time
-  test_dat$status <- c(3L, test_dat$status[2])
-
-  int <- integrate(
-    cum_der, lower = 0, upper = test_dat$time[2], rel.tol = tol)
-  expect_equal(int$value, cum_cum(test_dat$status), tolerance = 10 * tol)
-
   test_dat$time[1] <- max_time
-  # int <- integrate(
-  #   cum_der, lower = 0, upper = test_dat$time[2], rel.tol = tol)
-  # expect_equal(int$value, cum_cum(test_dat$status), tolerance = 10 * tol)
 
-  test_dat$status[1] <- 2L
-  int <- integrate(
-    cum_der, lower = 0, upper = test_dat$time[2], rel.tol = tol)
-  expect_equal(int$value, cum_cum(test_dat$status), tolerance = 10 * tol)
+  cause_combs <- cbind(rep(1:2, 3), rep(1:3, each = 2)) |>
+    split(rep(1:6, 2))
+  for(combs in cause_combs){
+    # TODO: get rid of the last check when the additional branch is implemented
+    #       in the C++ code
+    if(combs[2] < 3 && combs[1] < 3){
+      int <- integrate(
+        cum_der, lower = 0, upper = test_dat$time[2], rel.tol = tol,
+        cause = combs)
+      expect_equal(int$value, cum_cum(cause = combs),
+                   tolerance = 100 * tol)
+    }
+  }
 
   test_dat$time <- old_time
-  test_dat$status <- old_status
 
-  # TODO: implement this case
+  # TODO: implement this case and add it one of the loops above
   tmp_data <- data.frame(
     country = factor(c("Norway", "Norway"), levels(prt_use$country)),
     status = c(3L, 2L), time = c(max_time, 75))
@@ -268,6 +334,14 @@ test_that("mmcif_pd_bivariate works", {
         c("cumulative", "cumulative")),
     "the case where one is censored and at the maximum follow-up and the other is a cummulative is not implemented")
 
-  # TODO: test branches all branches (e.g. when at maximum time, see the code)
+  # TODO: test branches all branches (e.g. when at maximum time, see the code).
+  #       The brances are:
+  #         a. the first one is density and the second is an observed cif.
+  #            Check (also at maximum time).
+  #         b. both are observed cifs.
+  #            Check (also at maximum time).
+  #         c. the first one is censored and the second one is an observed cif.
+  #            Check except at the maximum follow-up time.
+  # TODO: test the code with truncation
   # TODO: test mmcif_pd_cond
 })
