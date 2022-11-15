@@ -335,13 +335,137 @@ test_that("mmcif_pd_bivariate works", {
     "the case where one is censored and at the maximum follow-up and the other is a cummulative is not implemented")
 
   # TODO: test branches all branches (e.g. when at maximum time, see the code).
-  #       The brances are:
+  #       The branches are:
   #         a. the first one is density and the second is an observed cif.
   #            Check (also at maximum time).
   #         b. both are observed cifs.
   #            Check (also at maximum time).
   #         c. the first one is censored and the second one is an observed cif.
   #            Check except at the maximum follow-up time.
-  # TODO: test the code with truncation
   # TODO: test mmcif_pd_cond
+})
+
+
+test_that("mmcif_pd_bivariate works (left-truncated)", {
+  skip_if_not_installed("mets")
+  library(mets)
+  data(prt)
+
+  # truncate the time
+  max_time <- 90
+  prt <- within(prt, {
+    status[time >= max_time] <- 0
+    time <- pmin(time, max_time)
+  })
+
+  # select the DZ twins and re-code the status
+  prt_use <- subset(prt, zyg == "DZ") |>
+    transform(status = ifelse(status == 0, 3L, status))
+
+  # Gauss Hermite quadrature nodes and weights from fastGHQuad::gaussHermiteData
+  ghq_data <- list(
+    node = c(-3.43615911883774, -2.53273167423279, -1.75668364929988, -1.03661082978951,
+             -0.342901327223705, 0.342901327223705, 1.03661082978951, 1.75668364929988,
+             2.53273167423279, 3.43615911883774),
+    weight = c(7.6404328552326e-06, 0.00134364574678124, 0.0338743944554811, 0.240138611082314,
+               0.610862633735326,0.610862633735326, 0.240138611082315, 0.033874394455481,
+               0.00134364574678124, 7.64043285523265e-06))
+
+  # setup the object for the computation
+  mmcif_obj <- mmcif_data(
+    ~ country - 1, prt_use, status, time, id, max_time,
+    2L, strata = country, ghq_data = ghq_data)
+
+  # previous estimates
+  par <- c(0.727279974859164, 0.640534073288067, 0.429437766165371, 0.434367104339573,
+           -2.4737847536253, -1.49576564624673, -1.89966050143904, -1.58881346649412,
+           -5.5431198001029, -3.5328359024178, -5.82305147022587, -3.4531896212114,
+           -5.29132887832377, -3.36106297109548, -6.03690322125729, -3.49516746825624,
+           2.55000711185704, 2.71995985605891, 2.61971498736444, 3.05976391058032,
+           -5.97173564860957, -3.37912051983482, -5.14324860374941, -3.36396780694965,
+           -6.02337246348561, -3.03754644968859, -5.51267338700737, -3.01148582224673,
+           2.69665543753264, 2.59359057553995, 2.7938341786374, 2.70689750644755,
+           -0.362056555418564, 0.24088005091276, 0.124070380635372, -0.246152029808377,
+           -0.0445628476462479, -0.911485513197845, -0.27911988106887, -0.359648419277058,
+           -0.242711959678559, -6.84897302527358) |>
+    setNames(mmcif_obj$param_names$upper)
+
+  # the test data we will use
+  test_dat <- data.frame(
+    country = factor(c("Norway", "Norway"), levels(prt_use$country)),
+    status = c(1L, 2L), time = c(70, 80))
+
+  left_trunc <- c(60, 75)
+
+  # handle the case when both are left-truncated
+  der_der <- function(cause){
+    mmcif_pd_bivariate(
+      par = par, object = mmcif_obj, newdata = test_dat, cause = cause,
+      strata = country, ghq_data = ghq_data, time = time, type =
+        c("derivative", "derivative"),
+      left_trunc = left_trunc)
+  }
+
+  der_der_by_hand <- function(cause){
+    numerator <- mmcif_pd_bivariate(
+      par = par, object = mmcif_obj, newdata = test_dat, cause = cause,
+      strata = country, ghq_data = ghq_data, time = time, type =
+        c("derivative", "derivative"))
+
+    denominator <- mmcif_pd_bivariate(
+      par = par, object = mmcif_obj, newdata = test_dat, cause = c(3, 3),
+      strata = country, ghq_data = ghq_data, time = left_trunc, type =
+        c("cumulative", "cumulative"))
+
+    numerator / denominator
+  }
+
+  expect_equal(der_der(c(1, 1)), der_der_by_hand(c(1, 1)))
+  expect_equal(der_der(c(1, 2)), der_der_by_hand(c(1, 2)))
+  expect_equal(der_der(c(2, 1)), der_der_by_hand(c(2, 1)))
+  expect_equal(der_der(c(2, 2)), der_der_by_hand(c(2, 2)))
+
+  # first one is left-truncated
+  left_trunc <- c(60, 0)
+
+  der_der_by_hand <- function(cause){
+    numerator <- mmcif_pd_bivariate(
+      par = par, object = mmcif_obj, newdata = test_dat, cause = cause,
+      strata = country, ghq_data = ghq_data, time = time, type =
+        c("derivative", "derivative"))
+
+    denominator <- mmcif_pd_univariate(
+      par = par, object = mmcif_obj, newdata = test_dat[1, ], cause = 3,
+      strata = country, ghq_data = ghq_data, time = left_trunc[1], type =
+        "cumulative")
+
+    numerator / denominator
+  }
+
+  expect_equal(der_der(c(1, 1)), der_der_by_hand(c(1, 1)))
+  expect_equal(der_der(c(1, 2)), der_der_by_hand(c(1, 2)))
+  expect_equal(der_der(c(2, 1)), der_der_by_hand(c(2, 1)))
+  expect_equal(der_der(c(2, 2)), der_der_by_hand(c(2, 2)))
+
+  # the second one is left-truncated
+  left_trunc <- c(0, 70)
+
+  der_der_by_hand <- function(cause){
+    numerator <- mmcif_pd_bivariate(
+      par = par, object = mmcif_obj, newdata = test_dat, cause = cause,
+      strata = country, ghq_data = ghq_data, time = time, type =
+        c("derivative", "derivative"))
+
+    denominator <- mmcif_pd_univariate(
+      par = par, object = mmcif_obj, newdata = test_dat[2, ], cause = 3,
+      strata = country, ghq_data = ghq_data, time = left_trunc[2], type =
+        "cumulative")
+
+    numerator / denominator
+  }
+
+  expect_equal(der_der(c(1, 1)), der_der_by_hand(c(1, 1)))
+  expect_equal(der_der(c(1, 2)), der_der_by_hand(c(1, 2)))
+  expect_equal(der_der(c(2, 1)), der_der_by_hand(c(2, 1)))
+  expect_equal(der_der(c(2, 2)), der_der_by_hand(c(2, 2)))
 })

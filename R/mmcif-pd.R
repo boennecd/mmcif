@@ -246,7 +246,7 @@ mmcif_pd_bivariate <- function(
   covs_trajectory_delayed[has_delayed_entry, ] <-
     eval_trajectory_covs(
       left_trunc[has_delayed_entry], time_expansion,
-      covs_risk[has_delayed_entry, ],
+      covs_risk[has_delayed_entry, , drop = FALSE],
       if(!is.null(strata)) strata[has_delayed_entry] else strata, n_causes)
 
   n_vcov <- (2L * n_causes * (2L * n_causes + 1L)) %/% 2L
