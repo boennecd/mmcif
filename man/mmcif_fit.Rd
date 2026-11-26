@@ -34,7 +34,7 @@ starting value. This may
 reduce the computation time by starting with fewer quadrature nodes.}
 }
 \value{
-The output from \code{\link{auglag}}.
+The result from \code{\link[alabama]{auglag}}.
 }
 \description{
 Fits mixed cumulative incidence functions model by maximizing the log

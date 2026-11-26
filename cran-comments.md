@@ -1,17 +1,16 @@
-## Test environments
-* Ubuntu 20.04 LTS with gcc 10.1.0
-  R version 4.2.0
-* Ubuntu 20.04 LTS with gcc 10.1.0
-  R version 4.2.0 using Valgrind
-* Ubuntu 20.04 LTS with gcc 10.1.0
-  R devel 2022-06-09 r82474 with ASAN and UBSAN
-* GitHub actions on windows-latest (release), macOS-latest (release), 
-  ubuntu-20.04 (release), ubuntu-20.04 (old-release), and ubuntu-20.04 (devel)
-* win-builder (devel, oldrelease, and release)
-  
+## New version submission
+
+CRAN archived mmcif on 2025-11-07 because check issues remained after
+reminders. Version 0.1.2 declares R 4.1.0 as the minimum for the syntax used
+in the examples and adds the missing package anchor for the link to
+`alabama::auglag()`.
+
+## Test environment
+
+- Debian 13 (x86_64), R 4.5.3, GCC and GNU Fortran 15.3.0.
+  Built the source tarball and ran `R CMD check --as-cran`.
+
 ## R CMD check results
-There were no WARNINGs or ERRORs.
 
-There is a NOTE about the package size in some cases.
-
-The error when ATLAS is used is fixed.
+No errors or warnings. The only NOTE is the CRAN incoming check for a new
+submission of an archived package.
