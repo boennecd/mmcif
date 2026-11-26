@@ -3,6 +3,7 @@
 .RData
 .Ruserdata
 vignettes/cache
+vignettes/create-vignette.Rout
 examples/cache/*
 !examples/cache/prostate-dz-sims
 examples/cache/prostate-dz-sims/*

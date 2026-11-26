@@ -1,635 +1,0 @@
-
-R version 4.2.1 (2022-06-23) -- "Funny-Looking Kid"
-Copyright (C) 2022 The R Foundation for Statistical Computing
-Platform: x86_64-pc-linux-gnu (64-bit)
-
-R is free software and comes with ABSOLUTELY NO WARRANTY.
-You are welcome to redistribute it under certain conditions.
-Type 'license()' or 'licence()' for distribution details.
-
-  Natural language support but running in an English locale
-
-R is a collaborative project with many contributors.
-Type 'contributors()' for more information and
-'citation()' on how to cite R or R packages in publications.
-
-Type 'demo()' for some demos, 'help()' for on-line help, or
-'help.start()' for an HTML browser interface to help.
-Type 'q()' to quit R.
-
-> library(rmarkdown)
-> (function(){
-+   if(!grepl("*vignettes$", getwd()))
-+     setwd("vignettes")
-+ 
-+   render("mmcif.Rmd", output_format = "html_document")
-+   render("mmcif.Rmd", output_format = github_document(
-+     pandoc_args = "--webtex=https://render.githubusercontent.com/render/math?math="),
-+     output_file = "README.md")
-+   file.copy("README.md", file.path("..", "README.md"), overwrite = TRUE)
-+   unlink("README.md")
-+   unlink("README.html")
-+ 
-+   fs <- list.files(file.path("man", "figures"))
-+   for(f in fs)
-+     file.copy(file.path("man", "figures", f),
-+               file.path("..", "man", "figures", f), overwrite = TRUE)
-+   unlink("man", recursive = TRUE)
-+ })()
-
-
-processing file: mmcif.Rmd
-  |                                                                              |                                                                      |   0%  |                                                                              |.                                                                     |   1%
-  ordinary text without R code
-
-  |                                                                              |..                                                                    |   2%
-label: setup (with options) 
-List of 1
- $ include: logi FALSE
-
-  |                                                                              |...                                                                   |   4%
-  ordinary text without R code
-
-  |                                                                              |...                                                                   |   5%
-label: how_to_install (with options) 
-List of 1
- $ eval: logi FALSE
-
-  |                                                                              |....                                                                  |   6%
-  ordinary text without R code
-
-  |                                                                              |.....                                                                 |   7%
-label: assign_model_parameters (with options) 
-List of 1
- $ fig.height: num 3.5
-
-  |                                                                              |......                                                                |   9%
-  ordinary text without R code
-
-  |                                                                              |.......                                                               |  10%
-label: assign_sim_dat
-  |                                                                              |........                                                              |  11%
-  ordinary text without R code
-
-  |                                                                              |.........                                                             |  12%
-label: sample_data (with options) 
-List of 1
- $ cache: num 1
-
-  |                                                                              |..........                                                            |  14%
-  ordinary text without R code
-
-  |                                                                              |..........                                                            |  15%
-label: setup_data
-  |                                                                              |...........                                                           |  16%
-  ordinary text without R code
-
-  |                                                                              |............                                                          |  17%
-label: check_comp_time (with options) 
-List of 1
- $ cache: num 1
-
-  |                                                                              |.............                                                         |  19%
-  ordinary text without R code
-
-  |                                                                              |..............                                                        |  20%
-label: fit (with options) 
-List of 1
- $ cache: num 1
-
-  |                                                                              |...............                                                       |  21%
-  ordinary text without R code
-
-  |                                                                              |................                                                      |  22%
-label: successive_fits (with options) 
-List of 1
- $ cache: num 1
-
-  |                                                                              |................                                                      |  23%
-  ordinary text without R code
-
-  |                                                                              |.................                                                     |  25%
-label: sandwich (with options) 
-List of 1
- $ cache: num 1
-
-  |                                                                              |..................                                                    |  26%
-  ordinary text without R code
-
-  |                                                                              |...................                                                   |  27%
-label: compare_estimated_incidence_funcs (with options) 
-List of 2
- $ fig.height: num 3.5
- $ cache     : num 1
-
-  |                                                                              |....................                                                  |  28%
-  ordinary text without R code
-
-  |                                                                              |.....................                                                 |  30%
-label: show_res
-  |                                                                              |......................                                                |  31%
-  ordinary text without R code
-
-  |                                                                              |......................                                                |  32%
-label: pre_show_mmcif_pd_univariate (with options) 
-List of 1
- $ echo: logi FALSE
-
-  |                                                                              |.......................                                               |  33%
-  ordinary text without R code
-
-  |                                                                              |........................                                              |  35%
-label: show_mmcif_pd_univariate
-  |                                                                              |.........................                                             |  36%
-  ordinary text without R code
-
-  |                                                                              |..........................                                            |  37%
-label: show_mmcif_pd_bivariate
-  |                                                                              |...........................                                           |  38%
-  ordinary text without R code
-
-  |                                                                              |............................                                          |  40%
-label: show_mmcif_pd_cond
-  |                                                                              |.............................                                         |  41%
-  ordinary text without R code
-
-  |                                                                              |.............................                                         |  42%
-label: delayed_assign_sim_dat
-  |                                                                              |..............................                                        |  43%
-  ordinary text without R code
-
-  |                                                                              |...............................                                       |  44%
-label: delayed_sample_data (with options) 
-List of 1
- $ cache: num 1
-
-  |                                                                              |................................                                      |  46%
-  ordinary text without R code
-
-  |                                                                              |.................................                                     |  47%
-label: delayed_setup_data_n_fit (with options) 
-List of 1
- $ cache: num 1
-
-  |                                                                              |..................................                                    |  48%
-  ordinary text without R code
-
-  |                                                                              |...................................                                   |  49%
-label: delayed_sandwich (with options) 
-List of 2
- $ ref.label: chr "sandwich"
- $ cache    : num 1
-
-  |                                                                              |...................................                                   |  51%
-  ordinary text without R code
-
-  |                                                                              |....................................                                  |  52%
-label: delayed_compare_estimated_incidence_funcs (with options) 
-List of 3
- $ ref.label : chr "compare_estimated_incidence_funcs"
- $ cache     : num 1
- $ fig.height: num 3.5
-
-  |                                                                              |.....................................                                 |  53%
-  ordinary text without R code
-
-  |                                                                              |......................................                                |  54%
-label: show_res
-  |                                                                              |.......................................                               |  56%
-  ordinary text without R code
-
-  |                                                                              |........................................                              |  57%
-label: strata_assign_model_parameters (with options) 
-List of 1
- $ fig.height: num 3.5
-
-  |                                                                              |.........................................                             |  58%
-  ordinary text without R code
-
-  |                                                                              |.........................................                             |  59%
-label: strata_delayed_assign_sim_dat
-  |                                                                              |..........................................                            |  60%
-  ordinary text without R code
-
-  |                                                                              |...........................................                           |  62%
-label: strata_delayed_sample_data (with options) 
-List of 1
- $ cache: num 1
-
-  |                                                                              |............................................                          |  63%
-  ordinary text without R code
-
-  |                                                                              |.............................................                         |  64%
-label: strate_delayed_setup
-  |                                                                              |..............................................                        |  65%
-  ordinary text without R code
-
-  |                                                                              |...............................................                       |  67%
-label: strata_delayed_fit (with options) 
-List of 1
- $ cache: num 1
-
-  |                                                                              |................................................                      |  68%
-  ordinary text without R code
-
-  |                                                                              |................................................                      |  69%
-label: strata_sandwich (with options) 
-List of 2
- $ ref.label: chr "sandwich"
- $ cache    : num 1
-
-  |                                                                              |.................................................                     |  70%
-  ordinary text without R code
-
-  |                                                                              |..................................................                    |  72%
-label: strata_compare_estimated_incidence_funcs (with options) 
-List of 2
- $ fig.height: num 3.5
- $ cache     : num 1
-
-  |                                                                              |...................................................                   |  73%
-  ordinary text without R code
-
-  |                                                                              |....................................................                  |  74%
-label: show_res
-  |                                                                              |.....................................................                 |  75%
-  ordinary text without R code
-
-  |                                                                              |......................................................                |  77%
-label: pre_three_assign_model_parameters (with options) 
-List of 1
- $ echo: logi FALSE
-
-  |                                                                              |......................................................                |  78%
-  ordinary text without R code
-
-  |                                                                              |.......................................................               |  79%
-label: three_assign_model_parameters
-  |                                                                              |........................................................              |  80%
-  ordinary text without R code
-
-  |                                                                              |.........................................................             |  81%
-label: three_assign_sim_dat
-  |                                                                              |..........................................................            |  83%
-  ordinary text without R code
-
-  |                                                                              |...........................................................           |  84%
-label: three_sample_data (with options) 
-List of 1
- $ cache: num 1
-
-  |                                                                              |............................................................          |  85%
-  ordinary text without R code
-
-  |                                                                              |............................................................          |  86%
-label: three_setup_data
-  |                                                                              |.............................................................         |  88%
-  ordinary text without R code
-
-  |                                                                              |..............................................................        |  89%
-label: three_check_comp_time (with options) 
-List of 1
- $ cache: num 1
-
-  |                                                                              |...............................................................       |  90%
-  ordinary text without R code
-
-  |                                                                              |................................................................      |  91%
-label: three_fit (with options) 
-List of 1
- $ cache: num 1
-
-  |                                                                              |.................................................................     |  93%
-  ordinary text without R code
-
-  |                                                                              |..................................................................    |  94%
-label: three_sandwich (with options) 
-List of 1
- $ cache: num 1
-
-  |                                                                              |...................................................................   |  95%
-  ordinary text without R code
-
-  |                                                                              |...................................................................   |  96%
-label: three_compare_estimated_incidence_funcs (with options) 
-List of 1
- $ cache: num 1
-
-  |                                                                              |....................................................................  |  98%
-  ordinary text without R code
-
-  |                                                                              |..................................................................... |  99%
-label: three_show_res
-  |                                                                              |......................................................................| 100%
-  ordinary text without R code
-
-
-output file: mmcif.knit.md
-
-/usr/bin/pandoc +RTS -K512m -RTS mmcif.knit.md --to html4 --from markdown+autolink_bare_uris+tex_math_single_backslash --output mmcif.html --lua-filter /home/boennecd/R/x86_64-pc-linux-gnu-library/4.2/rmarkdown/rmarkdown/lua/pagebreak.lua --lua-filter /home/boennecd/R/x86_64-pc-linux-gnu-library/4.2/rmarkdown/rmarkdown/lua/latex-div.lua --self-contained --variable bs3=TRUE --standalone --section-divs --template /home/boennecd/R/x86_64-pc-linux-gnu-library/4.2/rmarkdown/rmd/h/default.html --no-highlight --variable highlightjs=1 --variable theme=bootstrap --mathjax --variable 'mathjax-url=https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML' --include-in-header /tmp/Rtmp09nbfN/rmarkdown-str14f46af2f507.html --filter /usr/bin/pandoc-citeproc 
-[WARNING] This document format requires a nonempty <title> element.
-  Please specify either 'title' or 'pagetitle' in the metadata,
-  e.g. by using --metadata pagetitle="..." on the command line.
-  Falling back to 'mmcif.knit'
-
-Output created: mmcif.html
-
-
-processing file: mmcif.Rmd
-  |                                                                              |                                                                      |   0%  |                                                                              |.                                                                     |   1%
-  ordinary text without R code
-
-  |                                                                              |..                                                                    |   2%
-label: setup (with options) 
-List of 1
- $ include: logi FALSE
-
-  |                                                                              |...                                                                   |   4%
-  ordinary text without R code
-
-  |                                                                              |...                                                                   |   5%
-label: how_to_install (with options) 
-List of 1
- $ eval: logi FALSE
-
-  |                                                                              |....                                                                  |   6%
-  ordinary text without R code
-
-  |                                                                              |.....                                                                 |   7%
-label: assign_model_parameters (with options) 
-List of 1
- $ fig.height: num 3.5
-
-  |                                                                              |......                                                                |   9%
-  ordinary text without R code
-
-  |                                                                              |.......                                                               |  10%
-label: assign_sim_dat
-  |                                                                              |........                                                              |  11%
-  ordinary text without R code
-
-  |                                                                              |.........                                                             |  12%
-label: sample_data (with options) 
-List of 1
- $ cache: num 1
-
-  |                                                                              |..........                                                            |  14%
-  ordinary text without R code
-
-  |                                                                              |..........                                                            |  15%
-label: setup_data
-  |                                                                              |...........                                                           |  16%
-  ordinary text without R code
-
-  |                                                                              |............                                                          |  17%
-label: check_comp_time (with options) 
-List of 1
- $ cache: num 1
-
-  |                                                                              |.............                                                         |  19%
-  ordinary text without R code
-
-  |                                                                              |..............                                                        |  20%
-label: fit (with options) 
-List of 1
- $ cache: num 1
-
-  |                                                                              |...............                                                       |  21%
-  ordinary text without R code
-
-  |                                                                              |................                                                      |  22%
-label: successive_fits (with options) 
-List of 1
- $ cache: num 1
-
-  |                                                                              |................                                                      |  23%
-  ordinary text without R code
-
-  |                                                                              |.................                                                     |  25%
-label: sandwich (with options) 
-List of 1
- $ cache: num 1
-
-  |                                                                              |..................                                                    |  26%
-  ordinary text without R code
-
-  |                                                                              |...................                                                   |  27%
-label: compare_estimated_incidence_funcs (with options) 
-List of 2
- $ fig.height: num 3.5
- $ cache     : num 1
-
-  |                                                                              |....................                                                  |  28%
-  ordinary text without R code
-
-  |                                                                              |.....................                                                 |  30%
-label: show_res
-  |                                                                              |......................                                                |  31%
-  ordinary text without R code
-
-  |                                                                              |......................                                                |  32%
-label: pre_show_mmcif_pd_univariate (with options) 
-List of 1
- $ echo: logi FALSE
-
-  |                                                                              |.......................                                               |  33%
-  ordinary text without R code
-
-  |                                                                              |........................                                              |  35%
-label: show_mmcif_pd_univariate
-  |                                                                              |.........................                                             |  36%
-  ordinary text without R code
-
-  |                                                                              |..........................                                            |  37%
-label: show_mmcif_pd_bivariate
-  |                                                                              |...........................                                           |  38%
-  ordinary text without R code
-
-  |                                                                              |............................                                          |  40%
-label: show_mmcif_pd_cond
-  |                                                                              |.............................                                         |  41%
-  ordinary text without R code
-
-  |                                                                              |.............................                                         |  42%
-label: delayed_assign_sim_dat
-  |                                                                              |..............................                                        |  43%
-  ordinary text without R code
-
-  |                                                                              |...............................                                       |  44%
-label: delayed_sample_data (with options) 
-List of 1
- $ cache: num 1
-
-  |                                                                              |................................                                      |  46%
-  ordinary text without R code
-
-  |                                                                              |.................................                                     |  47%
-label: delayed_setup_data_n_fit (with options) 
-List of 1
- $ cache: num 1
-
-  |                                                                              |..................................                                    |  48%
-  ordinary text without R code
-
-  |                                                                              |...................................                                   |  49%
-label: delayed_sandwich (with options) 
-List of 2
- $ ref.label: chr "sandwich"
- $ cache    : num 1
-
-  |                                                                              |...................................                                   |  51%
-  ordinary text without R code
-
-  |                                                                              |....................................                                  |  52%
-label: delayed_compare_estimated_incidence_funcs (with options) 
-List of 3
- $ ref.label : chr "compare_estimated_incidence_funcs"
- $ cache     : num 1
- $ fig.height: num 3.5
-
-  |                                                                              |.....................................                                 |  53%
-  ordinary text without R code
-
-  |                                                                              |......................................                                |  54%
-label: show_res
-  |                                                                              |.......................................                               |  56%
-  ordinary text without R code
-
-  |                                                                              |........................................                              |  57%
-label: strata_assign_model_parameters (with options) 
-List of 1
- $ fig.height: num 3.5
-
-  |                                                                              |.........................................                             |  58%
-  ordinary text without R code
-
-  |                                                                              |.........................................                             |  59%
-label: strata_delayed_assign_sim_dat
-  |                                                                              |..........................................                            |  60%
-  ordinary text without R code
-
-  |                                                                              |...........................................                           |  62%
-label: strata_delayed_sample_data (with options) 
-List of 1
- $ cache: num 1
-
-  |                                                                              |............................................                          |  63%
-  ordinary text without R code
-
-  |                                                                              |.............................................                         |  64%
-label: strate_delayed_setup
-  |                                                                              |..............................................                        |  65%
-  ordinary text without R code
-
-  |                                                                              |...............................................                       |  67%
-label: strata_delayed_fit (with options) 
-List of 1
- $ cache: num 1
-
-  |                                                                              |................................................                      |  68%
-  ordinary text without R code
-
-  |                                                                              |................................................                      |  69%
-label: strata_sandwich (with options) 
-List of 2
- $ ref.label: chr "sandwich"
- $ cache    : num 1
-
-  |                                                                              |.................................................                     |  70%
-  ordinary text without R code
-
-  |                                                                              |..................................................                    |  72%
-label: strata_compare_estimated_incidence_funcs (with options) 
-List of 2
- $ fig.height: num 3.5
- $ cache     : num 1
-
-  |                                                                              |...................................................                   |  73%
-  ordinary text without R code
-
-  |                                                                              |....................................................                  |  74%
-label: show_res
-  |                                                                              |.....................................................                 |  75%
-  ordinary text without R code
-
-  |                                                                              |......................................................                |  77%
-label: pre_three_assign_model_parameters (with options) 
-List of 1
- $ echo: logi FALSE
-
-  |                                                                              |......................................................                |  78%
-  ordinary text without R code
-
-  |                                                                              |.......................................................               |  79%
-label: three_assign_model_parameters
-  |                                                                              |........................................................              |  80%
-  ordinary text without R code
-
-  |                                                                              |.........................................................             |  81%
-label: three_assign_sim_dat
-  |                                                                              |..........................................................            |  83%
-  ordinary text without R code
-
-  |                                                                              |...........................................................           |  84%
-label: three_sample_data (with options) 
-List of 1
- $ cache: num 1
-
-  |                                                                              |............................................................          |  85%
-  ordinary text without R code
-
-  |                                                                              |............................................................          |  86%
-label: three_setup_data
-  |                                                                              |.............................................................         |  88%
-  ordinary text without R code
-
-  |                                                                              |..............................................................        |  89%
-label: three_check_comp_time (with options) 
-List of 1
- $ cache: num 1
-
-  |                                                                              |...............................................................       |  90%
-  ordinary text without R code
-
-  |                                                                              |................................................................      |  91%
-label: three_fit (with options) 
-List of 1
- $ cache: num 1
-
-  |                                                                              |.................................................................     |  93%
-  ordinary text without R code
-
-  |                                                                              |..................................................................    |  94%
-label: three_sandwich (with options) 
-List of 1
- $ cache: num 1
-
-  |                                                                              |...................................................................   |  95%
-  ordinary text without R code
-
-  |                                                                              |...................................................................   |  96%
-label: three_compare_estimated_incidence_funcs (with options) 
-List of 1
- $ cache: num 1
-
-  |                                                                              |....................................................................  |  98%
-  ordinary text without R code
-
-  |                                                                              |..................................................................... |  99%
-label: three_show_res
-  |                                                                              |......................................................................| 100%
-  ordinary text without R code
-
-
-output file: mmcif.knit.md
-
-/usr/bin/pandoc +RTS -K512m -RTS mmcif.knit.md --to gfm --from markdown+autolink_bare_uris+tex_math_single_backslash --output README.md --atx-headers '--webtex=https://render.githubusercontent.com/render/math?math=' --template /home/boennecd/R/x86_64-pc-linux-gnu-library/4.2/rmarkdown/rmarkdown/templates/github_document/resources/default.md '--webtex=https://latex.codecogs.com/png.image?%5Cdpi%7B110%7D&space;%5Cbg_white&space;' --filter /usr/bin/pandoc-citeproc 
-/usr/bin/pandoc +RTS -K512m -RTS README.md --to html4 --from gfm --output README.html --standalone --self-contained --highlight-style pygments --template /home/boennecd/R/x86_64-pc-linux-gnu-library/4.2/rmarkdown/rmarkdown/templates/github_document/resources/preview.html --variable 'github-markdown-css:/home/boennecd/R/x86_64-pc-linux-gnu-library/4.2/rmarkdown/rmarkdown/templates/github_document/resources/github.css' --metadata pagetitle=PREVIEW '--webtex=https://latex.codecogs.com/png.image?%5Cdpi%7B110%7D&space;%5Cbg_white&space;' 
-
-Preview created: README.html
-
-Output created: README.md
-> 
-> proc.time()
-    user   system  elapsed 
-1082.528    0.641  371.202 

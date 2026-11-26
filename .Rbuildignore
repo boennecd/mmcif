@@ -5,6 +5,7 @@
 ^benchmark
 ^create-vignette\.Rout
 ^\.github$
+^AGENTS[.]md$
 ^vignettes/.*\.out
 ^vignettes/.*\.log
 ^vignettes/.*\.bbl
