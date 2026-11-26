@@ -57,7 +57,10 @@ F_{kij}(t\mid \vec u_i, \vec\eta_i)
 \pi_k(\vec z_{ij}, \vec u_i)
   &= \frac{\exp(\vec z_{ij}^\top\vec\beta_k + u_{ik})}
           {1 + \sum_{l = 1}^K\exp(\vec z_{ij}^\top\vec\beta_l + u_{il})} \\
-\begin{pmatrix} \vec U_i \\ \vec\eta_i \end{pmatrix}
+\begin{pmatrix}
+  \vec U_i \\
+  \vec\eta_i
+\end{pmatrix}
   &\sim N^{(2K)}(\vec 0;\Sigma).
 \end{aligned}
 $$
