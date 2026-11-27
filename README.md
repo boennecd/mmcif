@@ -1,93 +1,81 @@
 
-# MMCIF: Mixed Multivariate Cumulative Incidence Functions
+<!-- README.md comes from vignettes/mmcif.Rmd. Run Rscript vignettes/create-vignette.R from the package root. -->
 
-[![R-CMD-check](https://github.com/boennecd/mmcif/workflows/R-CMD-check/badge.svg)](https://github.com/boennecd/mmcif/actions)
-[![](https://www.r-pkg.org/badges/version/mmcif)](https://CRAN.R-project.org/package=mmcif)
-[![CRAN RStudio mirror
-downloads](http://cranlogs.r-pkg.org/badges/mmcif)](https://CRAN.R-project.org/package=mmcif)
+# mmcif: Mixed Multivariate Cumulative Incidence Functions
 
-This package provides an implementation of the model introduced by
-Cederkvist et al. (2018) to model within-cluster dependence of both risk
-and timing in competing risk. For interested readers, a vignette on
-computational details can be found by calling
-`vignette("mmcif-comp-details", "mmcif")`.
+[![R-CMD-check](https://github.com/boennecd/mmcif/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/boennecd/mmcif/actions/workflows/R-CMD-check.yaml)
+[![CRAN
+version](https://www.r-pkg.org/badges/version/mmcif)](https://CRAN.R-project.org/package=mmcif)
+[![CRAN
+downloads](https://cranlogs.r-pkg.org/badges/last-month/mmcif)](https://cranlogs.r-pkg.org/)
+
+The mmcif package fits the mixed cumulative incidence functions model of
+Cederkvist et al. (2018). The model accounts for dependence within
+clusters in both event risk and event timing when there are competing
+risks. For computational details, run
+`vignette(topic = "mmcif-comp-details", package = "mmcif")`.
 
 ## Installation
 
-The package can be installed from Github by calling
+The package requires R 4.1.0 or later and a C++17 compiler. If remotes
+or R.rsp is missing, install those packages from CRAN.
 
 ``` r
-library(remotes)
-install_github("boennecd/mmcif", build_vignettes = TRUE)
+install.packages(pkgs = c("remotes", "R.rsp"))
 ```
 
-The code benefits from being build with automatic vectorization so
-having e.g.  `-O3` in the `CXX17FLAGS` flags in your Makevars file may
-be useful.
+Install the current version from GitHub.
+
+``` r
+remotes::install_github(repo = "boennecd/mmcif", build_vignettes = TRUE)
+```
+
+With GCC or Clang, `-O3` in `CXX17FLAGS` in your R Makevars file enables
+additional compiler optimizations.
 
 ## The Model
 
-The conditional cumulative incidence functions for cause
-![k](https://latex.codecogs.com/png.image?%5Cdpi%7B110%7D&space;%5Cbg_white&space;k
-"k") of individual
-![j](https://latex.codecogs.com/png.image?%5Cdpi%7B110%7D&space;%5Cbg_white&space;j
-"j") in cluster
-![i](https://latex.codecogs.com/png.image?%5Cdpi%7B110%7D&space;%5Cbg_white&space;i
-"i") is
+The model gives the conditional cumulative incidence function (CIF) for
+cause $k$ of individual $j$ in cluster $i$.
 
-  
-![\\begin{align\*} F\_{kij}(t\\mid \\vec u\_i, \\vec\\eta\_i) &=
-\\pi\_k(\\vec z\_{ij}, \\vec u\_i) \\Phi(-\\vec
-x\_{ij}(t)^\\top\\vec\\gamma\_k - \\eta\_{ik}) \\\\ \\pi\_k(\\vec
-z\_{ij}, \\vec u\_i) &= \\frac{\\exp(\\vec z\_{ij}^\\top\\vec\\beta\_k +
-u\_{ik})}{1 + \\sum\_{l = 1}^K\\exp(\\vec z\_{ij}^\\top\\vec\\beta\_l +
-u\_{il})} \\\\ \\begin{pmatrix} \\vec U\_i \\\\ \\vec\\eta\_i
-\\end{pmatrix} &\\sim
-N^{(2K)}(\\vec 0;\\Sigma).\\end{align\*}](https://latex.codecogs.com/png.image?%5Cdpi%7B110%7D&space;%5Cbg_white&space;%5Cbegin%7Balign%2A%7D%20F_%7Bkij%7D%28t%5Cmid%20%5Cvec%20u_i%2C%20%5Cvec%5Ceta_i%29%20%26%3D%20%5Cpi_k%28%5Cvec%20z_%7Bij%7D%2C%20%5Cvec%20u_i%29%20%5CPhi%28-%5Cvec%20x_%7Bij%7D%28t%29%5E%5Ctop%5Cvec%5Cgamma_k%20-%20%5Ceta_%7Bik%7D%29%20%5C%5C%20%5Cpi_k%28%5Cvec%20z_%7Bij%7D%2C%20%5Cvec%20u_i%29%20%26%3D%20%5Cfrac%7B%5Cexp%28%5Cvec%20z_%7Bij%7D%5E%5Ctop%5Cvec%5Cbeta_k%20%2B%20u_%7Bik%7D%29%7D%7B1%20%2B%20%5Csum_%7Bl%20%3D%201%7D%5EK%5Cexp%28%5Cvec%20z_%7Bij%7D%5E%5Ctop%5Cvec%5Cbeta_l%20%2B%20u_%7Bil%7D%29%7D%20%5C%5C%20%5Cbegin%7Bpmatrix%7D%20%5Cvec%20U_i%20%5C%5C%20%5Cvec%5Ceta_i%20%5Cend%7Bpmatrix%7D%20%26%5Csim%20N%5E%7B%282K%29%7D%28%5Cvec%200%3B%5CSigma%29.%5Cend%7Balign%2A%7D
-"\\begin{align*} F_{kij}(t\\mid \\vec u_i, \\vec\\eta_i) &= \\pi_k(\\vec z_{ij}, \\vec u_i) \\Phi(-\\vec x_{ij}(t)^\\top\\vec\\gamma_k - \\eta_{ik}) \\\\ \\pi_k(\\vec z_{ij}, \\vec u_i) &= \\frac{\\exp(\\vec z_{ij}^\\top\\vec\\beta_k + u_{ik})}{1 + \\sum_{l = 1}^K\\exp(\\vec z_{ij}^\\top\\vec\\beta_l + u_{il})} \\\\ \\begin{pmatrix} \\vec U_i \\\\ \\vec\\eta_i \\end{pmatrix} &\\sim N^{(2K)}(\\vec 0;\\Sigma).\\end{align*}")  
+$$\begin{aligned}
+F_{kij}(t\mid \vec u_i, \vec\eta_i)
+  &= \pi_k(\vec z_{ij}, \vec u_i)
+     \Phi(-\vec x_{ij}(t)^\top\vec\gamma_k - \eta_{ik}) \\
+\pi_k(\vec z_{ij}, \vec u_i)
+  &= \frac{\exp(\vec z_{ij}^\top\vec\beta_k + u_{ik})}
+          {1 + \sum_{l = 1}^K\exp(\vec z_{ij}^\top\vec\beta_l + u_{il})} \\
+\begin{pmatrix}
+  \vec U_i \\
+  \vec\eta_i
+\end{pmatrix}
+  &\sim N^{(2K)}(\vec 0;\Sigma).
+\end{aligned}$$
 
-where there are
-![K](https://latex.codecogs.com/png.image?%5Cdpi%7B110%7D&space;%5Cbg_white&space;K
-"K") competing risks. The ![\\vec
-x\_{ij}(t)^\\top\\vec\\gamma\_k](https://latex.codecogs.com/png.image?%5Cdpi%7B110%7D&space;%5Cbg_white&space;%5Cvec%20x_%7Bij%7D%28t%29%5E%5Ctop%5Cvec%5Cgamma_k
-"\\vec x_{ij}(t)^\\top\\vec\\gamma_k")’s for the trajectory must be
-constrained to be monotonically decreasing in
-![t](https://latex.codecogs.com/png.image?%5Cdpi%7B110%7D&space;%5Cbg_white&space;t
-"t"). The covariates for the trajectory in this package are defined as
+There are $K$ competing risks. For each cause, the trajectory term
+$\vec x_{ij}(t)^\top\vec\gamma_k$ must decrease monotonically with time
+$t$. The trajectory covariates have the form
 
-  
-![\\vec x\_{ij}(t) = (\\vec h(t)^\\top, \\vec
-z\_{ij}^\\top)^\\top](https://latex.codecogs.com/png.image?%5Cdpi%7B110%7D&space;%5Cbg_white&space;%5Cvec%20x_%7Bij%7D%28t%29%20%3D%20%28%5Cvec%20h%28t%29%5E%5Ctop%2C%20%5Cvec%20z_%7Bij%7D%5E%5Ctop%29%5E%5Ctop
-"\\vec x_{ij}(t) = (\\vec h(t)^\\top, \\vec z_{ij}^\\top)^\\top")  
+$$\vec x_{ij}(t) = (\vec h(t)^\top, \vec z_{ij}^\top)^\top$$
 
-for a spline basis ![\\vec
-h](https://latex.codecogs.com/png.image?%5Cdpi%7B110%7D&space;%5Cbg_white&space;%5Cvec%20h
-"\\vec h") and known covariates ![\\vec
-z\_{ij}](https://latex.codecogs.com/png.image?%5Cdpi%7B110%7D&space;%5Cbg_white&space;%5Cvec%20z_%7Bij%7D
-"\\vec z_{ij}") which are also used in the risk part of the model.
+where $\vec h$ is a spline basis. The known covariates $\vec z_{ij}$
+also enter the risk part of the model.
 
 ## Example
 
-We start with a simple example where there are ![K
-= 2](https://latex.codecogs.com/png.image?%5Cdpi%7B110%7D&space;%5Cbg_white&space;K%20%3D%202
-"K = 2") competing risks and
+This example uses $K = 2$ competing risks and the following covariates.
 
-  
-![\\begin{align\*} \\vec x\_{ij}(t) &=
-\\left(\\text{arcthan}\\left(\\frac{t -
-\\delta/2}{\\delta/2}\\right), 1, a\_{ij}, b\_{ij}\\right) \\\\ a\_{ij}
-&\\sim N(0, 1) \\\\
-b\_{ij} &\\sim \\text{Unif}(-1, 1)\\\\ \\vec z\_{ij} &= (1, a\_{ij},
-b\_{ij})
-\\end{align\*}](https://latex.codecogs.com/png.image?%5Cdpi%7B110%7D&space;%5Cbg_white&space;%5Cbegin%7Balign%2A%7D%20%5Cvec%20x_%7Bij%7D%28t%29%20%26%3D%20%5Cleft%28%5Ctext%7Barcthan%7D%5Cleft%28%5Cfrac%7Bt%20-%20%5Cdelta%2F2%7D%7B%5Cdelta%2F2%7D%5Cright%29%2C%201%2C%20a_%7Bij%7D%2C%20b_%7Bij%7D%5Cright%29%20%5C%5C%20a_%7Bij%7D%20%26%5Csim%20N%280%2C%201%29%20%5C%5C%0A%20b_%7Bij%7D%20%26%5Csim%20%5Ctext%7BUnif%7D%28-1%2C%201%29%5C%5C%20%5Cvec%20z_%7Bij%7D%20%26%3D%20%281%2C%20a_%7Bij%7D%2C%20b_%7Bij%7D%29%20%5Cend%7Balign%2A%7D
-"\\begin{align*} \\vec x_{ij}(t) &= \\left(\\text{arcthan}\\left(\\frac{t - \\delta/2}{\\delta/2}\\right), 1, a_{ij}, b_{ij}\\right) \\\\ a_{ij} &\\sim N(0, 1) \\\\
- b_{ij} &\\sim \\text{Unif}(-1, 1)\\\\ \\vec z_{ij} &= (1, a_{ij}, b_{ij}) \\end{align*}")  
+$$\begin{aligned}
+\vec x_{ij}(t)
+  &= \left(\mathrm{atanh}\left(\frac{t - \delta/2}{\delta/2}\right),
+     1, a_{ij}, b_{ij}\right) \\
+a_{ij} &\sim N(0, 1) \\
+b_{ij} &\sim \mathrm{Unif}(-1, 1) \\
+\vec z_{ij} &= (1, a_{ij}, b_{ij})
+\end{aligned}$$
 
-We set the parameters below and plot the conditional cumulative
-incidence functions when the random effects are zero and the covariates
-are zero, ![a\_{ij} = b\_{ij}
-= 0](https://latex.codecogs.com/png.image?%5Cdpi%7B110%7D&space;%5Cbg_white&space;a_%7Bij%7D%20%3D%20b_%7Bij%7D%20%3D%200
-"a_{ij} = b_{ij} = 0").
+The plots show the conditional CIF for each cause when the random
+effects and the covariates $a_{ij}$ and $b_{ij}$ are zero.
 
 ``` r
 # assign model parameters
@@ -120,7 +108,7 @@ local({
 })
 ```
 
-<img src="man/figures/README-assign_model_parameters-1.png" width="100%" />
+<img src="man/figures/README-assign_model_parameters-1.png" alt="" width="100%" />
 
 ``` r
 
@@ -130,11 +118,8 @@ Sigma <- c(0.306, 0.008, -0.138, 0.197, 0.008, 0.759, 0.251,
   matrix(2L * n_causes)
 ```
 
-Next, we assign a function to simulate clusters. The cluster sizes are
-uniformly sampled from one to the maximum size. The censoring times are
-drawn from a uniform distribution from zero to
-![3\\delta](https://latex.codecogs.com/png.image?%5Cdpi%7B110%7D&space;%5Cbg_white&space;3%5Cdelta
-"3\\delta").
+The simulation samples cluster sizes uniformly from one to the maximum
+size. It samples censoring times uniformly from zero to $3\delta$.
 
 ``` r
 library(mvtnorm)
@@ -194,7 +179,8 @@ sim_dat <- \(n_clusters, max_cluster_size){
 }
 ```
 
-We then sample a data set.
+The output shows the number of individuals and the distribution of their
+observed times by cause. A cause of 3 indicates censoring.
 
 ``` r
 # sample a data set
@@ -233,45 +219,29 @@ tapply(dat$time, dat$cause, quantile,
 #> 2.000000 2.000000 2.000000
 ```
 
-Then we setup the C++ object to do the computation.
+Use `mmcif_data()` to prepare the data for the model.
 
 ``` r
 library(mmcif)
 comp_obj <- mmcif_data(
-  ~ a + b, dat, cause = cause, time = time, cluster_id = cluster_id,
+  formula = ~ a + b, data = dat, cause = cause, time = time, cluster_id = cluster_id,
   max_time = delta, spline_df = 4L)
 ```
 
-The `mmcif_data` function does not work with
+The `mmcif_data()` function uses a natural cubic spline basis
+$\vec g(h(t))$ of the transformed time $h(t)$.
 
-  
-![h(t) = \\text{arcthan}\\left(\\frac{t -
-\\delta/2}{\\delta/2}\\right)](https://latex.codecogs.com/png.image?%5Cdpi%7B110%7D&space;%5Cbg_white&space;h%28t%29%20%3D%20%5Ctext%7Barcthan%7D%5Cleft%28%5Cfrac%7Bt%20-%20%5Cdelta%2F2%7D%7B%5Cdelta%2F2%7D%5Cright%29
-"h(t) = \\text{arcthan}\\left(\\frac{t - \\delta/2}{\\delta/2}\\right)")  
+$$h(t) = \mathrm{atanh}\left(\frac{t - \delta/2}{\delta/2}\right)$$
 
-but instead with ![\\vec
-g(h(t))](https://latex.codecogs.com/png.image?%5Cdpi%7B110%7D&space;%5Cbg_white&space;%5Cvec%20g%28h%28t%29%29
-"\\vec g(h(t))") where ![\\vec
-g](https://latex.codecogs.com/png.image?%5Cdpi%7B110%7D&space;%5Cbg_white&space;%5Cvec%20g
-"\\vec g") returns a natural cubic spline basis functions. The knots are
-based on quantiles of
-![h(t)](https://latex.codecogs.com/png.image?%5Cdpi%7B110%7D&space;%5Cbg_white&space;h%28t%29
-"h(t)") evaluated on the event times. The knots differ for each type of
-competing risk. The degrees of freedom of the splines is controlled with
-the `spline_df` argument. There is a `constraints` element on the object
-returned by the `mmcif_data` function which contains matrices that
-ensures that the ![\\vec
-x\_{ij}(t)^\\top\\vec\\gamma\_k](https://latex.codecogs.com/png.image?%5Cdpi%7B110%7D&space;%5Cbg_white&space;%5Cvec%20x_%7Bij%7D%28t%29%5E%5Ctop%5Cvec%5Cgamma_k
-"\\vec x_{ij}(t)^\\top\\vec\\gamma_k")s are monotonically decreasing if
-![C\\vec\\zeta \>
-\\vec 0](https://latex.codecogs.com/png.image?%5Cdpi%7B110%7D&space;%5Cbg_white&space;C%5Cvec%5Czeta%20%3E%20%5Cvec%200
-"C\\vec\\zeta \> \\vec 0") where
-![C](https://latex.codecogs.com/png.image?%5Cdpi%7B110%7D&space;%5Cbg_white&space;C
-"C") is one of matrices and
-![\\vec\\zeta](https://latex.codecogs.com/png.image?%5Cdpi%7B110%7D&space;%5Cbg_white&space;%5Cvec%5Czeta
-"\\vec\\zeta") is the concatenated vector of model parameters.
+For each cause, the function places knots at quantiles of the
+transformed event times. Use `spline_df` to set the degrees of freedom
+of the splines. The returned object stores constraint matrices in
+`constraints`. The trajectory terms decrease monotonically when
+$C\vec\zeta > \vec 0$, where $C$ is a constraint matrix and $\vec\zeta$
+is the corresponding vector of model parameters.
 
-The time to compute the log composite likelihood is illustrated below.
+The benchmarks compare the time to evaluate the log composite likelihood
+and its gradient with one to four threads.
 
 ``` r
 NCOL(comp_obj$pair_indices) # the number of pairs in the composite likelihood
@@ -311,10 +281,10 @@ bench::mark(
 #> # A tibble: 4 × 6
 #>   expression         min   median `itr/sec` mem_alloc `gc/sec`
 #>   <bch:expr>    <bch:tm> <bch:tm>     <dbl> <bch:byt>    <dbl>
-#> 1 one thread        44ms   45.4ms      21.9        0B        0
-#> 2 two threads       23ms   23.3ms      42.7        0B        0
-#> 3 three threads   15.6ms   15.8ms      62.8        0B        0
-#> 4 four threads    11.9ms   12.2ms      79.7        0B        0
+#> 1 one thread      40.4ms   42.9ms      22.4        0B        0
+#> 2 two threads     45.7ms   77.3ms      13.3        0B        0
+#> 3 three threads   62.8ms     78ms      12.8        0B        0
+#> 4 four threads    59.6ms   77.1ms      12.9        0B        0
 
 # next, we compute the gradient of the log composite likelihood at the true 
 # parameters. First we assign a few functions to verify the result. You can 
@@ -376,21 +346,22 @@ bench::mark(
 #> # A tibble: 4 × 6
 #>   expression         min   median `itr/sec` mem_alloc `gc/sec`
 #>   <bch:expr>    <bch:tm> <bch:tm>     <dbl> <bch:byt>    <dbl>
-#> 1 one thread      68.8ms   69.9ms      14.2      336B        0
-#> 2 two threads     35.8ms   36.5ms      27.1      336B        0
-#> 3 three threads   24.5ms   24.8ms      40.3      336B        0
-#> 4 four threads    18.9ms   19.3ms      51.1      336B        0
+#> 1 one thread      65.3ms   70.7ms     13.7       336B        0
+#> 2 two threads     97.9ms  148.1ms      6.48      336B        0
+#> 3 three threads  112.8ms  122.6ms      7.82      336B        0
+#> 4 four threads   116.3ms  129.4ms      7.61      336B        0
 ```
 
 #### Optimization
 
-Then we optimize the parameters.
+Use `mmcif_start_values()` to get starting values, then use
+`mmcif_fit()` to maximize the log composite likelihood.
 
 ``` r
 # find the starting values
 system.time(start <- mmcif_start_values(comp_obj, n_threads = 4L))
 #>    user  system elapsed 
-#>   0.084   0.008   0.026
+#>   0.051   0.015   0.046
 
 # the maximum likelihood without the random effects. Note that this is not 
 # comparable with the composite likelihood
@@ -430,7 +401,7 @@ rbind(`Numerical gradient` = gr_num, `Gradient package` = gr_package)
 # optimize the log composite likelihood
 system.time(fit <- mmcif_fit(start$upper, comp_obj, n_threads = 4L))
 #>    user  system elapsed 
-#>  46.676   0.019  11.704
+#>  39.387   4.822  48.504
 
 # the log composite likelihood at different points
 mmcif_logLik(comp_obj, truth, n_threads = 4L, is_log_chol = TRUE)
@@ -441,9 +412,8 @@ mmcif_logLik(comp_obj, start$upper, n_threads = 4L, is_log_chol = TRUE)
 #> [1] -7050
 ```
 
-We may reduce the estimation time by using a different number of
-quadrature nodes starting with fewer nodes successively updating the
-fits as shown below.
+To reduce fitting time, start with fewer quadrature nodes. Each fit
+supplies the starting values for the fit with more nodes.
 
 ``` r
 # the number of nodes we used
@@ -461,77 +431,75 @@ system.time(
   fits <- mmcif_fit(
     start$upper, comp_obj, n_threads = 4L, ghq_data = ghq_lists))
 #>    user  system elapsed 
-#>  39.285   0.012   9.831
+#>   84.85   15.05   98.55
 
 # compare the estimates
 rbind(sapply(fits, `[[`, "par") |> t(), 
       `Previous` = fit$par)
 #>          cause1:risk:(Intercept) cause1:risk:a cause1:risk:b
-#>                           0.5584        0.9124       0.08503
-#>                           0.5854        0.9494       0.08946
-#> Previous                  0.5868        0.9495       0.08984
+#>                           0.5580        0.9123       0.08637
+#>                           0.5855        0.9494       0.08944
+#> Previous                  0.5867        0.9493       0.08992
 #>          cause2:risk:(Intercept) cause2:risk:a cause2:risk:b cause1:spline1
-#>                          -0.4267        0.1942        0.4920         -2.751
-#>                          -0.4068        0.2085        0.5040         -2.761
-#> Previous                 -0.4088        0.2086        0.5051         -2.761
+#>                          -0.4264        0.1932        0.4909         -2.747
+#>                          -0.4067        0.2085        0.5039         -2.761
+#> Previous                 -0.4085        0.2086        0.5049         -2.762
 #>          cause1:spline2 cause1:spline3 cause1:spline4
-#>                  -3.624         -6.512         -4.968
+#>                  -3.620         -6.499         -4.960
 #>                  -3.636         -6.536         -4.983
-#> Previous         -3.636         -6.536         -4.983
+#> Previous         -3.637         -6.537         -4.983
 #>          cause1:traject:(Intercept) cause1:traject:a cause1:traject:b
-#>                               2.782           0.7863           0.3197
+#>                               2.779           0.7835           0.3182
 #>                               2.789           0.7898           0.3207
-#> Previous                      2.789           0.7898           0.3207
+#> Previous                      2.789           0.7900           0.3208
 #>          cause2:spline1 cause2:spline2 cause2:spline3 cause2:spline4
-#>                  -2.819         -3.233         -6.063         -4.771
-#>                  -2.890         -3.310         -6.214         -4.881
-#> Previous         -2.890         -3.309         -6.213         -4.880
+#>                  -2.796         -3.209         -6.014         -4.736
+#>                  -2.890         -3.309         -6.214         -4.880
+#> Previous         -2.892         -3.312         -6.219         -4.884
 #>          cause2:traject:(Intercept) cause2:traject:a cause2:traject:b
-#>                               3.326           0.2420          -0.3430
-#>                               3.365           0.2468          -0.3479
-#> Previous                      3.363           0.2468          -0.3477
+#>                               3.298           0.2375          -0.3399
+#>                               3.365           0.2468          -0.3478
+#> Previous                      3.368           0.2471          -0.3483
 #>          vcov:risk1:risk1 vcov:risk1:risk2 vcov:risk2:risk2 vcov:risk1:traject1
-#>                   -1.0779         -0.26819          -0.3546            -0.18162
-#>                   -0.4792          0.07051          -0.1160            -0.09138
-#> Previous          -0.4770          0.08131          -0.1043            -0.09116
+#>                   -1.0663         -0.25795          -0.3431            -0.17815
+#>                   -0.4792          0.07044          -0.1161            -0.09145
+#> Previous          -0.4779          0.08120          -0.1053            -0.09048
 #>          vcov:risk2:traject1 vcov:traject1:traject1 vcov:risk1:traject2
-#>                       0.2717                -0.2781              0.4359
-#>                       0.2791                -0.2546              0.2575
-#> Previous              0.2768                -0.2536              0.2575
+#>                       0.2747                -0.2824              0.4269
+#>                       0.2791                -0.2546              0.2579
+#> Previous              0.2770                -0.2531              0.2579
 #>          vcov:risk2:traject2 vcov:traject1:traject2 vcov:traject2:traject2
-#>                      -0.4860               -0.03015                -0.2906
-#>                      -0.4972               -0.10351                -0.1518
-#> Previous             -0.4939               -0.10619                -0.1505
+#>                      -0.4858               -0.03244                -0.3073
+#>                      -0.4971               -0.10357                -0.1519
+#> Previous             -0.4962               -0.10586                -0.1494
 
 print(fits[[length(fits)]]$value, digits = 10)
-#> [1] 7050.314423
+#> [1] 7050.314434
 print(fit                 $value, digits = 10)
-#> [1] 7050.351508
+#> [1] 7050.350973
 ```
 
-Then we compute the sandwich estimator. The Hessian is currently
-computed with numerical differentiation which is why it takes a while.
+Use `mmcif_sandwich()` to compute the sandwich covariance estimator. The
+function uses numerical differentiation to compute the Hessian.
 
 ``` r
 system.time(sandwich_est <- mmcif_sandwich(comp_obj, fit$par, n_threads = 4L))
 #>    user  system elapsed 
-#>  23.754   0.009   5.953
+#>  37.660   5.479  51.081
 
 # setting order equal to zero yield no Richardson extrapolation and just
 # standard symmetric difference quotient. This is less precise but faster 
 system.time(sandwich_est_simple <- 
               mmcif_sandwich(comp_obj, fit$par, n_threads = 4L, order = 0L))
 #>    user  system elapsed 
-#>   4.935   0.000   1.236
+#>   6.490   0.306  10.557
 ```
 
 #### Estimates
 
-We show the estimated and true the conditional cumulative incidence
-functions (the dashed curves are the estimates) when the random effects
-are zero and the covariates are zero, ![a\_{ij} = b\_{ij}
-= 0](https://latex.codecogs.com/png.image?%5Cdpi%7B110%7D&space;%5Cbg_white&space;a_%7Bij%7D%20%3D%20b_%7Bij%7D%20%3D%200
-"a_{ij} = b_{ij} = 0").
+The dashed curves show the estimated conditional CIFs. The solid curves
+show the true CIFs. The random effects and the covariates $a_{ij}$ and
+$b_{ij}$ are zero.
 
 ``` r
 local({
@@ -571,15 +539,16 @@ local({
 })
 ```
 
-<img src="man/figures/README-compare_estimated_incidence_funcs-1.png" width="100%" />
+<img src="man/figures/README-compare_estimated_incidence_funcs-1.png" alt="" width="100%" />
 
-Further illustrations of the estimated model are given below.
+The tables compare fitted parameters and standard errors with the true
+parameter values.
 
 ``` r
 # the number of call we made
 fit$counts
 #> function gradient 
-#>      438      269
+#>      226      143
 fit$outer.iterations
 #> [1] 3
 
@@ -593,48 +562,48 @@ rbind(`Estimate AGHQ` = fit$par[comp_obj$indices$coef_risk],
       `Standard errors simple` = SEs_simple[comp_obj$indices$coef_risk],
       Truth = truth[comp_obj$indices$coef_risk])
 #>                        cause1:risk:(Intercept) cause1:risk:a cause1:risk:b
-#> Estimate AGHQ                          0.58676       0.94946       0.08984
-#> Standard errors                        0.07241       0.06901       0.10193
-#> Standard errors simple                 0.07241       0.06901       0.10193
+#> Estimate AGHQ                          0.58673       0.94934       0.08992
+#> Standard errors                        0.07244       0.06901       0.10192
+#> Standard errors simple                 0.07244       0.06901       0.10192
 #> Truth                                  0.67000       1.00000       0.10000
 #>                        cause2:risk:(Intercept) cause2:risk:a cause2:risk:b
-#> Estimate AGHQ                         -0.40878       0.20863        0.5051
-#> Standard errors                        0.09896       0.07073        0.1233
-#> Standard errors simple                 0.09896       0.07073        0.1233
+#> Estimate AGHQ                         -0.40847       0.20864        0.5049
+#> Standard errors                        0.09896       0.07072        0.1233
+#> Standard errors simple                 0.09896       0.07072        0.1233
 #> Truth                                 -0.40000       0.25000        0.3000
 rbind(`Estimate AGHQ` = fit$par[comp_obj$indices$coef_trajectory],
       `Standard errors` = SEs[comp_obj$indices$coef_trajectory],
       `Standard errors simple` = SEs_simple[comp_obj$indices$coef_trajectory],
       Truth = truth[comp_obj$indices$coef_trajectory])
 #>                        cause1:spline1 cause1:spline2 cause1:spline3
-#> Estimate AGHQ                 -2.7613        -3.6362        -6.5362
-#> Standard errors                0.1115         0.1320         0.2122
+#> Estimate AGHQ                 -2.7618        -3.6368        -6.5373
+#> Standard errors                0.1116         0.1321         0.2123
 #> Standard errors simple         0.1116         0.1321         0.2122
 #> Truth                         -2.8546        -3.5848        -6.5119
 #>                        cause1:spline4 cause1:traject:(Intercept)
-#> Estimate AGHQ                 -4.9826                     2.7890
-#> Standard errors                0.1573                     0.1048
-#> Standard errors simple         0.1573                     0.1048
+#> Estimate AGHQ                 -4.9834                     2.7893
+#> Standard errors                0.1573                     0.1049
+#> Standard errors simple         0.1573                     0.1049
 #> Truth                         -4.9574                     2.8655
 #>                        cause1:traject:a cause1:traject:b cause2:spline1
-#> Estimate AGHQ                   0.78980          0.32069        -2.8896
-#> Standard errors                 0.05136          0.06089         0.2251
-#> Standard errors simple          0.05136          0.06089         0.2250
-#> Truth                           0.80000          0.40000        -2.5969
+#> Estimate AGHQ                   0.78997           0.3208        -2.8925
+#> Standard errors                 0.05137           0.0609         0.2255
+#> Standard errors simple          0.05137           0.0609         0.2254
+#> Truth                           0.80000           0.4000        -2.5969
 #>                        cause2:spline2 cause2:spline3 cause2:spline4
-#> Estimate AGHQ                 -3.3089        -6.2127        -4.8797
-#> Standard errors                0.2291         0.4477         0.3179
-#> Standard errors simple         0.2290         0.4473         0.3176
+#> Estimate AGHQ                 -3.3120        -6.2189        -4.8844
+#> Standard errors                0.2296         0.4488         0.3187
+#> Standard errors simple         0.2295         0.4483         0.3184
 #> Truth                         -3.3416        -6.0232        -4.6611
 #>                        cause2:traject:(Intercept) cause2:traject:a
-#> Estimate AGHQ                              3.3634          0.24684
-#> Standard errors                            0.2574          0.06955
-#> Standard errors simple                     0.2572          0.06954
-#> Truth                                      3.1145          0.25000
+#> Estimate AGHQ                              3.3677           0.2471
+#> Standard errors                            0.2581           0.0696
+#> Standard errors simple                     0.2580           0.0696
+#> Truth                                      3.1145           0.2500
 #>                        cause2:traject:b
-#> Estimate AGHQ                   -0.3477
-#> Standard errors                  0.1059
-#> Standard errors simple           0.1059
+#> Estimate AGHQ                   -0.3483
+#> Standard errors                  0.1060
+#> Standard errors simple           0.1060
 #> Truth                           -0.2000
 
 n_vcov <- (2L * n_causes * (2L * n_causes + 1L)) %/% 2L
@@ -645,11 +614,11 @@ Sigma
 #> [3,] -0.138  0.251  0.756 -0.319
 #> [4,]  0.197 -0.250 -0.319  0.903
 log_chol_inv(tail(fit$par, n_vcov))
-#>          [,1]     [,2]     [,3]    [,4]
-#> [1,]  0.38517  0.05046 -0.05658  0.1598
-#> [2,]  0.05046  0.81841  0.24202 -0.4241
-#> [3,] -0.05658  0.24202  0.68717 -0.2426
-#> [4,]  0.15978 -0.42407 -0.24261  1.0616
+#>          [,1]     [,2]    [,3]    [,4]
+#> [1,]  0.38451  0.05035 -0.0561  0.1599
+#> [2,]  0.05035  0.81673  0.2420 -0.4257
+#> [3,] -0.05610  0.24196  0.6877 -0.2430
+#> [4,]  0.15989 -0.42566 -0.2430  1.0656
 
 # on the log Cholesky scale
 rbind(`Estimate AGHQ` = fit$par[comp_obj$indices$vcov_upper],
@@ -657,29 +626,29 @@ rbind(`Estimate AGHQ` = fit$par[comp_obj$indices$vcov_upper],
       `Standard errors simple` = SEs_simple[comp_obj$indices$vcov_upper],
       Truth = truth[comp_obj$indices$vcov_upper])
 #>                        vcov:risk1:risk1 vcov:risk1:risk2 vcov:risk2:risk2
-#> Estimate AGHQ                   -0.4770          0.08131          -0.1043
-#> Standard errors                  0.2079          0.23574           0.1577
-#> Standard errors simple           0.2079          0.23573           0.1577
+#> Estimate AGHQ                   -0.4779          0.08120          -0.1053
+#> Standard errors                  0.2085          0.23666           0.1583
+#> Standard errors simple           0.2085          0.23666           0.1583
 #> Truth                           -0.5921          0.01446          -0.1380
 #>                        vcov:risk1:traject1 vcov:risk2:traject1
-#> Estimate AGHQ                     -0.09116              0.2768
-#> Standard errors                    0.14510              0.1155
-#> Standard errors simple             0.14510              0.1155
+#> Estimate AGHQ                     -0.09048              0.2770
+#> Standard errors                    0.14509              0.1155
+#> Standard errors simple             0.14509              0.1155
 #> Truth                             -0.24947              0.2923
 #>                        vcov:traject1:traject1 vcov:risk1:traject2
-#> Estimate AGHQ                         -0.2536              0.2575
-#> Standard errors                        0.1064              0.2402
-#> Standard errors simple                 0.1064              0.2402
+#> Estimate AGHQ                         -0.2531              0.2579
+#> Standard errors                        0.1063              0.2406
+#> Standard errors simple                 0.1063              0.2406
 #> Truth                                 -0.2485              0.3561
 #>                        vcov:risk2:traject2 vcov:traject1:traject2
-#> Estimate AGHQ                      -0.4939                -0.1062
-#> Standard errors                     0.2011                 0.1501
-#> Standard errors simple              0.2011                 0.1501
+#> Estimate AGHQ                      -0.4962                -0.1059
+#> Standard errors                     0.2016                 0.1504
+#> Standard errors simple              0.2016                 0.1504
 #> Truth                              -0.2929                -0.1853
 #>                        vcov:traject2:traject2
-#> Estimate AGHQ                         -0.1505
-#> Standard errors                        0.1871
-#> Standard errors simple                 0.1870
+#> Estimate AGHQ                         -0.1494
+#> Standard errors                        0.1873
+#> Standard errors simple                 0.1872
 #> Truth                                 -0.2108
 
 # on the original covariance matrix scale
@@ -694,11 +663,11 @@ vcov_show <- cbind(Estimates = vcov_est, NA, SEs = vcov_SE)
 colnames(vcov_show) <- 
   c(rep("Est.", NCOL(vcov_est)), "", rep("SE", NCOL(vcov_est)))
 print(vcov_show, na.print = "")
-#>        Est.    Est.     Est.    Est.      SE     SE      SE     SE
-#> [1,] 0.3852 0.05046 -0.05658  0.1598  0.1602 0.1509 0.08933 0.1506
-#> [2,]        0.81841  0.24202 -0.4241         0.2723 0.11034 0.1815
-#> [3,]                 0.68717 -0.2426                0.11579 0.1033
-#> [4,]                          1.0616                        0.2819
+#>        Est.    Est.    Est.    Est.      SE     SE      SE     SE
+#> [1,] 0.3845 0.05035 -0.0561  0.1599  0.1604 0.1513 0.08927 0.1508
+#> [2,]        0.81673  0.2420 -0.4257         0.2730 0.11030 0.1816
+#> [3,]                 0.6877 -0.2430                0.11582 0.1034
+#> [4,]                         1.0656                        0.2829
 
 Sigma # the true values
 #>        [,1]   [,2]   [,3]   [,4]
@@ -710,9 +679,8 @@ Sigma # the true values
 
 #### Marginal Measures
 
-The `mmcif_pd_univariate` function is provided to compute the marginal
-CIFs, the derivative of the marginal CIFs, and the marginal survival
-probability.
+The `mmcif_pd_univariate()` function computes marginal CIFs, their
+derivatives, and the marginal survival probability.
 
 ``` r
 # compute the univariate marginal CIFs
@@ -749,7 +717,7 @@ int_m_cifs <- sapply(
     integrate(Vectorize(compute_dens), 1e-12, .25, rel.tol = 1e-10, 
               cause = cause)$value)
 all.equal(int_m_cifs, m_cifs) # ~ the same
-#> [1] "Mean relative difference: 1.106e-06"
+#> [1] "Mean relative difference: 1.101e-06"
 
 # we can compute a marginal cause-specific hazard using these
 local({
@@ -770,11 +738,11 @@ local({
 })
 ```
 
-<img src="man/figures/README-show_mmcif_pd_univariate-1.png" width="100%" />
+<img src="man/figures/README-show_mmcif_pd_univariate-1.png" alt="" width="100%" />
 
-There is a bivariate version as well. This gives the marginal bivaraite
-CIFs, marginal survival probabilities, the marginal density, and
-mixtures thereof as illustrated below.
+The `mmcif_pd_bivariate()` function computes marginal CIFs, survival
+probabilities, densities, and combinations of these measures for pairs
+of individuals.
 
 ``` r
 # wrapper to simplify calls to mmcif_pd_bivariate
@@ -801,7 +769,7 @@ m_cifs <- apply(cause_combs, 1, \(cause){
   mmcif_pd_bivariate_wrap(cause = cause, type = c("cumulative", "cumulative"))
 })
 m_cifs
-#> [1] 0.09724 0.02519 0.09289 0.01221 0.02629 0.02612 0.21444 0.12867
+#> [1] 0.09722 0.02519 0.09290 0.01221 0.02630 0.02611 0.21446 0.12864
 
 # we can recover the probability of both being censored
 m_surv <- mmcif_pd_bivariate_wrap(
@@ -812,7 +780,7 @@ all.equal(m_surv, 1 - sum(m_cifs))
 # we can also compute the derivative of a CIF in one argument and the CIF in the 
 # other
 mmcif_pd_bivariate_wrap(cause = c(1L, 1L), type = c("derivative", "cumulative"))
-#> [1] 0.07968
+#> [1] 0.07967
 
 # we can also compute the derivative in both
 mmcif_pd_bivariate_wrap(cause = c(1L, 1L), type = c("derivative", "derivative"))
@@ -859,9 +827,9 @@ apply(combs_to_test, 1, \(cause){
   # return the relative errors
   c(err1, err2)
 }) # ~ tiny relative errors
-#>           [,1]     [,2]      [,3]       [,4]
-#> [1,] 4.448e-07 2.96e-07 3.800e-08 -5.398e-07
-#> [2,] 5.409e-08 4.85e-07 9.375e-08 -7.684e-07
+#>           [,1]      [,2]      [,3]       [,4]
+#> [1,] 4.434e-07 2.943e-07 3.658e-08 -5.403e-07
+#> [2,] 5.327e-08 4.826e-07 9.282e-08 -7.680e-07
 
 # we can also do the check with one CIF and one derivative
 apply(combs_to_test, 1, \(cause){
@@ -898,12 +866,12 @@ apply(combs_to_test, 1, \(cause){
   c(err1, err2)
 })
 #>           [,1]      [,2]       [,3]       [,4]
-#> [1,] 8.270e-08 3.573e-07 -7.029e-08 -1.120e-07
-#> [2,] 8.151e-08 2.964e-07  1.580e-07 -3.787e-07
+#> [1,] 8.189e-08 3.549e-07 -7.154e-08 -1.113e-07
+#> [2,] 8.068e-08 2.945e-07  1.566e-07 -3.770e-07
 ```
 
-Finally, there is also function to compute the marginal density, CIF,
-survival probability or hazard conditional on the outcome of another
+The `mmcif_pd_cond()` function computes a marginal density, CIF,
+survival probability, or hazard conditional on the outcome of another
 individual.
 
 ``` r
@@ -953,7 +921,7 @@ local({
 })
 ```
 
-<img src="man/figures/README-show_mmcif_pd_cond-1.png" width="100%" /><img src="man/figures/README-show_mmcif_pd_cond-2.png" width="100%" /><img src="man/figures/README-show_mmcif_pd_cond-3.png" width="100%" />
+<img src="man/figures/README-show_mmcif_pd_cond-1.png" alt="" width="100%" /><img src="man/figures/README-show_mmcif_pd_cond-2.png" alt="" width="100%" /><img src="man/figures/README-show_mmcif_pd_cond-3.png" alt="" width="100%" />
 
 ``` r
 # we can check a standard equality
@@ -968,16 +936,14 @@ num_cumulative <- integrate(
   compute_cond, 1e-8, .25, cause = 1L, type = "derivative", 
   rel.tol = 1e-10)$value
 all.equal(num_cumulative, compute_cond(.25, cause = 1L, type = "cumulative"))
-#> [1] "Mean relative difference: 3.475e-07"
+#> [1] "Mean relative difference: 3.437e-07"
 ```
 
 ### Delayed Entry
 
-We extend the previous example to the setting where there may be delayed
-entry (left truncation). Thus, we assign a new simulation function. The
-delayed entry is sampled by sampling a random variable from the uniform
-distribution on -1 to 1 and taking the entry time as being the maximum
-of this variable and zero.
+This example adds delayed entry (left truncation). The simulation draws
+a uniform value between -1 and 1. The entry time is the maximum of that
+value and zero.
 
 ``` r
 library(mvtnorm)
@@ -1051,7 +1017,7 @@ sim_dat <- \(n_clusters, max_cluster_size){
 }
 ```
 
-We sample a data set using the new simulation function.
+The output also summarizes the entry times.
 
 ``` r
 # sample a data set
@@ -1099,8 +1065,8 @@ quantile(dat$delayed_entry, probs = seq(0, 1, length.out = 11))
 
 #### Optimization
 
-Next, we fit the model as before but this time we pass the delayed entry
-time.
+Pass the entry times to `mmcif_data()` with `left_trunc` before fitting
+the model.
 
 ``` r
 library(mmcif)
@@ -1127,7 +1093,7 @@ truth <- c(coef_risk, coef_traject_spline, log_chol(Sigma))
 # find the starting values
 system.time(start <- mmcif_start_values(comp_obj, n_threads = 4L))
 #>    user  system elapsed 
-#>   0.056   0.000   0.017
+#>   0.104   0.000   0.301
 
 # we can verify that the gradient is correct again
 gr_package <- mmcif_logLik_grad(
@@ -1153,7 +1119,7 @@ rbind(`Numerical gradient` = gr_num, `Gradient package` = gr_package)
 # optimize the log composite likelihood
 system.time(fit <- mmcif_fit(start$upper, comp_obj, n_threads = 4L))
 #>    user  system elapsed 
-#>  49.872   0.012  12.473
+#>   77.97   11.03   96.07
 
 # the log composite likelihood at different points
 mmcif_logLik(comp_obj, truth, n_threads = 4L, is_log_chol = TRUE)
@@ -1164,29 +1130,26 @@ mmcif_logLik(comp_obj, start$upper, n_threads = 4L, is_log_chol = TRUE)
 #> [1] -4724
 ```
 
-Then we compute the sandwich estimator. The Hessian is currently
-computed with numerical differentiation which is why it takes a while.
+Compute the sandwich covariance estimator for the delayed-entry fit.
 
 ``` r
 system.time(sandwich_est <- mmcif_sandwich(comp_obj, fit$par, n_threads = 4L))
 #>    user  system elapsed 
-#>  41.487   0.004  10.394
+#>   66.68   14.00   69.46
 
 # setting order equal to zero yield no Richardson extrapolation and just
 # standard symmetric difference quotient. This is less precise but faster 
 system.time(sandwich_est_simple <- 
               mmcif_sandwich(comp_obj, fit$par, n_threads = 4L, order = 0L))
 #>    user  system elapsed 
-#>   9.521   0.000   2.386
+#>  16.215   3.591  15.878
 ```
 
 #### Estimates
 
-We show the estimated and true the conditional cumulative incidence
-functions (the dashed curves are the estimates) when the random effects
-are zero and the covariates are zero, ![a\_{ij} = b\_{ij}
-= 0](https://latex.codecogs.com/png.image?%5Cdpi%7B110%7D&space;%5Cbg_white&space;a_%7Bij%7D%20%3D%20b_%7Bij%7D%20%3D%200
-"a_{ij} = b_{ij} = 0").
+The plots use dashed curves for the estimated conditional CIFs and solid
+curves for the true CIFs. The random effects and the covariates $a_{ij}$
+and $b_{ij}$ are zero.
 
 ``` r
 local({
@@ -1226,15 +1189,15 @@ local({
 })
 ```
 
-<img src="man/figures/README-delayed_compare_estimated_incidence_funcs-1.png" width="100%" />
+<img src="man/figures/README-delayed_compare_estimated_incidence_funcs-1.png" alt="" width="100%" />
 
-Further illustrations of the estimated model are given below.
+The tables compare the estimates with the true parameter values.
 
 ``` r
 # the number of call we made
 fit$counts
 #> function gradient 
-#>      232      190
+#>      232      182
 fit$outer.iterations
 #> [1] 3
 
@@ -1282,7 +1245,7 @@ rbind(`Estimate AGHQ` = fit$par[comp_obj$indices$coef_trajectory],
 #> Standard errors simple         0.1892         0.4010         0.2565
 #> Truth                         -3.3481        -6.2334        -4.6450
 #>                        cause2:traject:(Intercept) cause2:traject:a
-#> Estimate AGHQ                              2.6923          0.24584
+#> Estimate AGHQ                              2.6922          0.24584
 #> Standard errors                            0.2251          0.06472
 #> Standard errors simple                     0.2251          0.06472
 #> Truth                                      3.0259          0.25000
@@ -1302,9 +1265,9 @@ Sigma
 log_chol_inv(tail(fit$par, n_vcov))
 #>          [,1]    [,2]     [,3]    [,4]
 #> [1,]  0.33651 -0.1471 -0.07113  0.1426
-#> [2,] -0.14711  0.3690  0.41898 -0.1071
-#> [3,] -0.07113  0.4190  0.72053 -0.4198
-#> [4,]  0.14263 -0.1071 -0.41981  0.5897
+#> [2,] -0.14710  0.3690  0.41898 -0.1071
+#> [3,] -0.07113  0.4190  0.72052 -0.4198
+#> [4,]  0.14262 -0.1071 -0.41981  0.5897
 
 # on the log Cholesky scale
 rbind(`Estimate AGHQ` = fit$par[comp_obj$indices$vcov_upper],
@@ -1314,27 +1277,27 @@ rbind(`Estimate AGHQ` = fit$par[comp_obj$indices$vcov_upper],
 #>                        vcov:risk1:risk1 vcov:risk1:risk2 vcov:risk2:risk2
 #> Estimate AGHQ                   -0.5446         -0.25359          -0.5942
 #> Standard errors                  0.2753          0.22883           0.3426
-#> Standard errors simple           0.2753          0.22875           0.3423
+#> Standard errors simple           0.2753          0.22876           0.3423
 #> Truth                           -0.5921          0.01446          -0.1380
 #>                        vcov:risk1:traject1 vcov:risk2:traject1
 #> Estimate AGHQ                      -0.1226              0.7027
-#> Standard errors                     0.1953              0.1763
-#> Standard errors simple              0.1953              0.1761
+#> Standard errors                     0.1953              0.1764
+#> Standard errors simple              0.1953              0.1762
 #> Truth                              -0.2495              0.2923
 #>                        vcov:traject1:traject1 vcov:risk1:traject2
 #> Estimate AGHQ                         -0.7763              0.2459
-#> Standard errors                        0.5252              0.2157
-#> Standard errors simple                 0.5238              0.2156
+#> Standard errors                        0.5254              0.2158
+#> Standard errors simple                 0.5240              0.2157
 #> Truth                                 -0.2485              0.3561
 #>                        vcov:risk2:traject2 vcov:traject1:traject2
-#> Estimate AGHQ                     -0.08115                -0.7230
-#> Standard errors                    0.28621                 0.1277
-#> Standard errors simple             0.28583                 0.1277
+#> Estimate AGHQ                     -0.08116                -0.7230
+#> Standard errors                    0.28628                 0.1277
+#> Standard errors simple             0.28590                 0.1277
 #> Truth                             -0.29291                -0.1853
 #>                        vcov:traject2:traject2
-#> Estimate AGHQ                         -6.7371
-#> Standard errors                        1.5913
-#> Standard errors simple                 1.5629
+#> Estimate AGHQ                         -6.8219
+#> Standard errors                        1.6602
+#> Standard errors simple                 1.5702
 #> Truth                                 -0.2108
 
 # on the original covariance matrix scale
@@ -1350,9 +1313,9 @@ colnames(vcov_show) <-
   c(rep("Est.", NCOL(vcov_est)), "", rep("SE", NCOL(vcov_est)))
 print(vcov_show, na.print = "")
 #>        Est.    Est.     Est.    Est.      SE     SE     SE     SE
-#> [1,] 0.3365 -0.1471 -0.07113  0.1426  0.1853 0.1173 0.1135 0.1319
+#> [1,] 0.3365 -0.1471 -0.07113  0.1426  0.1853 0.1173 0.1135 0.1320
 #> [2,]         0.3690  0.41898 -0.1071         0.1661 0.1142 0.1396
-#> [3,]                 0.72053 -0.4198                0.1473 0.1278
+#> [3,]                 0.72052 -0.4198                0.1473 0.1278
 #> [4,]                          0.5897                       0.1845
 
 Sigma # the true values
@@ -1365,35 +1328,19 @@ Sigma # the true values
 
 ### Delayed Entry with Different Strata
 
-We may allow for different transformations for groups of individuals.
-Specifically, we can replace the covariates for the trajectory
+The model can use a different time transformation for each stratum. The
+trajectory covariates change from
 
-  
-![\\vec x\_{ij}(t) = (\\vec h(t)^\\top, \\vec
-z\_{ij}^\\top)^\\top](https://latex.codecogs.com/png.image?%5Cdpi%7B110%7D&space;%5Cbg_white&space;%5Cvec%20x_%7Bij%7D%28t%29%20%3D%20%28%5Cvec%20h%28t%29%5E%5Ctop%2C%20%5Cvec%20z_%7Bij%7D%5E%5Ctop%29%5E%5Ctop
-"\\vec x_{ij}(t) = (\\vec h(t)^\\top, \\vec z_{ij}^\\top)^\\top")  
+$$\vec x_{ij}(t) = (\vec h(t)^\top, \vec z_{ij}^\top)^\top$$
 
-with
+to
 
-  
-![\\vec x\_{ij}(t) = (\\vec h\_{l\_{ij}}(t)^\\top, \\vec
-z\_{ij}^\\top)^\\top](https://latex.codecogs.com/png.image?%5Cdpi%7B110%7D&space;%5Cbg_white&space;%5Cvec%20x_%7Bij%7D%28t%29%20%3D%20%28%5Cvec%20h_%7Bl_%7Bij%7D%7D%28t%29%5E%5Ctop%2C%20%5Cvec%20z_%7Bij%7D%5E%5Ctop%29%5E%5Ctop
-"\\vec x_{ij}(t) = (\\vec h_{l_{ij}}(t)^\\top, \\vec z_{ij}^\\top)^\\top")  
+$$\vec x_{ij}(t) = (\vec h_{l_{ij}}(t)^\top, \vec z_{ij}^\top)^\top$$
 
-where there are
-![L](https://latex.codecogs.com/png.image?%5Cdpi%7B110%7D&space;%5Cbg_white&space;L
-"L") strata each having their own spline basis
-![h\_{l}(t)](https://latex.codecogs.com/png.image?%5Cdpi%7B110%7D&space;%5Cbg_white&space;h_%7Bl%7D%28t%29
-"h_{l}(t)") and
-![l\_{ij}](https://latex.codecogs.com/png.image?%5Cdpi%7B110%7D&space;%5Cbg_white&space;l_%7Bij%7D
-"l_{ij}") is the strata that observation
-![j](https://latex.codecogs.com/png.image?%5Cdpi%7B110%7D&space;%5Cbg_white&space;j
-"j") in cluster
-![i](https://latex.codecogs.com/png.image?%5Cdpi%7B110%7D&space;%5Cbg_white&space;i
-"i") is in. This is supported in the package using the `strata` argument
-of `mmcif_data`. We illustrate this by extending the previous example.
-First, we assign new model parameters and plot the cumulative incidence
-functions as before but for each strata.
+There are $L$ strata, each with a spline basis $\vec h_l(t)$. The index
+$l_{ij}$ identifies the stratum of individual $j$ in cluster $i$. Use
+the `strata` argument of `mmcif_data()` to specify these groups. The
+plots show one conditional CIF per cause for each stratum.
 
 ``` r
 # assign model parameters
@@ -1435,7 +1382,7 @@ local({
 })
 ```
 
-<img src="man/figures/README-strata_assign_model_parameters-1.png" width="100%" /><img src="man/figures/README-strata_assign_model_parameters-2.png" width="100%" /><img src="man/figures/README-strata_assign_model_parameters-3.png" width="100%" />
+<img src="man/figures/README-strata_assign_model_parameters-1.png" alt="" width="100%" /><img src="man/figures/README-strata_assign_model_parameters-2.png" alt="" width="100%" /><img src="man/figures/README-strata_assign_model_parameters-3.png" alt="" width="100%" />
 
 ``` r
 # the probabilities of each strata
@@ -1447,7 +1394,7 @@ Sigma <- c(0.306, 0.008, -0.138, 0.197, 0.008, 0.759, 0.251,
   matrix(2L * n_causes)
 ```
 
-Then we define a simulation function.
+The simulation assigns each cluster to a stratum.
 
 ``` r
 library(mvtnorm)
@@ -1529,7 +1476,7 @@ sim_dat <- \(n_clusters, max_cluster_size){
 }
 ```
 
-We sample a data set using the new simulation function.
+The output shows the distribution of causes and entry times by stratum.
 
 ``` r
 # sample a data set
@@ -1638,8 +1585,8 @@ quantile(dat$delayed_entry, probs = seq(0, 1, length.out = 11))
 
 #### Optimization
 
-Next, we fit the model as before but this time we with strata specific
-fixed effects and transformations.
+Fit the model with stratum-specific fixed effects and time
+transformations.
 
 ``` r
 library(mmcif)
@@ -1689,7 +1636,7 @@ truth <- c(coef_risk[permu, ],
 # find the starting values
 system.time(start <- mmcif_start_values(comp_obj, n_threads = 4L))
 #>    user  system elapsed 
-#>   0.244   0.000   0.067
+#>   0.179   0.020   0.266
 
 # we can verify that the gradient is correct again
 gr_package <- mmcif_logLik_grad(
@@ -1727,7 +1674,7 @@ rbind(`Numerical gradient` = gr_num, `Gradient package` = gr_package)
 # optimize the log composite likelihood
 system.time(fit <- mmcif_fit(start$upper, comp_obj, n_threads = 4L))
 #>    user  system elapsed 
-#>  53.143   0.004  13.288
+#>   95.24   40.37   80.81
 
 # the log composite likelihood at different points
 mmcif_logLik(comp_obj, truth, n_threads = 4L, is_log_chol = TRUE)
@@ -1738,29 +1685,26 @@ mmcif_logLik(comp_obj, start$upper, n_threads = 4L, is_log_chol = TRUE)
 #> [1] -3113
 ```
 
-Then we compute the sandwich estimator. The Hessian is currently
-computed with numerical differentiation which is why it takes a while.
+Compute the sandwich covariance estimator for the stratified fit.
 
 ``` r
 system.time(sandwich_est <- mmcif_sandwich(comp_obj, fit$par, n_threads = 4L))
 #>    user  system elapsed 
-#>  83.819   0.007  20.975
+#>  155.79   84.77  122.06
 
 # setting order equal to zero yield no Richardson extrapolation and just
 # standard symmetric difference quotient. This is less precise but faster 
 system.time(sandwich_est_simple <- 
               mmcif_sandwich(comp_obj, fit$par, n_threads = 4L, order = 0L))
 #>    user  system elapsed 
-#>   19.09    0.00    4.80
+#>   36.76   19.78   28.35
 ```
 
 #### Estimates
 
-We show the estimated and true the conditional cumulative incidence
-functions (the dashed curves are the estimates) when the random effects
-are zero and the covariates are zero, ![a\_{ij} = b\_{ij}
-= 0](https://latex.codecogs.com/png.image?%5Cdpi%7B110%7D&space;%5Cbg_white&space;a_%7Bij%7D%20%3D%20b_%7Bij%7D%20%3D%200
-"a_{ij} = b_{ij} = 0").
+For each stratum, compare the estimated conditional CIFs (dashed) with
+the true CIFs (solid). The random effects and the covariates $a_{ij}$
+and $b_{ij}$ are zero.
 
 ``` r
 local({
@@ -1806,15 +1750,15 @@ local({
 })
 ```
 
-<img src="man/figures/README-strata_compare_estimated_incidence_funcs-1.png" width="100%" /><img src="man/figures/README-strata_compare_estimated_incidence_funcs-2.png" width="100%" /><img src="man/figures/README-strata_compare_estimated_incidence_funcs-3.png" width="100%" />
+<img src="man/figures/README-strata_compare_estimated_incidence_funcs-1.png" alt="" width="100%" /><img src="man/figures/README-strata_compare_estimated_incidence_funcs-2.png" alt="" width="100%" /><img src="man/figures/README-strata_compare_estimated_incidence_funcs-3.png" alt="" width="100%" />
 
-Further illustrations of the estimated model are given below.
+The tables compare the estimates with the true parameter values.
 
 ``` r
 # the number of call we made
 fit$counts
 #> function gradient 
-#>      275      202
+#>      277      203
 fit$outer.iterations
 #> [1] 3
 
@@ -2053,13 +1997,10 @@ Sigma # the true values
 #> [4,]  0.197 -0.250 -0.319  0.903
 ```
 
-## Three Cause Example
+## Three-Cause Example
 
-In this section, we show an example with ![K
-= 3](https://latex.codecogs.com/png.image?%5Cdpi%7B110%7D&space;%5Cbg_white&space;K%20%3D%203
-"K = 3") causes. First, we assign the parameters and plot the cumulative
-incidence functions when the random effects are zero and the covariates
-are zero.
+This example uses $K = 3$ causes. The plots show the conditional CIF for
+each cause when the random effects and the covariates are zero.
 
 ``` r
 # assign model parameters
@@ -2096,10 +2037,9 @@ Sigma <- c(0.637, -0.19, 0.261, -0.203, 0.186, -0.085, -0.19, 0.348, -0.16, -0.0
   matrix(2L * n_causes)
 ```
 
-<img src="man/figures/README-three_assign_model_parameters-1.png" width="100%" />
+<img src="man/figures/README-three_assign_model_parameters-1.png" alt="" width="100%" />
 
-Then we assign a simulation function like before with delayed entry but
-with the additional cause.
+The simulation includes the third cause and delayed entry.
 
 ``` r
 library(mvtnorm)
@@ -2173,8 +2113,8 @@ sim_dat <- \(n_clusters, max_cluster_size){
 }
 ```
 
-We then sample a data set, setup the C++ object to do the computation,
-fit the model and compute the sandwich estimator.
+Simulate a data set and prepare it for the model. Fit the model and
+compute the sandwich covariance estimator.
 
 ``` r
 # sample a data set
@@ -2266,10 +2206,10 @@ bench::mark(
 #> # A tibble: 4 × 6
 #>   expression         min   median `itr/sec` mem_alloc `gc/sec`
 #>   <bch:expr>    <bch:tm> <bch:tm>     <dbl> <bch:byt>    <dbl>
-#> 1 one thread     292.2ms    299ms      3.33        0B        0
-#> 2 two threads    154.1ms    155ms      6.38        0B        0
-#> 3 three threads  106.5ms    115ms      8.66        0B        0
-#> 4 four threads    89.1ms     91ms     10.9         0B        0
+#> 1 one thread       258ms    271ms      3.39        0B        0
+#> 2 two threads      245ms    253ms      3.81        0B        0
+#> 3 three threads    306ms    343ms      2.95        0B        0
+#> 4 four threads     325ms    341ms      2.88        0B        0
 
 # next, we compute the gradient of the log composite likelihood at the true 
 # parameters. First we assign a few functions to verify the result. You can 
@@ -2343,17 +2283,17 @@ bench::mark(
 #> # A tibble: 4 × 6
 #>   expression         min   median `itr/sec` mem_alloc `gc/sec`
 #>   <bch:expr>    <bch:tm> <bch:tm>     <dbl> <bch:byt>    <dbl>
-#> 1 one thread       460ms    470ms      2.13      576B        0
-#> 2 two threads      235ms    237ms      4.06      576B        0
-#> 3 three threads    164ms    169ms      5.93      576B        0
-#> 4 four threads     128ms    135ms      7.40      576B        0
+#> 1 one thread       541ms    563ms      1.71      576B        0
+#> 2 two threads      560ms    576ms      1.75      576B        0
+#> 3 three threads    560ms    600ms      1.65      576B        0
+#> 4 four threads     528ms    575ms      1.77      576B        0
 ```
 
 ``` r
 # find the starting values
 system.time(start <- mmcif_start_values(comp_obj, n_threads = 4L))
 #>    user  system elapsed 
-#>   0.086   0.000   0.024
+#>   0.068   0.000   0.129
 
 # the maximum likelihood without the random effects. Note that this is not 
 # comparable with the composite likelihood
@@ -2400,7 +2340,7 @@ rbind(`Numerical gradient` = gr_num, `Gradient package` = gr_package)
 # optimize the log composite likelihood
 system.time(fit <- mmcif_fit(start$upper, comp_obj, n_threads = 4L))
 #>    user  system elapsed 
-#> 193.765   0.008  48.765
+#>  235.46   25.24  228.13
 
 # the log composite likelihood at different points
 mmcif_logLik(comp_obj, truth, n_threads = 4L, is_log_chol = TRUE)
@@ -2414,13 +2354,13 @@ mmcif_logLik(comp_obj, start$upper, n_threads = 4L, is_log_chol = TRUE)
 ``` r
 system.time(sandwich_est <- mmcif_sandwich(comp_obj, fit$par, n_threads = 4L))
 #>    user  system elapsed 
-#>  265.34    0.00   66.72
+#>  334.00   88.95  247.06
 ```
 
 #### Estimates
 
-We show the estimated and true the conditional cumulative incidence
-functions (the dashed curves are the estimates) like before.
+Compare the estimated conditional CIFs (dashed) with the true CIFs
+(solid).
 
 ``` r
 local({
@@ -2460,15 +2400,16 @@ local({
 })
 ```
 
-<img src="man/figures/README-three_compare_estimated_incidence_funcs-1.png" width="100%" />
+<img src="man/figures/README-three_compare_estimated_incidence_funcs-1.png" alt="" width="100%" />
 
-Further illustrations of the estimated model are given below.
+The tables compare fitted parameters and standard errors with the true
+parameter values.
 
 ``` r
 # the number of call we made
 fit$counts
 #> function gradient 
-#>      260      161
+#>      260      163
 fit$outer.iterations
 #> [1] 3
 
@@ -2499,11 +2440,11 @@ rbind(`Estimate AGHQ` = fit$par[comp_obj$indices$coef_trajectory],
 #> Standard errors         0.1501         0.1606         0.3004         0.1824
 #> Truth                  -2.7317        -3.2379        -5.9914        -4.3616
 #>                 cause1:traject:(Intercept) cause1:traject:a cause1:traject:b
-#> Estimate AGHQ                        2.171          0.74095          0.55568
+#> Estimate AGHQ                        2.171          0.74094          0.55567
 #> Standard errors                      0.148          0.06118          0.09657
 #> Truth                                2.332          0.80000          0.40000
 #>                 cause2:spline1 cause2:spline2 cause2:spline3 cause2:spline4
-#> Estimate AGHQ          -2.1503        -2.3567        -4.8792        -3.4816
+#> Estimate AGHQ          -2.1502        -2.3567        -4.8792        -3.4815
 #> Standard errors         0.1823         0.1869         0.3438         0.2718
 #> Truth                  -1.7410        -2.3637        -4.1591        -3.3332
 #>                 cause2:traject:(Intercept) cause2:traject:a cause2:traject:b
@@ -2529,28 +2470,28 @@ Sigma
 #> [5,]  0.186 -0.166  0.089 -0.090  0.402 -0.077
 #> [6,] -0.085 -0.048 -0.149  0.031 -0.077  0.602
 log_chol_inv(tail(fit$par, n_vcov))
-#>          [,1]     [,2]     [,3]     [,4]     [,5]     [,6]
-#> [1,]  0.81924 -0.10911  0.58007 -0.25346  0.26732 -0.07374
-#> [2,] -0.10911  0.87726  0.08714 -0.12847 -0.10945 -0.07605
-#> [3,]  0.58007  0.08714  0.75851 -0.07206  0.10346 -0.06553
-#> [4,] -0.25346 -0.12847 -0.07206  0.32364 -0.19312  0.00501
-#> [5,]  0.26732 -0.10945  0.10346 -0.19312  0.28626  0.03722
-#> [6,] -0.07374 -0.07605 -0.06553  0.00501  0.03722  0.26868
+#>          [,1]     [,2]     [,3]      [,4]     [,5]      [,6]
+#> [1,]  0.81924 -0.10912  0.58007 -0.253450  0.26732 -0.073753
+#> [2,] -0.10912  0.87727  0.08714 -0.128459 -0.10945 -0.076062
+#> [3,]  0.58007  0.08714  0.75852 -0.072051  0.10346 -0.065547
+#> [4,] -0.25345 -0.12846 -0.07205  0.323638 -0.19312  0.005015
+#> [5,]  0.26732 -0.10945  0.10346 -0.193125  0.28624  0.037219
+#> [6,] -0.07375 -0.07606 -0.06555  0.005015  0.03722  0.268680
 
 # on the log Cholesky scale
 rbind(`Estimate AGHQ` = fit$par[comp_obj$indices$vcov_upper],
       `Standard errors` = SEs[comp_obj$indices$vcov_upper],
       Truth = truth[comp_obj$indices$vcov_upper])
 #>                 vcov:risk1:risk1 vcov:risk1:risk2 vcov:risk2:risk2
-#> Estimate AGHQ           -0.09969          -0.1205         -0.07383
-#> Standard errors          0.19923           0.3328          0.28120
+#> Estimate AGHQ           -0.09969          -0.1206         -0.07382
+#> Standard errors          0.19922           0.3328          0.28120
 #> Truth                   -0.22549          -0.2381         -0.61665
 #>                 vcov:risk1:risk3 vcov:risk2:risk3 vcov:risk3:risk3
 #> Estimate AGHQ             0.6409           0.1770          -0.5753
 #> Standard errors           0.2165           0.2229           0.2811
 #> Truth                     0.3270          -0.1522          -0.8522
 #>                 vcov:risk1:traject1 vcov:risk2:traject1 vcov:risk3:traject1
-#> Estimate AGHQ               -0.2800             -0.1747             0.24587
+#> Estimate AGHQ               -0.2800             -0.1746             0.24588
 #> Standard errors              0.1438              0.2049             0.23326
 #> Truth                       -0.2543             -0.2771             0.04456
 #>                 vcov:traject1:traject1 vcov:risk1:traject2 vcov:risk2:traject2
@@ -2558,20 +2499,20 @@ rbind(`Estimate AGHQ` = fit$par[comp_obj$indices$vcov_upper],
 #> Standard errors                 0.6173              0.2210              0.2707
 #> Truth                          -1.1387              0.2330             -0.2048
 #>                 vcov:risk3:traject2 vcov:traject1:traject2
-#> Estimate AGHQ              -0.12755                -0.2366
-#> Standard errors             0.29700                 0.3771
+#> Estimate AGHQ              -0.12754                -0.2366
+#> Standard errors             0.29701                 0.3772
 #> Truth                      -0.04309                -0.2671
 #>                 vcov:traject2:traject2 vcov:risk1:traject3 vcov:risk2:traject3
-#> Estimate AGHQ                  -1.0582            -0.08147            -0.09245
-#> Standard errors                 0.8584             0.15367             0.17984
+#> Estimate AGHQ                  -1.0584            -0.08148            -0.09247
+#> Standard errors                 0.8588             0.15367             0.17984
 #> Truth                          -0.7293            -0.10650            -0.13590
 #>                 vcov:risk3:traject3 vcov:traject1:traject3
-#> Estimate AGHQ              0.005412               -0.08983
-#> Standard errors            0.198425                0.30712
+#> Estimate AGHQ              0.005407               -0.08982
+#> Standard errors            0.198420                0.30710
 #> Truth                     -0.316202               -0.06137
 #>                 vcov:traject2:traject3 vcov:traject3:traject3
-#> Estimate AGHQ                  0.09614                -0.7216
-#> Standard errors                0.44371                 0.3711
+#> Estimate AGHQ                  0.09615                -0.7216
+#> Standard errors                0.44381                 0.3711
 #> Truth                         -0.22815                -0.4381
 
 # on the original covariance matrix scale
@@ -2586,13 +2527,13 @@ vcov_show <- cbind(Estimates = vcov_est, NA, SEs = vcov_SE)
 colnames(vcov_show) <- 
   c(rep("Est.", NCOL(vcov_est)), "", rep("SE", NCOL(vcov_est)))
 print(vcov_show, na.print = "")
-#>        Est.    Est.    Est.     Est.    Est.     Est.      SE     SE     SE
-#> [1,] 0.8192 -0.1091 0.58007 -0.25346  0.2673 -0.07374  0.3264 0.2913 0.2711
-#> [2,]         0.8773 0.08714 -0.12847 -0.1094 -0.07605         0.4388 0.2581
-#> [3,]                0.75851 -0.07206  0.1035 -0.06553                0.3014
-#> [4,]                         0.32364 -0.1931  0.00501                      
-#> [5,]                                  0.2863  0.03722                      
-#> [6,]                                          0.26868                      
+#>        Est.    Est.    Est.     Est.    Est.      Est.      SE     SE     SE
+#> [1,] 0.8192 -0.1091 0.58007 -0.25345  0.2673 -0.073753  0.3264 0.2913 0.2711
+#> [2,]         0.8773 0.08714 -0.12846 -0.1094 -0.076062         0.4388 0.2581
+#> [3,]                0.75852 -0.07205  0.1035 -0.065547                0.3014
+#> [4,]                         0.32364 -0.1931  0.005015                      
+#> [5,]                                  0.2862  0.037219                      
+#> [6,]                                          0.268680                      
 #>          SE     SE      SE
 #> [1,] 0.1303 0.2044 0.13877
 #> [2,] 0.1437 0.2249 0.15369
@@ -2613,15 +2554,15 @@ Sigma # the true values
 
 ## References
 
-<div id="refs" class="references">
+<div id="refs" class="references csl-bib-body hanging-indent">
 
-<div id="ref-Cederkvist18">
+<div id="ref-Cederkvist18" class="csl-entry">
 
 Cederkvist, Luise, Klaus K Holst, Klaus K Andersen, and Thomas H
-Scheike. 2018. “Modeling the cumulative incidence function of
-multivariate competing risks data allowing for within-cluster dependence
-of risk and timing.” *Biostatistics* 20 (2): 199–217.
-<https://doi.org/10.1093/biostatistics/kxx072>.
+Scheike. 2018. “<span class="nocase">Modeling the cumulative incidence
+function of multivariate competing risks data allowing for
+within-cluster dependence of risk and timing</span>.” *Biostatistics* 20
+(2): 199–217. <https://doi.org/10.1093/biostatistics/kxx072>.
 
 </div>
 

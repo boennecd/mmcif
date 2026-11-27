@@ -12,55 +12,87 @@ knitr::opts_chunk$set(
 options(digits = 4)
 ```
 
-# MMCIF: Mixed Multivariate Cumulative Incidence Functions
+<!-- README.md comes from vignettes/mmcif.Rmd. Run Rscript vignettes/create-vignette.R from the package root. -->
 
-[![R-CMD-check](https://github.com/boennecd/mmcif/workflows/R-CMD-check/badge.svg)](https://github.com/boennecd/mmcif/actions)
-[![](https://www.r-pkg.org/badges/version/mmcif)](https://CRAN.R-project.org/package=mmcif)
-[![CRAN RStudio mirror downloads](http://cranlogs.r-pkg.org/badges/mmcif)](https://CRAN.R-project.org/package=mmcif)
+# mmcif: Mixed Multivariate Cumulative Incidence Functions
 
-This package provides an implementation of the model introduced by 
-@Cederkvist18 to model within-cluster dependence of both risk and timing in 
-competing risk. For interested readers, a vignette on computational details can 
-be found by calling `vignette("mmcif-comp-details", "mmcif")`.
+[![R-CMD-check](https://github.com/boennecd/mmcif/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/boennecd/mmcif/actions/workflows/R-CMD-check.yaml)
+[![CRAN version](https://www.r-pkg.org/badges/version/mmcif)](https://CRAN.R-project.org/package=mmcif)
+[![CRAN downloads](https://cranlogs.r-pkg.org/badges/last-month/mmcif)](https://cranlogs.r-pkg.org/)
 
-## Installation 
+The mmcif package fits the mixed cumulative incidence functions model of
+@Cederkvist18. The model accounts for dependence within clusters in both event
+risk and event timing when there are competing risks.
+For computational details, run
+`vignette(topic = "mmcif-comp-details", package = "mmcif")`.
 
-The package can be installed from Github by calling
+## Installation
 
-```{r how_to_install, eval = FALSE}
-library(remotes)
-install_github("boennecd/mmcif", build_vignettes = TRUE)
+The package requires R 4.1.0 or later and a C++17 compiler.
+If remotes or R.rsp is missing, install those packages from CRAN.
+
+```{r install_dependencies, eval = FALSE}
+install.packages(pkgs = c("remotes", "R.rsp"))
 ```
 
-The code benefits from being build with automatic vectorization so having e.g. 
-`-O3` in the `CXX17FLAGS` flags in your Makevars file may be useful.
+Install the current version from GitHub.
+
+```{r how_to_install, eval = FALSE}
+remotes::install_github(repo = "boennecd/mmcif", build_vignettes = TRUE)
+```
+
+With GCC or Clang, `-O3` in `CXX17FLAGS` in your R Makevars file enables
+additional compiler optimizations.
 
 ## The Model
 
-The conditional cumulative incidence functions for cause $k$ of 
-individual $j$ in cluster $i$ is
+The model gives the conditional cumulative incidence function (CIF) for
+cause $k$ of individual $j$ in cluster $i$.
 
-$$\begin{align*} F_{kij}(t\mid \vec u_i, \vec\eta_i) &= \pi_k(\vec z_{ij}, \vec u_i) \Phi(-\vec x_{ij}(t)^\top\vec\gamma_k - \eta_{ik}) \\ \pi_k(\vec z_{ij}, \vec u_i) &= \frac{\exp(\vec z_{ij}^\top\vec\beta_k + u_{ik})}{1 + \sum_{l = 1}^K\exp(\vec z_{ij}^\top\vec\beta_l + u_{il})} \\ \begin{pmatrix} \vec U_i \\ \vec\eta_i \end{pmatrix} &\sim N^{(2K)}(\vec 0;\Sigma).\end{align*}$$
+$$
+\begin{aligned}
+F_{kij}(t\mid \vec u_i, \vec\eta_i)
+  &= \pi_k(\vec z_{ij}, \vec u_i)
+     \Phi(-\vec x_{ij}(t)^\top\vec\gamma_k - \eta_{ik}) \\
+\pi_k(\vec z_{ij}, \vec u_i)
+  &= \frac{\exp(\vec z_{ij}^\top\vec\beta_k + u_{ik})}
+          {1 + \sum_{l = 1}^K\exp(\vec z_{ij}^\top\vec\beta_l + u_{il})} \\
+\begin{pmatrix}
+  \vec U_i \\
+  \vec\eta_i
+\end{pmatrix}
+  &\sim N^{(2K)}(\vec 0;\Sigma).
+\end{aligned}
+$$
 
-where there are $K$ competing risks. The $\vec x_{ij}(t)^\top\vec\gamma_k$'s for
-the trajectory must be constrained to be monotonically decreasing in $t$. The 
-covariates for the trajectory in this package are defined as 
+There are $K$ competing risks. For each cause, the trajectory term
+$\vec x_{ij}(t)^\top\vec\gamma_k$ must decrease monotonically with time $t$.
+The trajectory covariates have the form
 
-$$\vec x_{ij}(t) = (\vec h(t)^\top, \vec z_{ij}^\top)^\top$$
+$$
+\vec x_{ij}(t) = (\vec h(t)^\top, \vec z_{ij}^\top)^\top
+$$
 
-for a spline basis $\vec h$ and known covariates $\vec z_{ij}$ which are also 
-used in the risk part of the model.
+where $\vec h$ is a spline basis. The known covariates $\vec z_{ij}$ also
+enter the risk part of the model.
 
 ## Example
 
-We start with a simple example where there are $K = 2$ competing risks and
+This example uses $K = 2$ competing risks and the following covariates.
 
-$$\begin{align*} \vec x_{ij}(t) &= \left(\text{arcthan}\left(\frac{t - \delta/2}{\delta/2}\right), 1, a_{ij}, b_{ij}\right) \\ a_{ij} &\sim N(0, 1) \\
- b_{ij} &\sim \text{Unif}(-1, 1)\\ \vec z_{ij} &= (1, a_{ij}, b_{ij}) \end{align*}$$
+$$
+\begin{aligned}
+\vec x_{ij}(t)
+  &= \left(\mathrm{atanh}\left(\frac{t - \delta/2}{\delta/2}\right),
+     1, a_{ij}, b_{ij}\right) \\
+a_{ij} &\sim N(0, 1) \\
+b_{ij} &\sim \mathrm{Unif}(-1, 1) \\
+\vec z_{ij} &= (1, a_{ij}, b_{ij})
+\end{aligned}
+$$
 
-We set the parameters below and plot the conditional cumulative incidence
-functions when the random effects are zero and the covariates are zero, 
-$a_{ij} = b_{ij} = 0$.
+The plots show the conditional CIF for each cause when the random effects and
+the covariates $a_{ij}$ and $b_{ij}$ are zero.
 
 ```{r assign_model_parameters, fig.height=knitr::opts_chunk$get("fig.width") * .5}
 # assign model parameters
@@ -98,9 +130,8 @@ Sigma <- c(0.306, 0.008, -0.138, 0.197, 0.008, 0.759, 0.251,
   matrix(2L * n_causes)
 ```
 
-Next, we assign a function to simulate clusters. The cluster sizes are 
-uniformly sampled from one to the maximum size. The censoring times are drawn 
-from a uniform distribution from zero to $3\delta$.
+The simulation samples cluster sizes uniformly from one to the maximum size.
+It samples censoring times uniformly from zero to $3\delta$.
 
 ```{r assign_sim_dat}
 library(mvtnorm)
@@ -160,7 +191,8 @@ sim_dat <- \(n_clusters, max_cluster_size){
 }
 ```
 
-We then sample a data set.
+The output shows the number of individuals and the distribution of their
+observed times by cause. A cause of 3 indicates censoring.
 
 ```{r sample_data, cache = 1}
 # sample a data set
@@ -178,32 +210,31 @@ tapply(dat$time, dat$cause, quantile,
        probs = seq(0, 1, length.out = 11), na.rm = TRUE)
 ```
 
-Then we setup the C++ object to do the computation.
+Use `mmcif_data()` to prepare the data for the model.
 
 ```{r setup_data}
 library(mmcif)
 comp_obj <- mmcif_data(
-  ~ a + b, dat, cause = cause, time = time, cluster_id = cluster_id,
+  formula = ~ a + b, data = dat, cause = cause, time = time, cluster_id = cluster_id,
   max_time = delta, spline_df = 4L)
 ```
 
-The `mmcif_data` function does not work with 
+The `mmcif_data()` function uses a natural cubic spline basis $\vec g(h(t))$
+of the transformed time $h(t)$.
 
-$$h(t) = \text{arcthan}\left(\frac{t - \delta/2}{\delta/2}\right)$$
+$$
+h(t) = \mathrm{atanh}\left(\frac{t - \delta/2}{\delta/2}\right)
+$$
 
-but instead with $\vec g(h(t))$
-where $\vec g$ returns a natural cubic spline basis functions. The knots are 
-based on quantiles of $h(t)$ evaluated on the event times. The knots differ 
-for each type of competing risk.
-The degrees of freedom of the
-splines is controlled with the `spline_df` argument. There is a `constraints` 
-element on the object returned by the `mmcif_data` function which 
-contains matrices that ensures that 
-the $\vec x_{ij}(t)^\top\vec\gamma_k$s are monotonically decreasing if 
-$C\vec\zeta > \vec 0$ where $C$ is one of matrices and $\vec\zeta$ is the 
-concatenated vector of model parameters.
+For each cause, the function places knots at quantiles of the transformed
+event times. Use `spline_df` to set the degrees of freedom of the splines.
+The returned object stores constraint matrices in `constraints`.
+The trajectory terms decrease monotonically when $C\vec\zeta > \vec 0$,
+where $C$ is a constraint matrix and $\vec\zeta$ is the corresponding
+vector of model parameters.
 
-The time to compute the log composite likelihood is illustrated below.
+The benchmarks compare the time to evaluate the log composite likelihood and
+its gradient with one to four threads.
 
 ```{r check_comp_time, cache = 1}
 NCOL(comp_obj$pair_indices) # the number of pairs in the composite likelihood
@@ -287,7 +318,8 @@ bench::mark(
 
 #### Optimization
 
-Then we optimize the parameters. 
+Use `mmcif_start_values()` to get starting values, then use `mmcif_fit()`
+to maximize the log composite likelihood.
 
 ```{r fit, cache = 1}
 # find the starting values
@@ -322,8 +354,8 @@ mmcif_logLik(comp_obj, start$upper, n_threads = 4L, is_log_chol = TRUE)
 -fit$value
 ```
 
-We may reduce the estimation time by using a different number of quadrature 
-nodes starting with fewer nodes successively updating the fits as shown below.
+To reduce fitting time, start with fewer quadrature nodes. Each fit supplies
+the starting values for the fit with more nodes.
 
 ```{r successive_fits, cache = 1}
 # the number of nodes we used
@@ -348,8 +380,8 @@ print(fits[[length(fits)]]$value, digits = 10)
 print(fit                 $value, digits = 10)
 ```
 
-Then we compute the sandwich estimator. The Hessian is currently computed with 
-numerical differentiation which is why it takes a while.
+Use `mmcif_sandwich()` to compute the sandwich covariance estimator.
+The function uses numerical differentiation to compute the Hessian.
 
 ```{r sandwich, cache = 1}
 system.time(sandwich_est <- mmcif_sandwich(comp_obj, fit$par, n_threads = 4L))
@@ -362,11 +394,9 @@ system.time(sandwich_est_simple <-
 
 #### Estimates
 
-We show
-the estimated and true the conditional cumulative incidence 
-functions (the dashed curves are the estimates) 
-when the random effects are zero and the covariates are zero, 
-$a_{ij} = b_{ij} = 0$.
+The dashed curves show the estimated conditional CIFs. The solid curves show
+the true CIFs. The random effects and the covariates $a_{ij}$ and $b_{ij}$ are
+zero.
 
 ```{r compare_estimated_incidence_funcs, fig.height=knitr::opts_chunk$get("fig.width") * .5, cache = 1}
 local({
@@ -406,7 +436,8 @@ local({
 })
 ```
 
-Further illustrations of the estimated model are given below.
+The tables compare fitted parameters and standard errors with the true
+parameter values.
 
 ```{r show_res}
 # the number of call we made
@@ -455,8 +486,8 @@ Sigma # the true values
 
 #### Marginal Measures
 
-The `mmcif_pd_univariate` function is provided to compute the marginal CIFs, 
-the derivative of the marginal CIFs, and the marginal survival probability.
+The `mmcif_pd_univariate()` function computes marginal CIFs, their derivatives,
+and the marginal survival probability.
 
 ```{r pre_show_mmcif_pd_univariate, echo = FALSE}
 comp_obj <- mmcif_data(
@@ -516,9 +547,9 @@ local({
 })
 ```
 
-There is a bivariate version as well. This gives the marginal bivaraite CIFs, 
-marginal survival probabilities, the marginal density, and mixtures thereof 
-as illustrated below.
+The `mmcif_pd_bivariate()` function computes marginal CIFs, survival
+probabilities, densities, and combinations of these measures for pairs of
+individuals.
 
 ```{r show_mmcif_pd_bivariate}
 # wrapper to simplify calls to mmcif_pd_bivariate
@@ -621,8 +652,8 @@ apply(combs_to_test, 1, \(cause){
 })
 ```
 
-Finally, there is also function to compute the marginal density, CIF, survival 
-probability or hazard conditional on the outcome of another individual.
+The `mmcif_pd_cond()` function computes a marginal density, CIF, survival
+probability, or hazard conditional on the outcome of another individual.
 
 ```{r show_mmcif_pd_cond}
 # define two wrapper to simplify the calls to mmcif_pd_univariate and 
@@ -684,11 +715,9 @@ all.equal(num_cumulative, compute_cond(.25, cause = 1L, type = "cumulative"))
 
 ### Delayed Entry
 
-We extend the previous example to the setting where there may be delayed entry
-(left truncation). 
-Thus, we assign a new simulation function. The delayed entry is sampled by 
-sampling a random variable from the uniform distribution on -1 to 1 and taking 
-the entry time as being the maximum of this variable and zero.
+This example adds delayed entry (left truncation). The simulation draws a
+uniform value between -1 and 1. The entry time is the maximum of that value and
+zero.
 
 ```{r delayed_assign_sim_dat}
 library(mvtnorm)
@@ -762,7 +791,7 @@ sim_dat <- \(n_clusters, max_cluster_size){
 }
 ```
 
-We sample a data set using the new simulation function.
+The output also summarizes the entry times.
 
 ```{r delayed_sample_data, cache = 1}
 # sample a data set
@@ -785,8 +814,8 @@ quantile(dat$delayed_entry, probs = seq(0, 1, length.out = 11))
 
 #### Optimization
 
-Next, we fit the model as before but this time we pass the delayed entry 
-time.
+Pass the entry times to `mmcif_data()` with `left_trunc` before fitting
+the model.
 
 ```{r delayed_setup_data_n_fit, cache = 1}
 library(mmcif)
@@ -831,45 +860,44 @@ mmcif_logLik(comp_obj, start$upper, n_threads = 4L, is_log_chol = TRUE)
 -fit$value
 ```
 
-Then we compute the sandwich estimator. The Hessian is currently computed with 
-numerical differentiation which is why it takes a while.
+Compute the sandwich covariance estimator for the delayed-entry fit.
 
 ```{r delayed_sandwich, ref.label = "sandwich", cache = 1}
 ```
 
 #### Estimates
 
-We show
-the estimated and true the conditional cumulative incidence 
-functions (the dashed curves are the estimates) 
-when the random effects are zero and the covariates are zero, 
-$a_{ij} = b_{ij} = 0$.
+The plots use dashed curves for the estimated conditional CIFs and solid
+curves for the true CIFs. The random effects and the covariates $a_{ij}$ and
+$b_{ij}$ are zero.
 
 ```{r delayed_compare_estimated_incidence_funcs, ref.label="compare_estimated_incidence_funcs", cache = 1, fig.height=knitr::opts_chunk$get("fig.width") * .5}
 ```
 
-Further illustrations of the estimated model are given below.
+The tables compare the estimates with the true parameter values.
 
 ```{r show_res}
 ```
 
-### Delayed Entry with Different Strata 
+### Delayed Entry with Different Strata
 
-We may allow for different transformations for groups of individuals. 
-Specifically, we can replace the covariates for the trajectory
+The model can use a different time transformation for each stratum.
+The trajectory covariates change from
 
-$$\vec x_{ij}(t) = (\vec h(t)^\top, \vec z_{ij}^\top)^\top$$
+$$
+\vec x_{ij}(t) = (\vec h(t)^\top, \vec z_{ij}^\top)^\top
+$$
 
-with 
+to
 
-$$\vec x_{ij}(t) = (\vec h_{l_{ij}}(t)^\top, \vec z_{ij}^\top)^\top$$
+$$
+\vec x_{ij}(t) = (\vec h_{l_{ij}}(t)^\top, \vec z_{ij}^\top)^\top
+$$
 
-where there are $L$ strata each having their own spline basis 
-$h_{l}(t)$ and $l_{ij}$ is the strata that observation $j$ in cluster $i$ is 
-in. This is supported in the package using the `strata` argument of 
-`mmcif_data`. We illustrate this by extending the previous example.
-First, we assign new model parameters and plot the cumulative incidence 
-functions as before but for each strata. 
+There are $L$ strata, each with a spline basis $\vec h_l(t)$.
+The index $l_{ij}$ identifies the stratum of individual $j$ in cluster $i$.
+Use the `strata` argument of `mmcif_data()` to specify these groups.
+The plots show one conditional CIF per cause for each stratum.
 
 ```{r strata_assign_model_parameters, fig.height=knitr::opts_chunk$get("fig.width") * .5}
 # assign model parameters
@@ -918,7 +946,7 @@ Sigma <- c(0.306, 0.008, -0.138, 0.197, 0.008, 0.759, 0.251,
   matrix(2L * n_causes)
 ```
 
-Then we define a simulation function.
+The simulation assigns each cluster to a stratum.
 
 ```{r strata_delayed_assign_sim_dat}
 library(mvtnorm)
@@ -1000,7 +1028,7 @@ sim_dat <- \(n_clusters, max_cluster_size){
 }
 ```
 
-We sample a data set using the new simulation function.
+The output shows the distribution of causes and entry times by stratum.
 
 ```{r strata_delayed_sample_data, cache = 1}
 # sample a data set
@@ -1030,8 +1058,7 @@ quantile(dat$delayed_entry, probs = seq(0, 1, length.out = 11))
 
 #### Optimization
 
-Next, we fit the model as before but this time we with strata specific 
-fixed effects and transformations.
+Fit the model with stratum-specific fixed effects and time transformations.
 
 ```{r strate_delayed_setup}
 library(mmcif)
@@ -1099,19 +1126,16 @@ mmcif_logLik(comp_obj, start$upper, n_threads = 4L, is_log_chol = TRUE)
 -fit$value
 ```
 
-Then we compute the sandwich estimator. The Hessian is currently computed with 
-numerical differentiation which is why it takes a while.
+Compute the sandwich covariance estimator for the stratified fit.
 
 ```{r strata_sandwich, ref.label = "sandwich", cache = 1}
 ```
 
 #### Estimates
 
-We show
-the estimated and true the conditional cumulative incidence 
-functions (the dashed curves are the estimates) 
-when the random effects are zero and the covariates are zero, 
-$a_{ij} = b_{ij} = 0$.
+For each stratum, compare the estimated conditional CIFs (dashed) with the
+true CIFs (solid). The random effects and the covariates $a_{ij}$ and $b_{ij}$
+are zero.
 
 ```{r strata_compare_estimated_incidence_funcs, fig.height=knitr::opts_chunk$get("fig.width") * .5, cache = 1}
 local({
@@ -1157,20 +1181,19 @@ local({
 })
 ```
 
-Further illustrations of the estimated model are given below.
+The tables compare the estimates with the true parameter values.
 
 ```{r show_res}
 ```
 
-## Three Cause Example
+## Three-Cause Example
 
 ```{r pre_three_assign_model_parameters, echo = FALSE}
 rm(list = ls())
 ```
 
-In this section, we show an example with $K = 3$ causes. First, we assign 
-the parameters and plot the  cumulative incidence functions when the 
-random effects are zero and the covariates are zero.
+This example uses $K = 3$ causes. The plots show the conditional CIF for each
+cause when the random effects and the covariates are zero.
 
 ```{r three_assign_model_parameters}
 # assign model parameters
@@ -1207,8 +1230,7 @@ Sigma <- c(0.637, -0.19, 0.261, -0.203, 0.186, -0.085, -0.19, 0.348, -0.16, -0.0
   matrix(2L * n_causes)
 ```
 
-Then we assign a simulation function like before with delayed entry 
-but with the additional cause.
+The simulation includes the third cause and delayed entry.
 
 ```{r three_assign_sim_dat}
 library(mvtnorm)
@@ -1282,8 +1304,8 @@ sim_dat <- \(n_clusters, max_cluster_size){
 }
 ```
 
-We then sample a data set, setup the C++ object to do the computation, 
-fit the model and compute the sandwich estimator.
+Simulate a data set and prepare it for the model. Fit the model and compute
+the sandwich covariance estimator.
 
 ```{r three_sample_data, cache = 1}
 # sample a data set
@@ -1429,8 +1451,7 @@ system.time(sandwich_est <- mmcif_sandwich(comp_obj, fit$par, n_threads = 4L))
 
 #### Estimates
 
-We show the estimated and true the conditional cumulative incidence functions 
-(the dashed curves are the estimates) like before.
+Compare the estimated conditional CIFs (dashed) with the true CIFs (solid).
 
 ```{r three_compare_estimated_incidence_funcs, cache = 1}
 local({
@@ -1470,7 +1491,8 @@ local({
 })
 ```
 
-Further illustrations of the estimated model are given below.
+The tables compare fitted parameters and standard errors with the true
+parameter values.
 
 ```{r three_show_res}
 # the number of call we made

@@ -51,7 +51,7 @@ test_that("the gradient of log composite likelihood match the one from numerical
 
 test_that("the Hessian of log composite likelihood match the one from numerical differentation", {
   # numDeriv::jacobian(\(x) mmcif_logLik_grad(cpp_obj, x, ghq_data, 1, TRUE), truth) |> dput()
-  hess_log_compos <- structure(c(
+  hess_log_compos <- structure(.Data = c(
       -68.8828018669068, -4.27369322977645, 0.549078772515422,
       26.154940212274, 5.49932440335191, 0.965712213665516, -5.22925545501717,
       1.68921332556908, -13.5155195060803, -1.85038447663803, 1.43242301963591,
@@ -223,7 +223,7 @@ test_that("the Hessian of log composite likelihood match the one from numerical 
       -0.779418416506114, 1.13595754602447, -2.62554196990907, 1.93229308736522,
       -0.0829669395682638, 0.111726975775573, 0.104499449448465, 0.152537327927615,
       -3.83096126236615, 2.08434403618633, -30.2803476203132),
-    .Dim = c(26L, 26L))
+    dim = c(26L, 26L))
 
   sandwich_value <- mmcif_sandwich(
     cpp_obj, truth, ghq_data = ghq_data, n_threads = 2L)

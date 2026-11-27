@@ -723,7 +723,7 @@ mmcif_start_values <- function(object, n_threads = 1L, vcov_start = NULL){
 #' Biostatistics, Apr 1, 20(2), 199-217.
 #'
 #' @return
-#' The output from \code{\link{auglag}}.
+#' The result from \code{\link[alabama]{auglag}}.
 #'
 #' @examples
 #' \donttest{if(require(mets)){

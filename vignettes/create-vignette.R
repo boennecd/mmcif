@@ -1,19 +1,17 @@
-library(rmarkdown)
 (function(){
-  if(!grepl("*vignettes$", getwd()))
-    setwd("vignettes")
+  if (basename(path = getwd()) != "vignettes")
+    setwd(dir = "vignettes")
 
-  render("mmcif.Rmd", output_format = "html_document")
-  render("mmcif.Rmd", output_format = github_document(
-    pandoc_args = "--webtex=https://render.githubusercontent.com/render/math?math="),
+  rmarkdown::render(input = "mmcif.Rmd", output_format = "html_document")
+  rmarkdown::render(
+    input = "mmcif.Rmd",
+    output_format = rmarkdown::github_document(
+      html_preview = FALSE, math_method = "default"),
     output_file = "README.md")
-  file.copy("README.md", file.path("..", "README.md"), overwrite = TRUE)
-  unlink("README.md")
-  unlink("README.html")
+  file.copy(from = "README.md", to = "../README.md", overwrite = TRUE)
+  unlink(x = "README.md")
 
-  fs <- list.files(file.path("man", "figures"))
-  for(f in fs)
-    file.copy(file.path("man", "figures", f),
-              file.path("..", "man", "figures", f), overwrite = TRUE)
-  unlink("man", recursive = TRUE)
+  figures <- list.files(path = "man/figures", full.names = TRUE)
+  file.copy(from = figures, to = "../man/figures", overwrite = TRUE)
+  unlink(x = "man", recursive = TRUE)
 })()

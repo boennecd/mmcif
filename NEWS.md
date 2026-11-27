@@ -1,7 +1,9 @@
 # mmcif 0.1.2
-* bugs are fixed in `mmcif_pd_univariate()`, `mmcif_pd_univariate()`, and
-  `mmcif_pd_cond()` so they always work with `left_trunc`. They could give an 
-  error in the previous version.  
+
+* Fix errors when `mmcif_pd_univariate()`, `mmcif_pd_bivariate()`, and
+  `mmcif_pd_cond()` receive left-truncation times.
+* Require R 4.1.0 or later for the syntax used in the examples.
+* Fix the link to `alabama::auglag()` in the help for `mmcif_fit()`.
 
 # mmcif 0.1.1
 * Issues using ATLAS (and possibly other Lapack versions) have been solved. The
