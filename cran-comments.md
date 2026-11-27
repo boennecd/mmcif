@@ -19,11 +19,44 @@ Hosted checks used `--no-manual --as-cran` with CRAN incoming checks disabled.
 - Windows Server (x86_64, build 26100), R 4.6.2 (UCRT), GCC and GNU Fortran
   14.3.0.
 
+The Clang sanitizer checks used Ubuntu 26.04.1 LTS (x86_64), R-devel
+(2026-11-25 r90991), and Clang and Flang 23.1.6. Both used
+`--no-manual --extra-arch --no-stop-on-test-error`.
+
+- AddressSanitizer and UndefinedBehaviorSanitizer ran together. This run
+  disabled leak detection, allocation and deallocation mismatch checks,
+  alignment checks, and floating-point division-by-zero checks.
+- The separate UndefinedBehaviorSanitizer run disabled function type checks.
+
+The attempted Fedora checks used Fedora 44 (x86_64), R-devel
+(2026-11-25 r90991), GCC and GNU Fortran 16.2.1.
+
+- The GCC sanitizer job used AddressSanitizer, UndefinedBehaviorSanitizer,
+  and strict bounds checks. Leak detection was disabled.
+- The Valgrind 3.27.1 job used
+  `--no-manual --use-valgrind --extra-arch --no-stop-on-test-error`.
+  Memcheck used `--track-origins=yes --leak-check=full`.
+
 ## R CMD check results
 
-The local check reported no errors or warnings. Its only NOTE identifies
-the package as a new submission from the archive.
+The local checks reported no errors or warnings. They reported the expected
+NOTE for a new submission from the archive. The most recent check also could
+not verify the clock against its time services. All files in the source
+archive had timestamps at or before the local clock.
 
 The hosted checks reported no errors, warnings, or NOTEs. An earlier R-devel
 check flagged the deprecated `.Dim` attribute in test fixtures. The fixtures
 now use `dim`.
+
+Both Clang checks reported no errors, warnings, NOTEs, or sanitizer
+diagnostics. They ran the package examples and tests.
+
+The GCC sanitizer job stopped during dependency installation. A prebuilt
+dependency required `libRlapack.so`, which the container's R build does
+not provide.
+
+The Valgrind job reached the runner's time limit in the parallel likelihood
+gradient example after OpenBLAS reported nested threading. The package tests
+did not run, and Memcheck did not report a summary.
+
+The GCC sanitizer and Valgrind checks still need a complete run.

@@ -71,6 +71,9 @@ jobs:
           extra-packages: >-
             any::rcmdcheck
             ${{ matrix.config.label == 'gcc-asan' && 'mvtnorm=?source RcppArmadillo=?source RcppEigen=?source' || '' }}
+      - name: Use one OpenBLAS thread during Valgrind checks
+        if: matrix.config.label == 'valgrind'
+        run: echo 'OPENBLAS_NUM_THREADS=1' >> "$GITHUB_ENV"
       - uses: r-hub/actions/run-check@v1
         with:
           token: ${{ secrets.RHUB_TOKEN }}
