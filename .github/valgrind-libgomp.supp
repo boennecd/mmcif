@@ -1,0 +1,15 @@
+# glibc allocates thread-local storage for libgomp workers. Memcheck can
+# report it as possibly lost when the worker pool is still alive at exit.
+{
+   libgomp_worker_tls_at_exit
+   Memcheck:Leak
+   match-leak-kinds: possible
+   fun:calloc
+   fun:calloc
+   fun:allocate_dtv
+   fun:_dl_allocate_tls
+   ...
+   fun:pthread_create*
+   obj:*/libgomp.so.*
+   fun:GOMP_parallel
+}
